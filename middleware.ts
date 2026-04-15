@@ -1,21 +1,24 @@
-import { type NextRequest } from "next/server";
-import { updateSession } from "@/lib/supabase/middleware";
+import { type NextRequest, NextResponse } from 'next/server'
+import { updateSession } from '@/lib/supabase/middleware'
+
+const PUBLIC_PATHS = ['/login']
 
 export async function middleware(request: NextRequest) {
-  // Gdy klucze Supabase nie są ustawione — no-op.
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    return;
+    return NextResponse.next()
   }
 
-  return updateSession(request);
+  const { pathname } = request.nextUrl
+
+  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+    return updateSession(request)
+  }
+
+  return updateSession(request)
 }
 
 export const config = {
   matcher: [
-    /*
-     * Pomijamy pliki statyczne Next.js i zasoby, które nie potrzebują sesji:
-     * _next/static, _next/image, favicon.ico, pliki z rozszerzeniem
-     */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
-};
+}
