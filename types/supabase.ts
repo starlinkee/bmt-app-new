@@ -130,6 +130,7 @@ export interface Database {
           end_date: string | null;
           is_active: boolean;
           tenant_id: number;
+          reminder_last_sent_at: string | null;
         };
         Insert: {
           id?: number;
@@ -140,6 +141,7 @@ export interface Database {
           end_date?: string | null;
           is_active?: boolean;
           tenant_id: number;
+          reminder_last_sent_at?: string | null;
         };
         Update: {
           id?: number;
@@ -150,6 +152,7 @@ export interface Database {
           end_date?: string | null;
           is_active?: boolean;
           tenant_id?: number;
+          reminder_last_sent_at?: string | null;
         };
         Relationships: [
           {
@@ -304,6 +307,8 @@ export interface Database {
           rent_invoice_input_mapping_json: Json;
           rent_invoice_pdf_gid: string;
           drive_invoices_folder_id: string;
+          reminder_subject: string;
+          reminder_body: string;
         };
         Insert: {
           id?: number;
@@ -311,6 +316,8 @@ export interface Database {
           rent_invoice_input_mapping_json?: Json;
           rent_invoice_pdf_gid?: string;
           drive_invoices_folder_id?: string;
+          reminder_subject?: string;
+          reminder_body?: string;
         };
         Update: {
           id?: number;
@@ -318,6 +325,8 @@ export interface Database {
           rent_invoice_input_mapping_json?: Json;
           rent_invoice_pdf_gid?: string;
           drive_invoices_folder_id?: string;
+          reminder_subject?: string;
+          reminder_body?: string;
         };
         Relationships: [];
       };
