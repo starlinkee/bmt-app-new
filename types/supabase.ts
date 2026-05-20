@@ -330,69 +330,6 @@ export interface Database {
         };
         Relationships: [];
       };
-      reminder_schedules: {
-        Row: {
-          id: number;
-          name: string;
-          day_of_month: number;
-          hour: number;
-          subject: string;
-          body: string;
-          is_active: boolean;
-          last_sent_at: string | null;
-        };
-        Insert: {
-          id?: number;
-          name: string;
-          day_of_month: number;
-          hour: number;
-          subject?: string;
-          body?: string;
-          is_active?: boolean;
-          last_sent_at?: string | null;
-        };
-        Update: {
-          id?: number;
-          name?: string;
-          day_of_month?: number;
-          hour?: number;
-          subject?: string;
-          body?: string;
-          is_active?: boolean;
-          last_sent_at?: string | null;
-        };
-        Relationships: [];
-      };
-      reminder_tenants: {
-        Row: {
-          reminder_id: number;
-          tenant_id: number;
-        };
-        Insert: {
-          reminder_id: number;
-          tenant_id: number;
-        };
-        Update: {
-          reminder_id?: number;
-          tenant_id?: number;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "reminder_tenants_reminder_id_fkey";
-            columns: ["reminder_id"];
-            isOneToOne: false;
-            referencedRelation: "reminder_schedules";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "reminder_tenants_tenant_id_fkey";
-            columns: ["tenant_id"];
-            isOneToOne: false;
-            referencedRelation: "tenants";
-            referencedColumns: ["id"];
-          }
-        ];
-      };
       monthly_tasks: {
         Row: {
           id: number;
