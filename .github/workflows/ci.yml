@@ -7,17 +7,6 @@ on:
     branches: [master]
 
 jobs:
-  migrate:
-    name: db migrations
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Push migrations
-        run: npx supabase@2.91.1 db push --db-url "${{ secrets.SUPABASE_DB_URL }}"
-
   ci:
     name: lint · typecheck · build
     runs-on: ubuntu-latest
