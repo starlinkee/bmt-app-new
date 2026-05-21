@@ -14,15 +14,11 @@ import { ArrowLeft } from 'lucide-react'
 
 const STATUS_LABELS: Record<string, string> = {
   MATCHED: 'Dopasowana',
-  UNMATCHED: 'Niedopasowana',
-  DISMISSED: 'Odrzucona',
   MANUAL: 'Ręczna',
 }
 
 const STATUS_VARIANTS: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   MATCHED: 'default',
-  UNMATCHED: 'destructive',
-  DISMISSED: 'secondary',
   MANUAL: 'outline',
 }
 
@@ -34,7 +30,7 @@ export default async function TransactionHistoryPage({
   const { status } = await searchParams
   const transactions = await getAllTransactions(status)
 
-  const statuses = ['MATCHED', 'UNMATCHED', 'DISMISSED']
+  const statuses = ['MATCHED', 'MANUAL']
 
   return (
     <div className="p-6 space-y-4">

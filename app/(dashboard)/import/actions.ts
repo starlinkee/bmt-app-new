@@ -33,21 +33,31 @@ export async function importCsvTransactions(csvContent: string) {
     }
 
     const tenant = matchTransaction(tx.bankAccount, tenants ?? [])
-    const status = tenant ? 'MATCHED' : 'UNMATCHED'
-    if (tenant) matched++
-    else unmatched++
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase.from('transactions') as any).insert({
-      type: 'BANK',
-      status,
-      amount: tx.amount,
-      date: tx.date,
-      title: tx.title,
-      bank_account: tx.bankAccount,
-      tenant_id: tenant?.id ?? null,
-      raw_data: tx.rawData ?? null,
-    })
+    if (tenant) {
+      matched++
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase.from('transactions') as any).insert({
+        type: 'BANK',
+        status: 'MATCHED',
+        amount: tx.amount,
+        date: tx.date,
+        title: tx.title,
+        bank_account: tx.bankAccount,
+        tenant_id: tenant.id,
+        raw_data: tx.rawData ?? null,
+      })
+    } else {
+      unmatched++
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase.from('transaction_staging') as any).insert({
+        amount: tx.amount,
+        date: tx.date,
+        title: tx.title,
+        bank_account: tx.bankAccount,
+        raw_data: tx.rawData ?? null,
+      })
+    }
   }
 
   revalidatePath('/import')
@@ -56,14 +66,20 @@ export async function importCsvTransactions(csvContent: string) {
 
 export async function getUnmatchedTransactions() {
   const supabase = createServiceClient()
-  const { data, error } = await supabase
-    .from('transactions')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase.from('transaction_staging') as any)
     .select('*')
-    .eq('status', 'UNMATCHED')
-    .eq('type', 'BANK')
     .order('date', { ascending: false })
   if (error) throw error
-  return data
+  return data as {
+    id: number
+    amount: number
+    date: string
+    title: string
+    bank_account: string | null
+    raw_data: Record<string, string> | null
+    created_at: string
+  }[]
 }
 
 export async function reconcileTransaction(
@@ -73,16 +89,30 @@ export async function reconcileTransaction(
 ) {
   const supabase = createServiceClient()
 
-  const { data: tx } = await supabase
-    .from('transactions')
-    .select('bank_account')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: staged } = await (supabase.from('transaction_staging') as any)
+    .select('*')
     .eq('id', txId)
     .single()
 
-  await supabase
-    .from('transactions')
-    .update({ status: 'MATCHED', tenant_id: tenantId })
-    .eq('id', txId)
+  if (!staged) throw new Error('Staging record not found')
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase.from('transactions') as any).insert({
+    type: 'BANK',
+    status: 'MATCHED',
+    amount: staged.amount,
+    date: staged.date,
+    title: staged.title,
+    bank_account: staged.bank_account,
+    tenant_id: tenantId,
+    raw_data: staged.raw_data,
+  })
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase.from('transaction_staging') as any).delete().eq('id', txId)
+
+  const tx = staged
 
   if (saveAccount && tx?.bank_account) {
     const { data: tenant } = await supabase
@@ -109,10 +139,8 @@ export async function reconcileTransaction(
 
 export async function dismissTransaction(txId: number) {
   const supabase = createServiceClient()
-  await supabase
-    .from('transactions')
-    .update({ status: 'DISMISSED' })
-    .eq('id', txId)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase.from('transaction_staging') as any).delete().eq('id', txId)
   revalidatePath('/import/reconcile')
 }
 

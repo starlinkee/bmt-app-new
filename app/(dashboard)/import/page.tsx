@@ -70,9 +70,8 @@ export default function ImportPage() {
           <p className="font-medium">Wynik importu</p>
           <ul className="space-y-1 text-muted-foreground">
             <li>Bank: <span className="text-foreground">{result.bank}</span></li>
-            <li>Zapisane do bazy: <span className="text-foreground">{result.matched + result.unmatched}</span></li>
-            <li>Dopasowane do najemcy: <span className="text-green-600">{result.matched}</span></li>
-            <li>Niedopasowane: <span className="text-destructive">{result.unmatched}</span></li>
+            <li>Dodane do historii: <span className="text-green-600">{result.matched}</span></li>
+            <li>Do przypisania: <span className="text-destructive">{result.unmatched}</span></li>
             <li>Pominięte (wychodzące / brak danych): <span className="text-muted-foreground">{result.skipped}</span></li>
             {result.duplicates > 0 && (
               <li>Duplikaty pominięte: <span className="text-muted-foreground">{result.duplicates}</span></li>
