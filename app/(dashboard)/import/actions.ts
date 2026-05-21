@@ -50,7 +50,7 @@ export async function importCsvTransactions(csvContent: string) {
     } else {
       unmatched++
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase.from('transaction_staging') as any).insert({
+      await (supabase as any).from('transaction_staging').insert({
         amount: tx.amount,
         date: tx.date,
         title: tx.title,
@@ -67,7 +67,7 @@ export async function importCsvTransactions(csvContent: string) {
 export async function getUnmatchedTransactions() {
   const supabase = createServiceClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase.from('transaction_staging') as any)
+  const { data, error } = await (supabase as any).from('transaction_staging')
     .select('*')
     .order('date', { ascending: false })
   if (error) throw error
@@ -90,7 +90,7 @@ export async function reconcileTransaction(
   const supabase = createServiceClient()
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: staged } = await (supabase.from('transaction_staging') as any)
+  const { data: staged } = await (supabase as any).from('transaction_staging')
     .select('*')
     .eq('id', txId)
     .single()
@@ -110,7 +110,7 @@ export async function reconcileTransaction(
   })
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (supabase.from('transaction_staging') as any).delete().eq('id', txId)
+  await (supabase as any).from('transaction_staging').delete().eq('id', txId)
 
   const tx = staged
 
@@ -140,7 +140,7 @@ export async function reconcileTransaction(
 export async function dismissTransaction(txId: number) {
   const supabase = createServiceClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (supabase.from('transaction_staging') as any).delete().eq('id', txId)
+  await (supabase as any).from('transaction_staging').delete().eq('id', txId)
   revalidatePath('/import/reconcile')
 }
 
