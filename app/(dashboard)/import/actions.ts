@@ -15,14 +15,30 @@ export async function importCsvTransactions(csvContent: string) {
 
   let matched = 0
   let unmatched = 0
+  let duplicates = 0
 
   for (const tx of transactions) {
+    // Pomiń duplikaty: ta sama data + kwota + numer konta już w bazie
+    const { count } = await supabase
+      .from('transactions')
+      .select('*', { count: 'exact', head: true })
+      .eq('date', tx.date)
+      .eq('amount', tx.amount)
+      .eq('type', 'BANK')
+      .eq('bank_account', tx.bankAccount ?? '')
+
+    if ((count ?? 0) > 0) {
+      duplicates++
+      continue
+    }
+
     const tenant = matchTransaction(tx.bankAccount, tenants ?? [])
     const status = tenant ? 'MATCHED' : 'UNMATCHED'
     if (tenant) matched++
     else unmatched++
 
-    await supabase.from('transactions').insert({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase.from('transactions') as any).insert({
       type: 'BANK',
       status,
       amount: tx.amount,
@@ -30,11 +46,12 @@ export async function importCsvTransactions(csvContent: string) {
       title: tx.title,
       bank_account: tx.bankAccount,
       tenant_id: tenant?.id ?? null,
+      raw_data: tx.rawData ?? null,
     })
   }
 
   revalidatePath('/import')
-  return { bank, total: transactions.length, matched, unmatched, skipped }
+  return { bank, total: transactions.length, matched, unmatched, skipped, duplicates }
 }
 
 export async function getUnmatchedTransactions() {
@@ -97,4 +114,21 @@ export async function dismissTransaction(txId: number) {
     .update({ status: 'DISMISSED' })
     .eq('id', txId)
   revalidatePath('/import/reconcile')
+}
+
+export async function getAllTransactions(status?: string) {
+  const supabase = createServiceClient()
+  let query = supabase
+    .from('transactions')
+    .select('*, tenants(first_name, last_name)')
+    .eq('type', 'BANK')
+    .order('date', { ascending: false })
+
+  if (status) {
+    query = query.eq('status', status)
+  }
+
+  const { data, error } = await query
+  if (error) throw error
+  return data
 }

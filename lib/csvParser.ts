@@ -18,6 +18,7 @@ function parseDate(raw: string): string {
 }
 
 interface BankConfig {
+  bankName: string
   dateCol: string
   titleCol: string
   amountCol: string
@@ -30,30 +31,34 @@ function detectBank(headers: string[]): BankConfig | null {
 
   // PKO BP
   if (h.includes('data operacji') && h.includes('opis transakcji') && h.includes('kwota')) {
-    return { dateCol: 'Data operacji', titleCol: 'Opis transakcji', amountCol: 'Kwota', accountCol: 'Rachunek nadawcy/odbiorcy', headers }
+    return { bankName: 'PKO BP', dateCol: 'Data operacji', titleCol: 'Opis transakcji', amountCol: 'Kwota', accountCol: 'Rachunek nadawcy/odbiorcy', headers }
   }
   // mBank
-  if (h.includes('#data operacji') || h.includes('data operacji') && h.includes('tytuł')) {
-    return { dateCol: '#Data operacji', titleCol: 'Tytuł', amountCol: 'Kwota', accountCol: 'Numer rachunku', headers }
+  if (h.includes('#data operacji') || (h.includes('data operacji') && h.includes('tytuł'))) {
+    return { bankName: 'mBank', dateCol: '#Data operacji', titleCol: 'Tytuł', amountCol: 'Kwota', accountCol: 'Numer rachunku', headers }
+  }
+  // Format z Rachunek źródłowy / Rachunek docelowy (np. Alior, BNP, PKO nowy)
+  if (h.includes('rachunek źródłowy') && h.includes('tytułem') && h.includes('kwota operacji')) {
+    return { bankName: 'Bank (format źródłowy)', dateCol: 'Data księgowania', titleCol: 'Tytułem', amountCol: 'Kwota operacji', accountCol: 'Rachunek źródłowy', headers }
   }
   // Santander
   if (h.includes('data księgowania') && h.includes('opis')) {
-    return { dateCol: 'Data księgowania', titleCol: 'Opis', amountCol: 'Kwota transakcji', headers }
+    return { bankName: 'Santander', dateCol: 'Data księgowania', titleCol: 'Opis', amountCol: 'Kwota transakcji', headers }
   }
   // ING
   if (h.includes('data transakcji') && h.includes('tytuł') && h.includes('kwota transakcji (pln)')) {
-    return { dateCol: 'Data transakcji', titleCol: 'Tytuł', amountCol: 'Kwota transakcji (PLN)', accountCol: 'Rachunek nadawcy/odbiorcy', headers }
+    return { bankName: 'ING', dateCol: 'Data transakcji', titleCol: 'Tytuł', amountCol: 'Kwota transakcji (PLN)', accountCol: 'Rachunek nadawcy/odbiorcy', headers }
   }
   // Millennium
-  if (h.includes('data transakcji') && h.includes('opis') && h.includes('obciążenia') || h.includes('uznania')) {
-    return { dateCol: 'Data transakcji', titleCol: 'Opis', amountCol: 'Obciążenia', headers }
+  if (h.includes('data transakcji') && h.includes('opis') && (h.includes('obciążenia') || h.includes('uznania'))) {
+    return { bankName: 'Millennium', dateCol: 'Data transakcji', titleCol: 'Opis', amountCol: 'Obciążenia', headers }
   }
   // fallback — guess
   const dateKey = headers.find((h) => /data/i.test(h))
   const titleKey = headers.find((h) => /tytu[łl]|opis|opis transakcji/i.test(h))
   const amountKey = headers.find((h) => /kwota/i.test(h))
   if (dateKey && titleKey && amountKey) {
-    return { dateCol: dateKey, titleCol: titleKey, amountCol: amountKey, headers }
+    return { bankName: 'Nieznany bank', dateCol: dateKey, titleCol: titleKey, amountCol: amountKey, headers }
   }
   return null
 }
@@ -83,7 +88,7 @@ export function parseCsv(csvContent: string): CsvImportResult {
 
   const headers = result.meta.fields ?? []
   const config = detectBank(headers)
-  const bank = config ? 'Rozpoznany' : 'Nieznany'
+  const bank = config ? config.bankName : 'Nierozpoznany bank'
 
   const transactions: ParsedTransaction[] = []
   let skipped = 0
@@ -100,9 +105,17 @@ export function parseCsv(csvContent: string): CsvImportResult {
     }
 
     const amount = parsePolishAmount(amountRaw)
-    if (isNaN(amount) || amount === 0) {
+    // Importujemy tylko przychodzące wpłaty (amount > 0); wychodzące pomijamy
+    if (isNaN(amount) || amount <= 0) {
       skipped++
       continue
+    }
+
+    // Zbierz wszystkie niepuste pola z wiersza CSV jako raw_data
+    const rawData: Record<string, string> = {}
+    for (const [key, value] of Object.entries(row)) {
+      const v = value?.trim()
+      if (v) rawData[key.trim()] = v
     }
 
     transactions.push({
@@ -110,6 +123,7 @@ export function parseCsv(csvContent: string): CsvImportResult {
       title: titleRaw?.trim() ?? '',
       amount,
       bankAccount: accountRaw?.trim() || undefined,
+      rawData,
     })
   }
 

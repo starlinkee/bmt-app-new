@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { importCsvTransactions } from './actions'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { History } from 'lucide-react'
 
 export default function ImportPage() {
   const [result, setResult] = useState<{
@@ -14,6 +15,7 @@ export default function ImportPage() {
     matched: number
     unmatched: number
     skipped: number
+    duplicates: number
   } | null>(null)
   const [pending, startTransition] = useTransition()
 
@@ -37,7 +39,15 @@ export default function ImportPage() {
 
   return (
     <div className="p-6 space-y-6 max-w-xl">
-      <h1 className="text-2xl font-semibold">Import CSV</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Import CSV</h1>
+        <Link
+          href="/import/history"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <History className="h-4 w-4" /> Historia transakcji
+        </Link>
+      </div>
 
       <div className="space-y-2">
         <Label htmlFor="csv-file">Plik CSV z wyciągiem bankowym</Label>
@@ -60,10 +70,13 @@ export default function ImportPage() {
           <p className="font-medium">Wynik importu</p>
           <ul className="space-y-1 text-muted-foreground">
             <li>Bank: <span className="text-foreground">{result.bank}</span></li>
-            <li>Łącznie: <span className="text-foreground">{result.total}</span></li>
-            <li>Dopasowane: <span className="text-green-600">{result.matched}</span></li>
+            <li>Zapisane do bazy: <span className="text-foreground">{result.matched + result.unmatched}</span></li>
+            <li>Dopasowane do najemcy: <span className="text-green-600">{result.matched}</span></li>
             <li>Niedopasowane: <span className="text-destructive">{result.unmatched}</span></li>
-            <li>Pominięte: <span className="text-foreground">{result.skipped}</span></li>
+            <li>Pominięte (wychodzące / brak danych): <span className="text-muted-foreground">{result.skipped}</span></li>
+            {result.duplicates > 0 && (
+              <li>Duplikaty pominięte: <span className="text-muted-foreground">{result.duplicates}</span></li>
+            )}
           </ul>
           {result.unmatched > 0 && (
             <Link
