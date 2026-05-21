@@ -22,4 +22,5 @@ export interface ParsedTransaction {
   amount: number
   bankAccount?: string
   description?: string
+  rawData?: Record<string, string>
 }
