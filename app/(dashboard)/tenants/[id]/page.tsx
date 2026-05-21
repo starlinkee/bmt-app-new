@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import type { StatementEntry } from '@/types/app'
 import { getTenant } from '../actions'
 import { getStatement } from '@/lib/statement'
 import { calculateBalance } from '@/lib/balance'
@@ -97,7 +98,7 @@ export default async function TenantDetailPage({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {statement.map((entry) => (
+          {(statement as StatementEntry[]).map((entry) => (
             <TableRow key={entry.id}>
               <TableCell className="text-sm">{formatDate(entry.date)}</TableCell>
               <TableCell className="text-sm">{entry.description}</TableCell>
