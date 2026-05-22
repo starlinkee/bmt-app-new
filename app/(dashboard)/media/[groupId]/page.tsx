@@ -33,7 +33,7 @@ export default function MediaGroupPage({
     })
   }, [groupId])
 
-  const inputMapping = (group?.input_mapping_json as Record<string, string>) ?? {}
+  const inputMapping = (group?.input_mapping_json as Record<string, Record<string, string>>) ?? {}
 
   function handleProcess() {
     startTransition(async () => {
@@ -67,17 +67,24 @@ export default function MediaGroupPage({
         />
       </div>
 
-      <div className="space-y-3 max-w-sm">
-        {Object.keys(inputMapping).map((label) => (
-          <div key={label} className="space-y-1">
-            <Label>{label}</Label>
-            <Input
-              value={inputValues[label] ?? ''}
-              onChange={(e) =>
-                setInputValues({ ...inputValues, [label]: e.target.value })
-              }
-              placeholder="0"
-            />
+      <div className="space-y-6 max-w-sm">
+        {Object.entries(inputMapping).map(([groupLabel, fields]) => (
+          <div key={groupLabel} className="space-y-3">
+            <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+              {groupLabel}
+            </h2>
+            {Object.entries(fields).map(([fieldLabel, namedRange]) => (
+              <div key={namedRange} className="space-y-1">
+                <Label>{fieldLabel}</Label>
+                <Input
+                  value={inputValues[namedRange] ?? ''}
+                  onChange={(e) =>
+                    setInputValues({ ...inputValues, [namedRange]: e.target.value })
+                  }
+                  placeholder="0"
+                />
+              </div>
+            ))}
           </div>
         ))}
       </div>
