@@ -112,6 +112,7 @@ export type Database = {
         Row: {
           amount: number
           id: number
+          media_settlement_id: number | null
           month: number
           number: string
           tenant_id: number
@@ -121,6 +122,7 @@ export type Database = {
         Insert: {
           amount: number
           id?: never
+          media_settlement_id?: number | null
           month: number
           number: string
           tenant_id: number
@@ -130,6 +132,7 @@ export type Database = {
         Update: {
           amount?: number
           id?: never
+          media_settlement_id?: number | null
           month?: number
           number?: string
           tenant_id?: number
@@ -142,6 +145,51 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_media_settlement_id_fkey"
+            columns: ["media_settlement_id"]
+            isOneToOne: false
+            referencedRelation: "media_settlements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_settlements: {
+        Row: {
+          created_at: string
+          drive_pdf_id: string
+          group_id: number
+          id: number
+          month: number
+          spreadsheet_id: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          drive_pdf_id: string
+          group_id: number
+          id?: never
+          month: number
+          spreadsheet_id: string
+          year: number
+        }
+        Update: {
+          created_at?: string
+          drive_pdf_id?: string
+          group_id?: number
+          id?: never
+          month?: number
+          spreadsheet_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_settlements_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "settlement_groups"
             referencedColumns: ["id"]
           },
         ]
