@@ -1,14 +1,14 @@
 import { google } from 'googleapis'
 
-function getServiceAccountAuth() {
+function parseServiceAccountJson() {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON ?? ''
-  const json = raw.startsWith('{')
-    ? raw
-    : Buffer.from(raw, 'base64').toString('utf-8')
+  const json = raw.startsWith('{') ? raw : Buffer.from(raw, 'base64').toString('utf-8')
+  return JSON.parse(json)
+}
 
-  const key = JSON.parse(json)
+function getServiceAccountAuth() {
   return new google.auth.GoogleAuth({
-    credentials: key,
+    credentials: parseServiceAccountJson(),
     scopes: [
       'https://www.googleapis.com/auth/spreadsheets',
       'https://www.googleapis.com/auth/drive.readonly',
@@ -16,8 +16,14 @@ function getServiceAccountAuth() {
   })
 }
 
-type InputMapping = Record<string, string>  // label → range (e.g. "Odczyt wody": "B2")
-type OutputMapping = Record<string, string> // label → range
+export function getServiceAccountEmail(): string {
+  return parseServiceAccountJson().client_email as string
+}
+
+// Named range defined in the spreadsheet (Insert → Named ranges), e.g. "OdczytWody"
+type NamedRange = string
+type InputMapping = Record<string, NamedRange>  // label → named range
+type OutputMapping = Record<string, NamedRange> // label → named range
 
 export async function writeInputValues(
   spreadsheetId: string,

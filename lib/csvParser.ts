@@ -122,7 +122,7 @@ export function parseCsv(csvContent: string): CsvImportResult {
       date: parseDate(dateRaw),
       title: titleRaw?.trim() ?? '',
       amount,
-      bankAccount: accountRaw?.trim() || undefined,
+      bankAccount: accountRaw?.trim().replace(/^'+/, '') || undefined,
       rawData,
     })
   }

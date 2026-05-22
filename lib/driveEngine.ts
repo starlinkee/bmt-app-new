@@ -48,6 +48,40 @@ export async function getOrCreateFolder(
   return created.id!
 }
 
+export async function ensureMonthYearFolder(
+  month: number,
+  year: number,
+  rootFolderId: string,
+): Promise<string> {
+  const name = `${String(month).padStart(2, '0')}/${year}`
+  return getOrCreateFolder(name, rootFolderId)
+}
+
+export async function copySpreadsheet(
+  templateId: string,
+  name: string,
+  folderId: string,
+  shareWithEmail: string,
+): Promise<string> {
+  const auth = getOAuthClient()
+  const drive = google.drive({ version: 'v3', auth })
+
+  const { data } = await drive.files.copy({
+    fileId: templateId,
+    requestBody: { name, parents: [folderId] },
+    fields: 'id',
+  })
+  const newId = data.id!
+
+  await drive.permissions.create({
+    fileId: newId,
+    requestBody: { type: 'user', role: 'writer', emailAddress: shareWithEmail },
+    sendNotificationEmail: false,
+  })
+
+  return newId
+}
+
 export async function ensureYearMonthFolder(
   year: number,
   month: number,

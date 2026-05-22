@@ -196,11 +196,11 @@ export default function MediaPage() {
       </Table>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>{editing ? 'Edytuj grupę' : 'Nowa grupa'}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+          <div className="space-y-3 max-h-[75vh] overflow-y-auto pr-1">
             <div className="space-y-1">
               <Label>Nazwa</Label>
               <Input
@@ -236,7 +236,7 @@ export default function MediaPage() {
               <Textarea
                 value={form.input_mapping_json}
                 onChange={(e) => setForm({ ...form, input_mapping_json: e.target.value })}
-                rows={4}
+                rows={12}
                 className="font-mono text-xs"
               />
             </div>
@@ -245,7 +245,7 @@ export default function MediaPage() {
               <Textarea
                 value={form.output_mapping_json}
                 onChange={(e) => setForm({ ...form, output_mapping_json: e.target.value })}
-                rows={4}
+                rows={8}
                 className="font-mono text-xs"
               />
             </div>

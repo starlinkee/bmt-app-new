@@ -8,7 +8,8 @@ import {
   readOutputValues,
   exportSheetAsPdf,
 } from '@/lib/sheetsEngine'
-import { ensureYearMonthFolder, uploadPdfToDrive } from '@/lib/driveEngine'
+import { ensureMonthYearFolder, copySpreadsheet, uploadPdfToDrive } from '@/lib/driveEngine'
+import { getServiceAccountEmail } from '@/lib/sheetsEngine'
 import { sendMediaEmail } from '@/lib/email'
 import { buildInvoiceNumber } from '@/lib/utils'
 import { markMonthlyTaskDone } from '@/lib/tasks'
@@ -124,33 +125,62 @@ export async function processSettlement(
   const group = await getSettlementGroup(groupId)
   if (!group) throw new Error('Grupa nie istnieje')
 
-  // 1. Zapisz odczyty do arkusza
-  await writeInputValues(
-    group.spreadsheet_id,
-    group.input_mapping_json as Record<string, string>,
-    inputValues,
-  )
-
-  // 2. Wymuś przeliczenie
-  await triggerRecalc(group.spreadsheet_id)
-  // Czekaj chwilę na przeliczenie
-  await new Promise((r) => setTimeout(r, 2000))
-
-  // 3. Odczytaj wyniki
-  const outputs = await readOutputValues(
-    group.spreadsheet_id,
-    group.output_mapping_json as Record<string, string>,
-  )
-
   const { data: config } = await supabase
     .from('app_config')
     .select('drive_invoices_folder_id')
     .eq('id', 1)
     .single()
 
+  // 1. Utwórz folder MM/YYYY i skopiuj szablon arkusza do niego
+  const monthFolder = await ensureMonthYearFolder(month, year, config!.drive_invoices_folder_id)
+  const sheetName = `Media ${String(month).padStart(2, '0')}/${year} – ${group.name}`
+  const workingSheetId = await copySpreadsheet(
+    group.spreadsheet_id,
+    sheetName,
+    monthFolder,
+    getServiceAccountEmail(),
+  )
+
+  // 2. Zapisz odczyty do kopii arkusza
+  // input_mapping_json ma format { "Grupa": { "Etykieta": "namedRange" } }
+  // spłaszczamy do { "namedRange": "namedRange" } bo inputValues jest kluczowany po namedRange
+  const nestedInput = group.input_mapping_json as Record<string, Record<string, string>>
+  const flatMapping: Record<string, string> = {}
+  for (const fields of Object.values(nestedInput)) {
+    for (const namedRange of Object.values(fields)) {
+      flatMapping[namedRange] = namedRange
+    }
+  }
+  await writeInputValues(workingSheetId, flatMapping, inputValues)
+
+  // 3. Wymuś przeliczenie i poczekaj
+  await triggerRecalc(workingSheetId)
+  await new Promise((r) => setTimeout(r, 2000))
+
+  // 4. Odczytaj wyniki z kopii
+  const outputs = await readOutputValues(
+    workingSheetId,
+    group.output_mapping_json as Record<string, string>,
+  )
+
+  // 5. Eksportuj PDF z kopii i wgraj do folderu miesiąca
+  const pdfBuffer = await exportSheetAsPdf(workingSheetId)
+  const pdfDriveId = await uploadPdfToDrive(`${sheetName.replace(/\//g, '-')}.pdf`, pdfBuffer, monthFolder)
+
+  // 6. Zapisz rozliczenie w bazie
+  const { data: settlement, error: settlementError } = await supabase
+    .from('media_settlements')
+    .upsert(
+      { group_id: groupId, month, year, spreadsheet_id: workingSheetId, drive_pdf_id: pdfDriveId },
+      { onConflict: 'group_id,month,year' },
+    )
+    .select('id')
+    .single()
+  if (settlementError) throw settlementError
+
   const results: { tenantName: string; amount: number; invoiceNumber: string }[] = []
 
-  // 4. Utwórz rachunki dla najemców z nieruchomości w grupie
+  // 7. Utwórz rachunki dla najemców z nieruchomości w grupie
   const propertyIds = group.settlement_group_properties?.map(
     (sgp: { property_id: number }) => sgp.property_id,
   ) ?? []
@@ -187,6 +217,7 @@ export async function processSettlement(
         month,
         year,
         tenant_id: tenant.id,
+        media_settlement_id: settlement.id,
       },
       { onConflict: 'tenant_id,type,month,year', ignoreDuplicates: true },
     )
@@ -200,6 +231,7 @@ export async function processSettlement(
         amount,
         month,
         year,
+        pdfBuffer,
       )
     }
 
