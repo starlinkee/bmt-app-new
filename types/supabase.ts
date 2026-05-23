@@ -434,7 +434,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_previous_meter_readings: {
+        Args: {
+          p_group_id: number
+          p_month: number
+          p_year: number
+        }
+        Returns: { key: string; value: number }[]
+      }
     }
     Enums: {
       [_ in never]: never
