@@ -197,7 +197,8 @@ export type Database = {
       media_settlements: {
         Row: {
           created_at: string
-          drive_pdf_id: string
+          drive_pdf_id: string | null
+          drive_pdf_ids: Json
           group_id: number
           id: number
           month: number
@@ -206,7 +207,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          drive_pdf_id: string
+          drive_pdf_id?: string | null
+          drive_pdf_ids?: Json
           group_id: number
           id?: never
           month: number
@@ -215,7 +217,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          drive_pdf_id?: string
+          drive_pdf_id?: string | null
+          drive_pdf_ids?: Json
           group_id?: number
           id?: never
           month?: number
@@ -352,6 +355,7 @@ export type Database = {
           input_mapping_json: Json
           name: string
           output_mapping_json: Json
+          pdf_sheets_json: Json
           spreadsheet_id: string
         }
         Insert: {
@@ -359,6 +363,7 @@ export type Database = {
           input_mapping_json?: Json
           name: string
           output_mapping_json?: Json
+          pdf_sheets_json?: Json
           spreadsheet_id?: string
         }
         Update: {
@@ -366,6 +371,7 @@ export type Database = {
           input_mapping_json?: Json
           name?: string
           output_mapping_json?: Json
+          pdf_sheets_json?: Json
           spreadsheet_id?: string
         }
         Relationships: []

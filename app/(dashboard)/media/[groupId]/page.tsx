@@ -38,14 +38,18 @@ export default function MediaGroupPage({
 
   function handleProcess() {
     startTransition(async () => {
-      const res = await processSettlement(
-        Number(groupId),
-        inputValues,
-        month,
-        year,
-      )
-      setResults(res)
-      toast.success(`Rozliczono. Wystawiono ${res.length} rachunków.`)
+      try {
+        const res = await processSettlement(
+          Number(groupId),
+          inputValues,
+          month,
+          year,
+        )
+        setResults(res)
+        toast.success(`Rozliczono. Wystawiono ${res.length} rachunków.`)
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Nieznany błąd')
+      }
     })
   }
 

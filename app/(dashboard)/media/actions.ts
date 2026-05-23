@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/service'
 import {
   writeInputValues,
+  validateNamedRanges,
   triggerRecalc,
   readOutputValues,
   exportSheetAsPdf,
@@ -40,6 +41,7 @@ export async function createSettlementGroup(data: {
   spreadsheet_id: string
   input_mapping_json: Record<string, string>
   output_mapping_json: Record<string, string>
+  pdf_sheets_json?: Record<string, string>[]
   property_ids: number[]
 }) {
   const supabase = createServiceClient()
@@ -70,6 +72,7 @@ export async function updateSettlementGroup(
     spreadsheet_id?: string
     input_mapping_json?: Record<string, string>
     output_mapping_json?: Record<string, string>
+    pdf_sheets_json?: Record<string, string>[]
     property_ids?: number[]
   },
 ) {
@@ -192,27 +195,55 @@ export async function processSettlement(
     }
   }
 
+  const { missing } = await validateNamedRanges(workingSheetId, Object.keys(flatMapping))
+  if (missing.length > 0) {
+    throw new Error(`Brakujące named ranges w arkuszu: ${missing.join(', ')}`)
+  }
+
   await writeInputValues(workingSheetId, flatMapping, allValues)
 
   // 3. Wymuś przeliczenie i poczekaj
   await triggerRecalc(workingSheetId)
   await new Promise((r) => setTimeout(r, 2000))
 
-  // 4. Odczytaj wyniki z kopii
-  const outputs = await readOutputValues(
-    workingSheetId,
-    group.output_mapping_json as Record<string, string>,
-  )
+  type OutputEntry = { range: string; tenant_id: number; type: string; email_pdfs?: string[] }
+  const outputEntries = group.output_mapping_json as OutputEntry[]
 
-  // 5. Eksportuj PDF z kopii i wgraj do folderu miesiąca
-  const pdfBuffer = await exportSheetAsPdf(workingSheetId)
-  const pdfDriveId = await uploadPdfToDrive(`${sheetName.replace(/\//g, '-')}.pdf`, pdfBuffer, monthFolder)
+  // 4. Odczytaj wyniki z kopii
+  const rangeMapping = Object.fromEntries(outputEntries.map((e) => [e.range, e.range]))
+  const outputs = await readOutputValues(workingSheetId, rangeMapping)
+
+  // 5. Eksportuj PDF — osobny plik per sheet zdefiniowany w pdf_sheets_json
+  type PdfSheetDef = { gid: string; name: string }
+  const pdfSheets = (group as Record<string, unknown>).pdf_sheets_json as PdfSheetDef[] | undefined
+  const baseName = sheetName.replace(/\//g, '-')
+
+  const exportedPdfs: { name: string; driveId: string; buffer: Buffer }[] = []
+
+  if (!pdfSheets || pdfSheets.length === 0) {
+    const buffer = await exportSheetAsPdf(workingSheetId)
+    const driveId = await uploadPdfToDrive(`${baseName}.pdf`, buffer, monthFolder)
+    exportedPdfs.push({ name: baseName, driveId, buffer })
+  } else {
+    for (const sheet of pdfSheets) {
+      const buffer = await exportSheetAsPdf(workingSheetId, sheet.gid)
+      const fileName = `${baseName} – ${sheet.name}.pdf`
+      const driveId = await uploadPdfToDrive(fileName, buffer, monthFolder)
+      exportedPdfs.push({ name: sheet.name, driveId, buffer })
+    }
+  }
 
   // 6. Zapisz rozliczenie w bazie
   const { data: settlement, error: settlementError } = await supabase
     .from('media_settlements')
     .upsert(
-      { group_id: groupId, month, year, spreadsheet_id: workingSheetId, drive_pdf_id: pdfDriveId },
+      {
+        group_id: groupId,
+        month,
+        year,
+        spreadsheet_id: workingSheetId,
+        drive_pdf_ids: exportedPdfs.map((p) => ({ name: p.name, id: p.driveId })),
+      },
       { onConflict: 'group_id,month,year' },
     )
     .select('id')
@@ -230,21 +261,22 @@ export async function processSettlement(
 
   const results: { tenantName: string; amount: number; invoiceNumber: string }[] = []
 
-  // 7. Utwórz rachunki dla najemców z nieruchomości w grupie
-  const propertyIds = group.settlement_group_properties?.map(
-    (sgp: { property_id: number }) => sgp.property_id,
-  ) ?? []
-
+  // 7. Pobierz najemców potrzebnych do faktur
+  const tenantIds = [...new Set(outputEntries.map((e) => e.tenant_id))]
   const { data: tenants } = await supabase
     .from('tenants')
     .select('*, contracts(*)')
-    .in('property_id', propertyIds)
+    .in('id', tenantIds)
+  const tenantMap = Object.fromEntries((tenants ?? []).map((t) => [t.id, t]))
 
-  for (const tenant of tenants ?? []) {
-    const amountStr = outputs[`${tenant.first_name} ${tenant.last_name}`]
-      ?? outputs[String(tenant.id)]
-    const amount = parseFloat(amountStr?.replace(',', '.') ?? '0')
+  // 8. Utwórz rachunki zgodnie z output_mapping_json
+  for (const entry of outputEntries) {
+    const amountStr = outputs[entry.range]
+    const amount = parseFloat((amountStr ?? '').replace(',', '.'))
     if (!amount || amount <= 0) continue
+
+    const tenant = tenantMap[entry.tenant_id]
+    if (!tenant) continue
 
     const activeContract = tenant.contracts?.find(
       (c: { is_active: boolean; contract_type: string }) =>
@@ -256,12 +288,12 @@ export async function processSettlement(
       month,
       year,
       activeContract.invoice_seq_number,
-      'MEDIA',
+      entry.type,
     )
 
     const { error } = await supabase.from('invoices').upsert(
       {
-        type: 'MEDIA',
+        type: entry.type,
         number: invoiceNumber,
         amount,
         month,
@@ -274,6 +306,15 @@ export async function processSettlement(
     if (error) continue
 
     if (tenant.email) {
+      const pdfMap = Object.fromEntries(exportedPdfs.map((p) => [p.name, p]))
+      const attachments = (entry.email_pdfs ?? [])
+        .map((name: string) => pdfMap[name])
+        .filter(Boolean)
+        .map((p: { name: string; buffer: Buffer }) => ({
+          filename: `${p.name}_${String(month).padStart(2, '0')}_${year}.pdf`,
+          buffer: p.buffer,
+        }))
+
       await sendMediaEmail(
         tenant.email,
         `${tenant.first_name} ${tenant.last_name}`,
@@ -281,7 +322,7 @@ export async function processSettlement(
         amount,
         month,
         year,
-        pdfBuffer,
+        attachments,
       )
     }
 
