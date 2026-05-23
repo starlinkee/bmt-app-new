@@ -52,7 +52,7 @@ export async function sendMediaEmail(
   amount: number,
   month: number,
   year: number,
-  pdfBuffer?: Buffer,
+  pdfAttachments: { filename: string; buffer: Buffer }[] = [],
 ) {
   const subject = `Faktura media ${invoiceNumber}`
   const html = `
@@ -62,16 +62,12 @@ export async function sendMediaEmail(
     <p>Pozdrawiamy,<br>BMT</p>
   `
 
-  const attachments = pdfBuffer
-    ? [{ filename: `${invoiceNumber.replace(/\//g, '-')}.pdf`, content: pdfBuffer }]
-    : []
-
   await getResend().emails.send({
     from: getFrom(),
     to,
     subject,
     html,
-    attachments,
+    attachments: pdfAttachments.map((a) => ({ filename: a.filename, content: a.buffer })),
     ...replyOpts(),
   })
 }

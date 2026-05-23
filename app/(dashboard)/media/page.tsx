@@ -41,7 +41,8 @@ function emptyForm() {
     name: '',
     spreadsheet_id: '',
     input_mapping_json: '{}',
-    output_mapping_json: '{}',
+    output_mapping_json: '[]',
+    pdf_sheets_json: '[]',
     property_ids: [] as number[],
   }
 }
@@ -78,6 +79,7 @@ export default function MediaPage() {
       spreadsheet_id: g.spreadsheet_id,
       input_mapping_json: JSON.stringify(g.input_mapping_json, null, 2),
       output_mapping_json: JSON.stringify(g.output_mapping_json, null, 2),
+      pdf_sheets_json: JSON.stringify((g as Record<string, unknown>).pdf_sheets_json ?? [], null, 2),
       property_ids: propIds,
     })
     setJsonError('')
@@ -86,12 +88,14 @@ export default function MediaPage() {
 
   function handleSave() {
     let inputMap: Record<string, string>
-    let outputMap: Record<string, string>
+    let outputMap: unknown
+    let pdfSheets: unknown
     try {
       inputMap = JSON.parse(form.input_mapping_json)
       outputMap = JSON.parse(form.output_mapping_json)
+      pdfSheets = JSON.parse(form.pdf_sheets_json)
     } catch {
-      setJsonError('Nieprawidłowy JSON w mapowaniu.')
+      setJsonError('Nieprawidłowy JSON.')
       return
     }
     setJsonError('')
@@ -101,7 +105,8 @@ export default function MediaPage() {
         name: form.name,
         spreadsheet_id: form.spreadsheet_id,
         input_mapping_json: inputMap,
-        output_mapping_json: outputMap,
+        output_mapping_json: outputMap as Record<string, string>,
+        pdf_sheets_json: pdfSheets as Record<string, string>[],
         property_ids: form.property_ids,
       }
       if (editing) {
@@ -247,6 +252,16 @@ export default function MediaPage() {
                 onChange={(e) => setForm({ ...form, output_mapping_json: e.target.value })}
                 rows={8}
                 className="font-mono text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Arkusze PDF (JSON)</Label>
+              <Textarea
+                value={form.pdf_sheets_json}
+                onChange={(e) => setForm({ ...form, pdf_sheets_json: e.target.value })}
+                rows={5}
+                className="font-mono text-xs"
+                placeholder={'[\n  { "gid": "0", "name": "arkusz1" }\n]'}
               />
             </div>
             {jsonError && <p className="text-sm text-destructive">{jsonError}</p>}

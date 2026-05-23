@@ -25,6 +25,23 @@ type NamedRange = string
 type InputMapping = Record<string, NamedRange>  // label → named range
 type OutputMapping = Record<string, NamedRange> // label → named range
 
+export async function validateNamedRanges(
+  spreadsheetId: string,
+  ranges: string[],
+): Promise<{ missing: string[] }> {
+  const auth = getServiceAccountAuth()
+  const sheets = google.sheets({ version: 'v4', auth })
+
+  const { data } = await sheets.spreadsheets.get({
+    spreadsheetId,
+    fields: 'namedRanges.name',
+  })
+
+  const defined = new Set((data.namedRanges ?? []).map((nr) => nr.name!))
+  const missing = ranges.filter((r) => !defined.has(r))
+  return { missing }
+}
+
 export async function writeInputValues(
   spreadsheetId: string,
   inputMapping: InputMapping,
