@@ -114,6 +114,23 @@ export async function deleteSettlementGroup(id: number) {
   revalidatePath('/media')
 }
 
+type FieldDef = string | { range: string; source: 'user'; save_key?: string } | { range: string; source: 'db'; db_key: string }
+
+export async function getPreviousMeterReadings(
+  groupId: number,
+  month: number,
+  year: number,
+): Promise<Record<string, number>> {
+  const supabase = createServiceClient()
+  const { data } = await supabase.rpc('get_previous_meter_readings', {
+    p_group_id: groupId,
+    p_month: month,
+    p_year: year,
+  })
+  if (!data) return {}
+  return Object.fromEntries((data as { key: string; value: number }[]).map((r) => [r.key, r.value]))
+}
+
 export async function processSettlement(
   groupId: number,
   inputValues: Record<string, string | number>,
@@ -141,17 +158,34 @@ export async function processSettlement(
     getServiceAccountEmail(),
   )
 
-  // 2. Zapisz odczyty do kopii arkusza
-  // input_mapping_json ma format { "Grupa": { "Etykieta": "namedRange" } }
-  // spłaszczamy do { "namedRange": "namedRange" } bo inputValues jest kluczowany po namedRange
-  const nestedInput = group.input_mapping_json as Record<string, Record<string, string>>
+  // 2. Zbuduj finalny zestaw wartości: user input + auto-fill z DB dla pól source:"db"
+  const nestedInput = group.input_mapping_json as Record<string, Record<string, FieldDef>>
+  const previousReadings = await getPreviousMeterReadings(groupId, month, year)
+
   const flatMapping: Record<string, string> = {}
+  const allValues: Record<string, string | number> = { ...inputValues }
+  const toSave: { key: string; value: number }[] = []
+
   for (const fields of Object.values(nestedInput)) {
-    for (const namedRange of Object.values(fields)) {
-      flatMapping[namedRange] = namedRange
+    for (const [, fieldDef] of Object.entries(fields)) {
+      if (typeof fieldDef === 'string') {
+        // stary format — traktuj jak source:"user"
+        flatMapping[fieldDef] = fieldDef
+      } else if (fieldDef.source === 'user') {
+        flatMapping[fieldDef.range] = fieldDef.range
+        if (fieldDef.save_key) {
+          const val = parseFloat(String(inputValues[fieldDef.range] ?? '0').replace(',', '.'))
+          if (!isNaN(val)) toSave.push({ key: fieldDef.save_key, value: val })
+        }
+      } else if (fieldDef.source === 'db') {
+        flatMapping[fieldDef.range] = fieldDef.range
+        const prev = previousReadings[fieldDef.db_key]
+        if (prev !== undefined) allValues[fieldDef.range] = prev
+      }
     }
   }
-  await writeInputValues(workingSheetId, flatMapping, inputValues)
+
+  await writeInputValues(workingSheetId, flatMapping, allValues)
 
   // 3. Wymuś przeliczenie i poczekaj
   await triggerRecalc(workingSheetId)
@@ -177,6 +211,14 @@ export async function processSettlement(
     .select('id')
     .single()
   if (settlementError) throw settlementError
+
+  // Zapisz odczyty liczników do DB (dla następnego miesiąca jako "poprzednie")
+  if (toSave.length > 0) {
+    await supabase.from('media_meter_readings').upsert(
+      toSave.map(({ key, value }) => ({ group_id: groupId, month, year, key, value })),
+      { onConflict: 'group_id,month,year,key' },
+    )
+  }
 
   const results: { tenantName: string; amount: number; invoiceNumber: string }[] = []
 

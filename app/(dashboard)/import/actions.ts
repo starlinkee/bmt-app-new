@@ -9,6 +9,9 @@ export async function importCsvTransactions(csvContent: string) {
   const supabase = createServiceClient()
   const { bank, transactions, skipped } = parseCsv(csvContent)
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any).from('transaction_staging').delete().neq('id', 0)
+
   const { data: tenants } = await supabase
     .from('tenants')
     .select('id, bank_accounts_as_text')

@@ -33,7 +33,8 @@ export default function MediaGroupPage({
     })
   }, [groupId])
 
-  const inputMapping = (group?.input_mapping_json as Record<string, Record<string, string>>) ?? {}
+  type FieldDef = string | { range: string; source: 'user' | 'db'; save_key?: string; db_key?: string }
+  const inputMapping = (group?.input_mapping_json as Record<string, Record<string, FieldDef>>) ?? {}
 
   function handleProcess() {
     startTransition(async () => {
@@ -73,18 +74,23 @@ export default function MediaGroupPage({
             <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
               {groupLabel}
             </h2>
-            {Object.entries(fields).map(([fieldLabel, namedRange]) => (
-              <div key={namedRange} className="space-y-1">
-                <Label>{fieldLabel}</Label>
-                <Input
-                  value={inputValues[namedRange] ?? ''}
-                  onChange={(e) =>
-                    setInputValues({ ...inputValues, [namedRange]: e.target.value })
-                  }
-                  placeholder="0"
-                />
-              </div>
-            ))}
+            {Object.entries(fields).map(([fieldLabel, fieldDef]) => {
+              const range = typeof fieldDef === 'string' ? fieldDef : fieldDef.range
+              const source = typeof fieldDef === 'string' ? 'user' : fieldDef.source
+              if (source === 'db') return null
+              return (
+                <div key={range} className="space-y-1">
+                  <Label>{fieldLabel}</Label>
+                  <Input
+                    value={inputValues[range] ?? ''}
+                    onChange={(e) =>
+                      setInputValues({ ...inputValues, [range]: e.target.value })
+                    }
+                    placeholder="0"
+                  />
+                </div>
+              )
+            })}
           </div>
         ))}
       </div>
