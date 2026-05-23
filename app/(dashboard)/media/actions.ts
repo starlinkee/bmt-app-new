@@ -122,7 +122,8 @@ export async function getPreviousMeterReadings(
   year: number,
 ): Promise<Record<string, number>> {
   const supabase = createServiceClient()
-  const { data } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (supabase as any)
     .from('media_meter_readings')
     .select('key, value, month, year')
     .eq('group_id', groupId)
@@ -220,7 +221,8 @@ export async function processSettlement(
 
   // Zapisz odczyty liczników do DB (dla następnego miesiąca jako "poprzednie")
   if (toSave.length > 0) {
-    await supabase.from('media_meter_readings').upsert(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).from('media_meter_readings').upsert(
       toSave.map(({ key, value }) => ({ group_id: groupId, month, year, key, value })),
       { onConflict: 'group_id,month,year,key' },
     )
