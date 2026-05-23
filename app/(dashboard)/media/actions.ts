@@ -122,13 +122,19 @@ export async function getPreviousMeterReadings(
   year: number,
 ): Promise<Record<string, number>> {
   const supabase = createServiceClient()
-  const { data } = await supabase.rpc('get_previous_meter_readings', {
-    p_group_id: groupId,
-    p_month: month,
-    p_year: year,
-  })
-  if (!data) return {}
-  return Object.fromEntries((data as { key: string; value: number }[]).map((r) => [r.key, r.value]))
+  const { data } = await supabase
+    .from('media_meter_readings')
+    .select('key, value, month, year')
+    .eq('group_id', groupId)
+    .or(`year.lt.${year},and(year.eq.${year},month.lt.${month})`)
+    .order('year', { ascending: false })
+    .order('month', { ascending: false })
+
+  const result: Record<string, number> = {}
+  for (const row of data ?? []) {
+    if (!(row.key in result)) result[row.key] = Number(row.value)
+  }
+  return result
 }
 
 export async function processSettlement(
