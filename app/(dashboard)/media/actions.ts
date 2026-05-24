@@ -14,6 +14,20 @@ import { getServiceAccountEmail } from '@/lib/sheetsEngine'
 import { sendMediaEmail } from '@/lib/email'
 import { buildInvoiceNumber } from '@/lib/utils'
 import { markMonthlyTaskDone } from '@/lib/tasks'
+import { amountToWordsPLN } from '@/lib/numberWords'
+
+type InvoiceMappingEntry = { range: string; value: string }
+
+function resolveInvoiceMapping(
+  mapping: InvoiceMappingEntry[],
+  vars: Record<string, string>,
+): Record<string, string> {
+  const result: Record<string, string> = {}
+  for (const entry of mapping) {
+    result[entry.range] = entry.value.replace(/\{(\w+)\}/g, (_, key) => vars[key] ?? '')
+  }
+  return result
+}
 
 export async function getSettlementGroups() {
   const supabase = createServiceClient()
@@ -42,6 +56,8 @@ export async function createSettlementGroup(data: {
   input_mapping_json: Record<string, string>
   output_mapping_json: Record<string, string>
   pdf_sheets_json?: Record<string, string>[]
+  media_invoice_spreadsheet_id?: string
+  media_invoice_input_mapping_json?: Record<string, string>[]
   property_ids: number[]
 }) {
   const supabase = createServiceClient()
@@ -73,6 +89,8 @@ export async function updateSettlementGroup(
     input_mapping_json?: Record<string, string>
     output_mapping_json?: Record<string, string>
     pdf_sheets_json?: Record<string, string>[]
+    media_invoice_spreadsheet_id?: string
+    media_invoice_input_mapping_json?: Record<string, string>[]
     property_ids?: number[]
   },
 ) {
@@ -305,6 +323,45 @@ export async function processSettlement(
     )
     if (error) continue
 
+    // 9. Wygeneruj rachunek ze szablonu Google Sheets (jeśli skonfigurowany)
+    let invoicePdfBuffer: Buffer | undefined
+    const invoiceTemplateId = (group as Record<string, unknown>).media_invoice_spreadsheet_id as string | undefined
+    const invoiceRawMapping = (group as Record<string, unknown>).media_invoice_input_mapping_json as InvoiceMappingEntry[] | undefined
+
+    if (invoiceTemplateId) {
+      try {
+        const dueDate = new Date(Date.UTC(year, month, 10))
+        const vars: Record<string, string> = {
+          numer_rachunku: invoiceNumber,
+          data_wystawienia: new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString('pl-PL'),
+          termin_platnosci: dueDate.toLocaleDateString('pl-PL'),
+          najemca: `${tenant.first_name} ${tenant.last_name}`,
+          adres_1: (tenant as Record<string, unknown>).address1 as string ?? '',
+          adres_2: (tenant as Record<string, unknown>).address2 as string ?? '',
+          nip: (tenant as Record<string, unknown>).nip as string ?? '',
+          miesiac: String(month),
+          rok: String(year),
+          kwota: String(amount),
+          kwota_slownie: amountToWordsPLN(amount),
+        }
+
+        const invoiceName = `Rachunek ${invoiceNumber.replace(/\//g, '-')} – ${tenant.first_name} ${tenant.last_name}`
+        const invoiceSheetId = await copySpreadsheet(invoiceTemplateId, invoiceName, monthFolder, getServiceAccountEmail())
+
+        if (invoiceRawMapping?.length) {
+          const resolved = resolveInvoiceMapping(invoiceRawMapping, vars)
+          const inputMapping = Object.fromEntries(Object.keys(resolved).map((k) => [k, k]))
+          await writeInputValues(invoiceSheetId, inputMapping, resolved)
+          await new Promise((r) => setTimeout(r, 2000))
+        }
+
+        invoicePdfBuffer = await exportSheetAsPdf(invoiceSheetId)
+        await uploadPdfToDrive(`${invoiceNumber.replace(/\//g, '-')}.pdf`, invoicePdfBuffer, monthFolder)
+      } catch {
+        // Rachunek opcjonalny — kontynuuj bez niego
+      }
+    }
+
     if (tenant.email) {
       const pdfMap = Object.fromEntries(exportedPdfs.map((p) => [p.name, p]))
       const attachments = (entry.email_pdfs ?? [])
@@ -314,6 +371,13 @@ export async function processSettlement(
           filename: `${p.name}_${String(month).padStart(2, '0')}_${year}.pdf`,
           buffer: p.buffer,
         }))
+
+      if (invoicePdfBuffer) {
+        attachments.push({
+          filename: `Rachunek_${invoiceNumber.replace(/\//g, '-')}.pdf`,
+          buffer: invoicePdfBuffer,
+        })
+      }
 
       await sendMediaEmail(
         tenant.email,
