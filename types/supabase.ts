@@ -353,6 +353,8 @@ export type Database = {
         Row: {
           id: number
           input_mapping_json: Json
+          media_invoice_input_mapping_json: Json
+          media_invoice_spreadsheet_id: string
           name: string
           output_mapping_json: Json
           pdf_sheets_json: Json
@@ -361,6 +363,8 @@ export type Database = {
         Insert: {
           id?: never
           input_mapping_json?: Json
+          media_invoice_input_mapping_json?: Json
+          media_invoice_spreadsheet_id?: string
           name: string
           output_mapping_json?: Json
           pdf_sheets_json?: Json
@@ -369,6 +373,8 @@ export type Database = {
         Update: {
           id?: never
           input_mapping_json?: Json
+          media_invoice_input_mapping_json?: Json
+          media_invoice_spreadsheet_id?: string
           name?: string
           output_mapping_json?: Json
           pdf_sheets_json?: Json
