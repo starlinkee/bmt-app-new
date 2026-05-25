@@ -118,6 +118,7 @@ export async function generateRents(month: number, year: number) {
           rok: String(year),
           kwota: String(contract.rent_amount),
           kwota_slownie: amountToWordsPLN(Number(contract.rent_amount)),
+          opis_rachunku: (contract as Record<string, unknown>).opis_rachunku as string ?? '',
         }
 
         const rawMapping = config.rent_invoice_input_mapping_json as InvoiceMappingEntry[] | null
