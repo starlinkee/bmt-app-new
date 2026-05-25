@@ -201,7 +201,7 @@ export default function MediaPage() {
       </Table>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-[95vw] w-[95vw]">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>{editing ? 'Edytuj grupę' : 'Nowa grupa'}</DialogTitle>
           </DialogHeader>

@@ -5,7 +5,6 @@ import { createServiceClient } from '@/lib/supabase/service'
 import {
   writeInputValues,
   validateNamedRanges,
-  triggerRecalc,
   readOutputValues,
   exportSheetAsPdf,
 } from '@/lib/sheetsEngine'
@@ -216,10 +215,6 @@ export async function processSettlement(
 
   await writeInputValues(workingSheetId, flatMapping, allValues)
 
-  // 3. Wymuś przeliczenie i poczekaj
-  await triggerRecalc(workingSheetId)
-  await new Promise((r) => setTimeout(r, 2000))
-
   type OutputEntry = { range: string; tenant_id: number; type: string; email_pdfs?: string[] }
   const outputEntries = group.output_mapping_json as OutputEntry[]
 
@@ -349,7 +344,6 @@ export async function processSettlement(
           const resolved = resolveInvoiceMapping(rawMapping, vars)
           const inputMapping = Object.fromEntries(Object.keys(resolved).map((k) => [k, k]))
           await writeInputValues(invoiceSheetId, inputMapping, resolved)
-          await new Promise((r) => setTimeout(r, 2000))
         }
 
         invoicePdfBuffer = await exportSheetAsPdf(invoiceSheetId)

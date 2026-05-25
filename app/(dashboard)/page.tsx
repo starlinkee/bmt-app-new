@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ensureMonthlyTasks, getMonthlyTasks } from '@/lib/tasks'
 import { createServiceClient } from '@/lib/supabase/service'
 import { TaskList } from './task-list'
+import { ReminderButtons } from './reminder-buttons'
 
 export default async function DashboardPage() {
   const now = new Date()
@@ -74,6 +75,8 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      <ReminderButtons />
 
       <Card>
         <CardHeader>

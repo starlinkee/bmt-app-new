@@ -12,6 +12,7 @@ import {
   Upload,
   Settings,
   LogOut,
+  ClipboardList,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { logoutAction } from '@/app/login/actions'
@@ -24,6 +25,7 @@ const navItems = [
   { href: '/finance', label: 'Finanse', icon: CreditCard },
   { href: '/media', label: 'Media', icon: Gauge },
   { href: '/import', label: 'Import CSV', icon: Upload },
+  { href: '/kontrola-platnosci', label: 'Kontrola płatności', icon: ClipboardList },
   { href: '/settings', label: 'Ustawienia', icon: Settings },
 ]
 

@@ -127,8 +127,6 @@ export async function generateRents(month: number, year: number) {
           // inputMapping: każdy named range mapuje sam na siebie
           const inputMapping = Object.fromEntries(Object.keys(resolved).map((k) => [k, k]))
           await writeInputValues(config.rent_invoice_spreadsheet_id, inputMapping, resolved)
-          // Czas na przeliczenie arkusza
-          await new Promise((r) => setTimeout(r, 2000))
         }
 
         pdfBuffer = await exportSheetAsPdf(
