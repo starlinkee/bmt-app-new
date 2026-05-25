@@ -9,7 +9,7 @@ import {
   readOutputValues,
   exportSheetAsPdf,
 } from '@/lib/sheetsEngine'
-import { ensureMonthYearFolder, copySpreadsheet, uploadPdfToDrive } from '@/lib/driveEngine'
+import { ensureYearMonthFolder, copySpreadsheet, uploadPdfToDrive } from '@/lib/driveEngine'
 import { getServiceAccountEmail } from '@/lib/sheetsEngine'
 import { sendMediaEmail } from '@/lib/email'
 import { buildInvoiceNumber } from '@/lib/utils'
@@ -56,8 +56,6 @@ export async function createSettlementGroup(data: {
   input_mapping_json: Record<string, string>
   output_mapping_json: Record<string, string>
   pdf_sheets_json?: Record<string, string>[]
-  media_invoice_spreadsheet_id?: string
-  media_invoice_input_mapping_json?: Record<string, string>[]
   property_ids: number[]
 }) {
   const supabase = createServiceClient()
@@ -89,8 +87,6 @@ export async function updateSettlementGroup(
     input_mapping_json?: Record<string, string>
     output_mapping_json?: Record<string, string>
     pdf_sheets_json?: Record<string, string>[]
-    media_invoice_spreadsheet_id?: string
-    media_invoice_input_mapping_json?: Record<string, string>[]
     property_ids?: number[]
   },
 ) {
@@ -172,12 +168,12 @@ export async function processSettlement(
 
   const { data: config } = await supabase
     .from('app_config')
-    .select('drive_invoices_folder_id')
+    .select('drive_invoices_folder_id, rent_invoice_spreadsheet_id, rent_invoice_input_mapping_json')
     .eq('id', 1)
     .single()
 
   // 1. Utwórz folder MM/YYYY i skopiuj szablon arkusza do niego
-  const monthFolder = await ensureMonthYearFolder(month, year, config!.drive_invoices_folder_id)
+  const monthFolder = await ensureYearMonthFolder(year, month, config!.drive_invoices_folder_id)
   const sheetName = `Media ${String(month).padStart(2, '0')}/${year} – ${group.name}`
   const workingSheetId = await copySpreadsheet(
     group.spreadsheet_id,
@@ -323,12 +319,9 @@ export async function processSettlement(
     )
     if (error) continue
 
-    // 9. Wygeneruj rachunek ze szablonu Google Sheets (jeśli skonfigurowany)
+    // 9. Wygeneruj rachunek używając tego samego szablonu co czynsz (app_config)
     let invoicePdfBuffer: Buffer | undefined
-    const invoiceTemplateId = (group as Record<string, unknown>).media_invoice_spreadsheet_id as string | undefined
-    const invoiceRawMapping = (group as Record<string, unknown>).media_invoice_input_mapping_json as InvoiceMappingEntry[] | undefined
-
-    if (invoiceTemplateId) {
+    if (config?.rent_invoice_spreadsheet_id) {
       try {
         const dueDate = new Date(Date.UTC(year, month, 10))
         const vars: Record<string, string> = {
@@ -343,13 +336,17 @@ export async function processSettlement(
           rok: String(year),
           kwota: String(amount),
           kwota_slownie: amountToWordsPLN(amount),
+          opis_rachunku: (activeContract as Record<string, unknown>).opis_rachunku_media as string
+            || (activeContract as Record<string, unknown>).opis_rachunku as string
+            || '',
         }
 
         const invoiceName = `Rachunek ${invoiceNumber.replace(/\//g, '-')} – ${tenant.first_name} ${tenant.last_name}`
-        const invoiceSheetId = await copySpreadsheet(invoiceTemplateId, invoiceName, monthFolder, getServiceAccountEmail())
+        const invoiceSheetId = await copySpreadsheet(config.rent_invoice_spreadsheet_id, invoiceName, monthFolder, getServiceAccountEmail())
 
-        if (invoiceRawMapping?.length) {
-          const resolved = resolveInvoiceMapping(invoiceRawMapping, vars)
+        const rawMapping = config.rent_invoice_input_mapping_json as InvoiceMappingEntry[] | null
+        if (rawMapping?.length) {
+          const resolved = resolveInvoiceMapping(rawMapping, vars)
           const inputMapping = Object.fromEntries(Object.keys(resolved).map((k) => [k, k]))
           await writeInputValues(invoiceSheetId, inputMapping, resolved)
           await new Promise((r) => setTimeout(r, 2000))

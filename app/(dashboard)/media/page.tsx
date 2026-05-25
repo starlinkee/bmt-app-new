@@ -43,8 +43,6 @@ function emptyForm() {
     input_mapping_json: '{}',
     output_mapping_json: '[]',
     pdf_sheets_json: '[]',
-    media_invoice_spreadsheet_id: '',
-    media_invoice_input_mapping_json: '[]',
     property_ids: [] as number[],
   }
 }
@@ -82,8 +80,6 @@ export default function MediaPage() {
       input_mapping_json: JSON.stringify(g.input_mapping_json, null, 2),
       output_mapping_json: JSON.stringify(g.output_mapping_json, null, 2),
       pdf_sheets_json: JSON.stringify((g as Record<string, unknown>).pdf_sheets_json ?? [], null, 2),
-      media_invoice_spreadsheet_id: (g as Record<string, unknown>).media_invoice_spreadsheet_id as string ?? '',
-      media_invoice_input_mapping_json: JSON.stringify((g as Record<string, unknown>).media_invoice_input_mapping_json ?? [], null, 2),
       property_ids: propIds,
     })
     setJsonError('')
@@ -94,12 +90,10 @@ export default function MediaPage() {
     let inputMap: Record<string, string>
     let outputMap: unknown
     let pdfSheets: unknown
-    let invoiceMapping: unknown
     try {
       inputMap = JSON.parse(form.input_mapping_json)
       outputMap = JSON.parse(form.output_mapping_json)
       pdfSheets = JSON.parse(form.pdf_sheets_json)
-      invoiceMapping = JSON.parse(form.media_invoice_input_mapping_json)
     } catch {
       setJsonError('Nieprawidłowy JSON.')
       return
@@ -113,8 +107,6 @@ export default function MediaPage() {
         input_mapping_json: inputMap,
         output_mapping_json: outputMap as Record<string, string>,
         pdf_sheets_json: pdfSheets as Record<string, string>[],
-        media_invoice_spreadsheet_id: form.media_invoice_spreadsheet_id,
-        media_invoice_input_mapping_json: invoiceMapping as Record<string, string>[],
         property_ids: form.property_ids,
       }
       if (editing) {
@@ -270,24 +262,6 @@ export default function MediaPage() {
                 rows={5}
                 className="font-mono text-xs"
                 placeholder={'[\n  { "gid": "0", "name": "arkusz1" }\n]'}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>ID szablonu rachunku (Google Sheets)</Label>
-              <Input
-                value={form.media_invoice_spreadsheet_id}
-                onChange={(e) => setForm({ ...form, media_invoice_spreadsheet_id: e.target.value })}
-                placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Mapowanie danych do rachunku (JSON)</Label>
-              <Textarea
-                value={form.media_invoice_input_mapping_json}
-                onChange={(e) => setForm({ ...form, media_invoice_input_mapping_json: e.target.value })}
-                rows={6}
-                className="font-mono text-xs"
-                placeholder={'[\n  { "range": "numerRachunku", "value": "{numer_rachunku}" }\n]'}
               />
             </div>
             {jsonError && <p className="text-sm text-destructive">{jsonError}</p>}

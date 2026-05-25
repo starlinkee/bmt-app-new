@@ -71,6 +71,8 @@ export type Database = {
           id: number
           invoice_seq_number: number
           is_active: boolean
+          opis_rachunku: string
+          opis_rachunku_media: string
           reminder_last_sent_at: string | null
           rent_amount: number
           start_date: string
@@ -82,6 +84,8 @@ export type Database = {
           id?: never
           invoice_seq_number?: number
           is_active?: boolean
+          opis_rachunku?: string
+          opis_rachunku_media?: string
           reminder_last_sent_at?: string | null
           rent_amount: number
           start_date: string
@@ -93,6 +97,8 @@ export type Database = {
           id?: never
           invoice_seq_number?: number
           is_active?: boolean
+          opis_rachunku?: string
+          opis_rachunku_media?: string
           reminder_last_sent_at?: string | null
           rent_amount?: number
           start_date?: string

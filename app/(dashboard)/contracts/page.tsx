@@ -44,6 +44,8 @@ function emptyForm() {
     contract_type: 'PRIVATE',
     rent_amount: '',
     invoice_seq_number: '1',
+    opis_rachunku: '',
+    opis_rachunku_media: '',
     start_date: '',
     end_date: '',
     indefinite: true,
@@ -79,6 +81,8 @@ export default function ContractsPage() {
       contract_type: c.contract_type,
       rent_amount: String(c.rent_amount),
       invoice_seq_number: String(c.invoice_seq_number),
+      opis_rachunku: (c as Record<string, unknown>).opis_rachunku as string ?? '',
+      opis_rachunku_media: (c as Record<string, unknown>).opis_rachunku_media as string ?? '',
       start_date: c.start_date,
       end_date: c.end_date ?? '',
       indefinite: !c.end_date,
@@ -97,6 +101,8 @@ export default function ContractsPage() {
       contract_type: form.contract_type,
       rent_amount: parseFloat(form.rent_amount),
       invoice_seq_number: parseInt(form.invoice_seq_number),
+      opis_rachunku: form.opis_rachunku,
+      opis_rachunku_media: form.opis_rachunku_media,
       start_date: form.start_date,
       end_date: form.indefinite ? undefined : (form.end_date || undefined),
       is_active: form.is_active,
@@ -256,6 +262,26 @@ export default function ContractsPage() {
                   type="number"
                   value={form.invoice_seq_number}
                   onChange={(e) => setForm({ ...form, invoice_seq_number: e.target.value })}
+                />
+              </div>
+            )}
+            {form.contract_type === 'BUSINESS' && (
+              <div className="space-y-1">
+                <Label>Opis rachunku (czynsz)</Label>
+                <Input
+                  value={form.opis_rachunku}
+                  onChange={(e) => setForm({ ...form, opis_rachunku: e.target.value })}
+                  placeholder="Czynsz za lokal jp64"
+                />
+              </div>
+            )}
+            {form.contract_type === 'BUSINESS' && (
+              <div className="space-y-1">
+                <Label>Opis rachunku (media)</Label>
+                <Input
+                  value={form.opis_rachunku_media}
+                  onChange={(e) => setForm({ ...form, opis_rachunku_media: e.target.value })}
+                  placeholder="Media jp64 lokal 1"
                 />
               </div>
             )}
