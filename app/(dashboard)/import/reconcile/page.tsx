@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import {
   getUnmatchedTransactions,
-  reconcileTransaction,
+  reconcileMany,
   dismissTransaction,
 } from '../actions'
 import { getTenants } from '@/app/(dashboard)/tenants/actions'
@@ -16,13 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog'
 import { formatAmount, formatDate } from '@/lib/utils'
 
 type Transaction = Awaited<ReturnType<typeof getUnmatchedTransactions>>[number]
@@ -32,8 +25,6 @@ export default function ReconcilePage() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [selectedTenants, setSelectedTenants] = useState<Record<number, string>>({})
-  const [confirmTx, setConfirmTx] = useState<Transaction | null>(null)
-  const [saveAccount, setSaveAccount] = useState(true)
   const [pending, startTransition] = useTransition()
 
   function load() {
@@ -44,30 +35,24 @@ export default function ReconcilePage() {
       ])
       setTransactions(txs)
       setTenants(ts)
+      setSelectedTenants({})
     })
   }
 
   useEffect(() => { load() }, [])
 
-  function handleAssignClick(tx: Transaction) {
-    if (!selectedTenants[tx.id]) {
-      toast.error('Wybierz najemcę.')
-      return
-    }
-    if (tx.bank_account) {
-      setConfirmTx(tx)
-      setSaveAccount(true)
-    } else {
-      doAssign(tx, false)
-    }
-  }
+  const selectedCount = Object.values(selectedTenants).filter(Boolean).length
 
-  function doAssign(tx: Transaction, save: boolean) {
-    const tenantId = Number(selectedTenants[tx.id])
+  function handleBulkConfirm() {
+    const items = transactions
+      .filter((tx) => selectedTenants[tx.id])
+      .map((tx) => ({ txId: tx.id, tenantId: Number(selectedTenants[tx.id]) }))
+
+    if (items.length === 0) return
+
     startTransition(async () => {
-      await reconcileTransaction(tx.id, tenantId, save)
-      toast.success('Transakcja przypisana.')
-      setConfirmTx(null)
+      await reconcileMany(items)
+      toast.success(`Przypisano ${items.length} transakcji.`)
       load()
     })
   }
@@ -80,11 +65,23 @@ export default function ReconcilePage() {
     })
   }
 
+  const confirmButton = (
+    <Button
+      onClick={handleBulkConfirm}
+      disabled={selectedCount === 0 || pending}
+    >
+      Zatwierdź wybrane{selectedCount > 0 ? ` (${selectedCount})` : ''}
+    </Button>
+  )
+
   return (
     <div className="p-6 space-y-4 max-w-4xl">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Przypisywanie transakcji</h1>
-        <span className="text-sm text-muted-foreground">{transactions.length} niedopasowanych</span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-muted-foreground">{transactions.length} niedopasowanych</span>
+          {confirmButton}
+        </div>
       </div>
 
       {transactions.length === 0 && (
@@ -99,7 +96,6 @@ export default function ReconcilePage() {
 
           return (
             <div key={tx.id} className="rounded-lg border bg-card p-4 space-y-3">
-              {/* Kwota i data — nagłówek karty */}
               <div className="flex items-center justify-between">
                 <span className="text-xl font-bold text-green-600">
                   {formatAmount(Number(tx.amount))}
@@ -107,7 +103,6 @@ export default function ReconcilePage() {
                 <span className="text-sm text-muted-foreground">{formatDate(tx.date)}</span>
               </div>
 
-              {/* Wszystkie pola z CSV */}
               {rawEntries.length > 0 ? (
                 <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
                   {rawEntries.map(([key, value]) => (
@@ -124,12 +119,11 @@ export default function ReconcilePage() {
                 </div>
               )}
 
-              {/* Przypisanie */}
               <div className="flex gap-2 pt-1 border-t">
                 <Select
                   value={selectedTenants[tx.id] ?? ''}
                   onValueChange={(v) =>
-                    setSelectedTenants({ ...selectedTenants, [tx.id]: v ?? '' })
+                    setSelectedTenants((prev) => ({ ...prev, [tx.id]: v ?? '' }))
                   }
                 >
                   <SelectTrigger className="flex-1">
@@ -145,13 +139,6 @@ export default function ReconcilePage() {
                 </Select>
                 <Button
                   size="sm"
-                  onClick={() => handleAssignClick(tx)}
-                  disabled={pending}
-                >
-                  Przypisz
-                </Button>
-                <Button
-                  size="sm"
                   variant="ghost"
                   onClick={() => handleDismiss(tx.id)}
                   disabled={pending}
@@ -164,37 +151,11 @@ export default function ReconcilePage() {
         })}
       </div>
 
-      <Dialog open={!!confirmTx} onOpenChange={() => setConfirmTx(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Zapamiętać numer konta?</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Konto: <span className="font-mono">{confirmTx?.bank_account}</span>
-            </p>
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                checked={saveAccount}
-                onChange={(e) => setSaveAccount(e.target.checked)}
-              />
-              Zapisz konto do profilu najemcy
-            </label>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmTx(null)}>
-              Anuluj
-            </Button>
-            <Button
-              onClick={() => confirmTx && doAssign(confirmTx, saveAccount)}
-              disabled={pending}
-            >
-              Przypisz
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {transactions.length > 0 && (
+        <div className="flex justify-end pt-2">
+          {confirmButton}
+        </div>
+      )}
     </div>
   )
 }

@@ -125,8 +125,8 @@ export default function TenantsPage() {
       }
       setOpen(false)
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tenants })
-      // Kontrakty embedują dane najemców
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.contracts })
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.properties })
     })
   }
 
@@ -140,6 +140,7 @@ export default function TenantsPage() {
         toast.success('Najemca usunięty.')
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tenants })
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.contracts })
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.properties })
       }
     })
   }
@@ -213,7 +214,7 @@ export default function TenantsPage() {
       </Table>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>
               {editing ? 'Edytuj najemcę' : 'Nowy najemca'}

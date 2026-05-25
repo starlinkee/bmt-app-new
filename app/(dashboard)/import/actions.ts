@@ -140,6 +140,15 @@ export async function reconcileTransaction(
   revalidatePath('/import/reconcile')
 }
 
+export async function reconcileMany(
+  items: { txId: number; tenantId: number }[],
+) {
+  for (const { txId, tenantId } of items) {
+    await reconcileTransaction(txId, tenantId, true)
+  }
+  revalidatePath('/import/reconcile')
+}
+
 export async function dismissTransaction(txId: number) {
   const supabase = createServiceClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
