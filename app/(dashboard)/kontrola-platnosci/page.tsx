@@ -86,7 +86,10 @@ export default function KontrolaPlatnosciPage() {
               onClick={() => openTenant(t)}
             >
               <TableCell className="font-medium">
-                {t.first_name} {t.last_name}
+                <div>{t.first_name} {t.last_name}</div>
+                {t.company_name && (
+                  <div className="text-xs text-muted-foreground">{t.company_name}</div>
+                )}
               </TableCell>
               <TableCell className="text-muted-foreground">
                 {t.property?.name || t.property?.address1 || '—'}

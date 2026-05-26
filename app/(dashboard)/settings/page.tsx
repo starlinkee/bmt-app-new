@@ -90,8 +90,16 @@ export default function SettingsPage() {
       <h1 className="text-2xl font-semibold">Ustawienia</h1>
 
       <div className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold">Wzór rachunku czynszowego</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Arkusz Google Sheets służący jako szablon do generowania rachunków czynszowych.
+            System wypełnia go danymi najemcy i eksportuje jako PDF.
+          </p>
+        </div>
+
         <div className="space-y-1">
-          <Label>ID arkusza Google (faktury)</Label>
+          <Label>ID arkusza — wzór rachunku</Label>
           <Input
             value={form.rent_invoice_spreadsheet_id}
             onChange={(e) =>
@@ -99,10 +107,13 @@ export default function SettingsPage() {
             }
             placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"
           />
+          <p className="text-xs text-muted-foreground">
+            ID z URL arkusza: docs.google.com/spreadsheets/d/<strong>[ID]</strong>/edit
+          </p>
         </div>
 
         <div className="space-y-1">
-          <Label>Mapowanie danych do arkusza (JSON)</Label>
+          <Label>Mapowanie pól do komórek arkusza (JSON)</Label>
           <Textarea
             value={form.rent_invoice_input_mapping_json}
             onChange={(e) =>
@@ -111,11 +122,14 @@ export default function SettingsPage() {
             rows={8}
             className="font-mono text-xs"
           />
+          <p className="text-xs text-muted-foreground">
+            Klucz = nazwa pola w szablonie, wartość = adres komórki w arkuszu (np. &quot;B2&quot;).
+          </p>
           {jsonError && <p className="text-sm text-destructive">{jsonError}</p>}
         </div>
 
         <div className="space-y-1">
-          <Label>GID zakładki PDF (opcjonalne)</Label>
+          <Label>GID zakładki PDF</Label>
           <Input
             value={form.rent_invoice_pdf_gid}
             onChange={(e) =>
@@ -123,16 +137,25 @@ export default function SettingsPage() {
             }
             placeholder="0"
           />
+          <p className="text-xs text-muted-foreground">
+            Numer zakładki (gid) eksportowanej do PDF. Domyślnie 0 (pierwsza zakładka).
+            Widoczny w URL: …/edit#gid=<strong>[GID]</strong>
+          </p>
         </div>
 
         <div className="space-y-1">
-          <Label>ID folderu Drive (faktury)</Label>
+          <Label>ID folderu Drive — miejsce zapisu rachunków</Label>
           <Input
             value={form.drive_invoices_folder_id}
             onChange={(e) =>
               setForm({ ...form, drive_invoices_folder_id: e.target.value })
             }
+            placeholder="1A2B3C4D5E6F7G8H9I0J"
           />
+          <p className="text-xs text-muted-foreground">
+            ID folderu Google Drive, do którego trafiają wygenerowane PDFy rachunków.
+            ID z URL folderu: drive.google.com/drive/folders/<strong>[ID]</strong>
+          </p>
         </div>
 
         <Button onClick={handleSave} disabled={pending}>

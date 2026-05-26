@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { getAllTransactions } from '../actions'
-import { formatAmount, formatDate } from '@/lib/utils'
+import { formatAmount, formatDate, formatDateTime } from '@/lib/utils'
 import {
   Table,
   TableBody,
@@ -77,6 +77,7 @@ export default async function TransactionHistoryPage({
             <TableHead>Najemca</TableHead>
             <TableHead className="text-right">Kwota</TableHead>
             <TableHead>Status</TableHead>
+            <TableHead>Dodano</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -109,12 +110,15 @@ export default async function TransactionHistoryPage({
                     {STATUS_LABELS[tx.status ?? 'UNMATCHED']}
                   </Badge>
                 </TableCell>
+                <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                  {tx.created_at ? formatDateTime(tx.created_at) : '—'}
+                </TableCell>
               </TableRow>
             )
           })}
           {transactions.length === 0 && (
             <TableRow>
-              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                 Brak transakcji
               </TableCell>
             </TableRow>

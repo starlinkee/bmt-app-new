@@ -126,9 +126,19 @@ export async function reconcileTransaction(
 
     if (tenant) {
       const existing = tenant.bank_accounts_as_text ?? ''
-      const updated = existing
-        ? `${existing}\n${tx.bank_account}`
-        : tx.bank_account
+      const normalize = (a: string) =>
+        a.toUpperCase().replace(/^PL/i, '').replace(/[\s\-]/g, '')
+      const newNorm = normalize(tx.bank_account)
+      const alreadyExists = existing
+        .split(/[\n,;]+/)
+        .map((a) => normalize(a.trim()))
+        .filter(Boolean)
+        .some((a) => a === newNorm)
+      const updated = alreadyExists
+        ? existing
+        : existing
+          ? `${existing}\n${tx.bank_account}`
+          : tx.bank_account
 
       await supabase
         .from('tenants')

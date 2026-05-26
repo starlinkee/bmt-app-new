@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { SearchSelect } from '@/components/ui/search-select'
 import {
   Select,
   SelectContent,
@@ -218,21 +219,16 @@ export default function ContractsPage() {
           <div className="space-y-3">
             <div className="space-y-1">
               <Label>Najemca *</Label>
-              <Select
+              <SearchSelect
+                options={tenants.map((t) => ({
+                  value: String(t.id),
+                  label: `${t.first_name} ${t.last_name}`,
+                  description: (t.properties as unknown as { name: string } | null)?.name,
+                }))}
                 value={form.tenant_id}
-                onValueChange={(v) => setForm({ ...form, tenant_id: v ?? '' })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Wybierz najemcę" />
-                </SelectTrigger>
-                <SelectContent>
-                  {tenants.map((t) => (
-                    <SelectItem key={t.id} value={String(t.id)}>
-                      {t.first_name} {t.last_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onValueChange={(v) => setForm({ ...form, tenant_id: v })}
+                placeholder="Wyszukaj najemcę..."
+              />
             </div>
             <div className="space-y-1">
               <Label>Typ</Label>

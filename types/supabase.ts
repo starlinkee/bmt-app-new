@@ -455,6 +455,7 @@ export type Database = {
         Row: {
           amount: number
           bank_account: string | null
+          created_at: string
           date: string
           description: string | null
           id: number
@@ -467,6 +468,7 @@ export type Database = {
         Insert: {
           amount: number
           bank_account?: string | null
+          created_at?: string
           date: string
           description?: string | null
           id?: never
@@ -479,6 +481,7 @@ export type Database = {
         Update: {
           amount?: number
           bank_account?: string | null
+          created_at?: string
           date?: string
           description?: string | null
           id?: never
@@ -497,6 +500,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      operation_log: {
+        Row: {
+          id: number
+          operation: string
+          result: Json | null
+          called_at: string
+        }
+        Insert: {
+          id?: never
+          operation: string
+          result?: Json | null
+          called_at?: string
+        }
+        Update: {
+          id?: never
+          operation?: string
+          result?: Json | null
+          called_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {
