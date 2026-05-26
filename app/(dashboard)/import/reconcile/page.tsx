@@ -9,13 +9,7 @@ import {
 } from '../actions'
 import { getTenants } from '@/app/(dashboard)/tenants/actions'
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { SearchSelect } from '@/components/ui/search-select'
 import { formatAmount, formatDate } from '@/lib/utils'
 
 type Transaction = Awaited<ReturnType<typeof getUnmatchedTransactions>>[number]
@@ -120,23 +114,19 @@ export default function ReconcilePage() {
               )}
 
               <div className="flex gap-2 pt-1 border-t">
-                <Select
+                <SearchSelect
+                  className="flex-1"
+                  options={tenants.map((t) => ({
+                    value: String(t.id),
+                    label: `${t.first_name} ${t.last_name}`,
+                    description: (t.properties as unknown as { name: string } | null)?.name,
+                  }))}
                   value={selectedTenants[tx.id] ?? ''}
                   onValueChange={(v) =>
-                    setSelectedTenants((prev) => ({ ...prev, [tx.id]: v ?? '' }))
+                    setSelectedTenants((prev) => ({ ...prev, [tx.id]: v }))
                   }
-                >
-                  <SelectTrigger className="flex-1">
-                    <SelectValue placeholder="Wybierz najemcę..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {tenants.map((t) => (
-                      <SelectItem key={t.id} value={String(t.id)}>
-                        {t.first_name} {t.last_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  placeholder="Wyszukaj najemcę..."
+                />
                 <Button
                   size="sm"
                   variant="ghost"

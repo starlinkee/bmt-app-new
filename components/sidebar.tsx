@@ -13,6 +13,7 @@ import {
   Settings,
   LogOut,
   ClipboardList,
+  ArrowLeftRight,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { logoutAction } from '@/app/login/actions'
@@ -26,6 +27,7 @@ const navItems = [
   { href: '/media', label: 'Media', icon: Gauge },
   { href: '/import', label: 'Import CSV', icon: Upload },
   { href: '/kontrola-platnosci', label: 'Kontrola płatności', icon: ClipboardList },
+  { href: '/przeplywy', label: 'Przepływy', icon: ArrowLeftRight },
   { href: '/settings', label: 'Ustawienia', icon: Settings },
 ]
 

@@ -5,6 +5,27 @@ import { sendPrivateMonthlyReminder } from '@/lib/email'
 
 type ContractType = 'PRIVATE' | 'BMT'
 
+export type OperationKey = 'reminders_private' | 'reminders_bmt'
+
+export async function getLastOperationTimes(): Promise<Record<OperationKey, string | null>> {
+  const supabase = createServiceClient()
+  const { data } = await supabase
+    .from('operation_log')
+    .select('operation, called_at')
+    .in('operation', ['reminders_private', 'reminders_bmt'])
+    .order('called_at', { ascending: false })
+
+  const result: Record<OperationKey, string | null> = {
+    reminders_private: null,
+    reminders_bmt: null,
+  }
+  for (const row of data ?? []) {
+    const key = row.operation as OperationKey
+    if (result[key] === null) result[key] = row.called_at
+  }
+  return result
+}
+
 export async function sendReminders(contractType: ContractType): Promise<{ sent: number; skipped: number }> {
   const supabase = createServiceClient()
   const now = new Date()
@@ -65,6 +86,11 @@ export async function sendReminders(contractType: ContractType): Promise<{ sent:
 
     sent++
   }
+
+  await supabase.from('operation_log').insert({
+    operation: `reminders_${contractType.toLowerCase()}`,
+    result: { sent, skipped },
+  })
 
   return { sent, skipped }
 }

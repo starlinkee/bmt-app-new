@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { SearchSelect } from '@/components/ui/search-select'
 import {
   Select,
   SelectContent,
@@ -34,10 +35,41 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Pencil, Trash2, Plus, ExternalLink } from 'lucide-react'
+import { Pencil, Trash2, Plus, ExternalLink, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 
 type Tenant = Awaited<ReturnType<typeof getTenants>>[number]
 type Property = Awaited<ReturnType<typeof getProperties>>[number]
+type SortKey = 'name' | 'property' | 'type' | 'email' | 'phone' | 'contracts'
+type SortDir = 'asc' | 'desc'
+
+function sortTenants(tenants: Tenant[], key: SortKey, dir: SortDir): Tenant[] {
+  return [...tenants].sort((a, b) => {
+    let va: string | number = ''
+    let vb: string | number = ''
+    if (key === 'name') {
+      va = `${a.last_name} ${a.first_name}`.toLowerCase()
+      vb = `${b.last_name} ${b.first_name}`.toLowerCase()
+    } else if (key === 'property') {
+      va = ((a.properties as unknown as { name: string } | null)?.name ?? '').toLowerCase()
+      vb = ((b.properties as unknown as { name: string } | null)?.name ?? '').toLowerCase()
+    } else if (key === 'type') {
+      va = a.tenant_type.toLowerCase()
+      vb = b.tenant_type.toLowerCase()
+    } else if (key === 'email') {
+      va = (a.email ?? '').toLowerCase()
+      vb = (b.email ?? '').toLowerCase()
+    } else if (key === 'phone') {
+      va = (a.phone ?? '').toLowerCase()
+      vb = (b.phone ?? '').toLowerCase()
+    } else if (key === 'contracts') {
+      va = (a.contracts as unknown as { count: number }[])?.[0]?.count ?? 0
+      vb = (b.contracts as unknown as { count: number }[])?.[0]?.count ?? 0
+    }
+    if (va < vb) return dir === 'asc' ? -1 : 1
+    if (va > vb) return dir === 'asc' ? 1 : -1
+    return 0
+  })
+}
 
 function emptyForm() {
   return {
@@ -69,6 +101,26 @@ export default function TenantsPage() {
   const [editing, setEditing] = useState<Tenant | null>(null)
   const [form, setForm] = useState(emptyForm())
   const [pending, startTransition] = useTransition()
+  const [sortKey, setSortKey] = useState<SortKey>('name')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+  }
+
+  function SortIcon({ col }: { col: SortKey }) {
+    if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
+    return sortDir === 'asc'
+      ? <ChevronUp className="ml-1 h-3 w-3 inline" />
+      : <ChevronDown className="ml-1 h-3 w-3 inline" />
+  }
+
+  const sortedTenants = sortTenants(tenants, sortKey, sortDir)
 
   function openCreate() {
     setEditing(null)
@@ -160,17 +212,29 @@ export default function TenantsPage() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Imię i nazwisko</TableHead>
-            <TableHead>Nieruchomość</TableHead>
-            <TableHead>Typ</TableHead>
-            <TableHead>E-mail</TableHead>
-            <TableHead>Telefon</TableHead>
-            <TableHead>Umowy</TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('name')}>
+              Imię i nazwisko<SortIcon col="name" />
+            </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('property')}>
+              Nieruchomość<SortIcon col="property" />
+            </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('type')}>
+              Typ<SortIcon col="type" />
+            </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('email')}>
+              E-mail<SortIcon col="email" />
+            </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('phone')}>
+              Telefon<SortIcon col="phone" />
+            </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('contracts')}>
+              Umowy<SortIcon col="contracts" />
+            </TableHead>
             <TableHead className="w-24" />
           </TableRow>
         </TableHeader>
         <TableBody>
-          {tenants.map((t) => (
+          {sortedTenants.map((t) => (
             <TableRow key={t.id}>
               <TableCell className="font-medium">
                 <div>{t.first_name} {t.last_name}</div>
@@ -247,21 +311,16 @@ export default function TenantsPage() {
             </div>
             <div className="space-y-1">
               <Label>Nieruchomość *</Label>
-              <Select
+              <SearchSelect
+                options={properties.map((p) => ({
+                  value: String(p.id),
+                  label: p.name || p.address1 || String(p.id),
+                  description: p.name ? p.address1 ?? undefined : undefined,
+                }))}
                 value={form.property_id}
-                onValueChange={(v) => setForm({ ...form, property_id: v ?? '' })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Wybierz nieruchomość" />
-                </SelectTrigger>
-                <SelectContent>
-                  {properties.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {p.name || p.address1}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onValueChange={(v) => setForm({ ...form, property_id: v })}
+                placeholder="Wybierz nieruchomość..."
+              />
             </div>
             <div className="space-y-1">
               <Label>Typ</Label>
