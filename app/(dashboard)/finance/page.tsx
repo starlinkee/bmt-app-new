@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { getRentPreview, generateRents, getRentInvoices } from './actions'
+import { tenantDisplayName } from '@/lib/utils'
 import { QUERY_KEYS } from '@/lib/queryKeys'
 import { MonthYearPicker } from '@/components/month-year-picker'
 import { Button } from '@/components/ui/button'
@@ -107,12 +108,12 @@ export default function FinancePage() {
         </TableHeader>
         <TableBody>
           {invoices.map((inv) => {
-            const tenant = inv.tenants as unknown as { first_name: string; last_name: string } | null
+            const tenant = inv.tenants as unknown as { first_name: string; last_name: string; tenant_type?: string | null; company_name?: string | null } | null
             return (
               <TableRow key={inv.id}>
                 <TableCell className="font-mono">{inv.number}</TableCell>
                 <TableCell>
-                  {tenant?.first_name} {tenant?.last_name}
+                  {tenant ? tenantDisplayName(tenant) : ''}
                 </TableCell>
                 <TableCell className="text-right">{formatAmount(Number(inv.amount))}</TableCell>
               </TableRow>
@@ -140,10 +141,10 @@ export default function FinancePage() {
               </p>
               <ul className="space-y-0.5 text-muted-foreground">
                 {(preview?.withEmail ?? []).map((c) => {
-                  const t = c.tenants as unknown as { first_name: string; last_name: string } | null
+                  const t = c.tenants as unknown as { first_name: string; last_name: string; tenant_type?: string | null; company_name?: string | null } | null
                   return (
                     <li key={c.id}>
-                      {t?.first_name} {t?.last_name} — {formatAmount(Number(c.rent_amount))}
+                      {t ? tenantDisplayName(t) : ''} — {formatAmount(Number(c.rent_amount))}
                     </li>
                   )
                 })}
@@ -159,10 +160,12 @@ export default function FinancePage() {
                     const t = c.tenants as unknown as {
                       first_name: string
                       last_name: string
+                      tenant_type?: string | null
+                      company_name?: string | null
                     } | null
                     return (
                       <li key={c.id}>
-                        {t?.first_name} {t?.last_name} — {formatAmount(Number(c.rent_amount))}
+                        {t ? tenantDisplayName(t) : ''} — {formatAmount(Number(c.rent_amount))}
                       </li>
                     )
                   })}

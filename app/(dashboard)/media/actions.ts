@@ -11,7 +11,7 @@ import {
 import { ensureYearMonthFolder, copySpreadsheet, uploadPdfToDrive } from '@/lib/driveEngine'
 import { getServiceAccountEmail } from '@/lib/sheetsEngine'
 import { sendMediaEmail } from '@/lib/email'
-import { buildInvoiceNumber } from '@/lib/utils'
+import { buildInvoiceNumber, tenantDisplayName } from '@/lib/utils'
 import { markMonthlyTaskDone } from '@/lib/tasks'
 import { amountToWordsPLN } from '@/lib/numberWords'
 
@@ -323,7 +323,7 @@ export async function processSettlement(
           numer_rachunku: invoiceNumber,
           data_wystawienia: new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString('pl-PL'),
           termin_platnosci: dueDate.toLocaleDateString('pl-PL'),
-          najemca: `${tenant.first_name} ${tenant.last_name}`,
+          najemca: tenantDisplayName(tenant),
           adres_1: (tenant as Record<string, unknown>).address1 as string ?? '',
           adres_2: (tenant as Record<string, unknown>).address2 as string ?? '',
           nip: (tenant as Record<string, unknown>).nip as string ?? '',
@@ -336,7 +336,7 @@ export async function processSettlement(
             || '',
         }
 
-        const invoiceName = `Rachunek ${invoiceNumber.replace(/\//g, '-')} – ${tenant.first_name} ${tenant.last_name}`
+        const invoiceName = `Rachunek ${invoiceNumber.replace(/\//g, '-')} – ${tenantDisplayName(tenant)}`
         const invoiceSheetId = await copySpreadsheet(config.rent_invoice_spreadsheet_id, invoiceName, monthFolder, getServiceAccountEmail())
 
         const rawMapping = config.rent_invoice_input_mapping_json as InvoiceMappingEntry[] | null
@@ -372,7 +372,7 @@ export async function processSettlement(
 
       await sendMediaEmail(
         tenant.email,
-        `${tenant.first_name} ${tenant.last_name}`,
+        tenantDisplayName(tenant),
         invoiceNumber,
         amount,
         month,
@@ -382,7 +382,7 @@ export async function processSettlement(
     }
 
     results.push({
-      tenantName: `${tenant.first_name} ${tenant.last_name}`,
+      tenantName: tenantDisplayName(tenant),
       amount,
       invoiceNumber,
     })

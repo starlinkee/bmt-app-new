@@ -373,6 +373,7 @@ export type Database = {
           address1: string | null
           address2: string | null
           bank_accounts_as_text: string
+          company_name: string | null
           email: string | null
           first_name: string
           id: number
@@ -386,6 +387,7 @@ export type Database = {
           address1?: string | null
           address2?: string | null
           bank_accounts_as_text?: string
+          company_name?: string | null
           email?: string | null
           first_name: string
           id?: never
@@ -399,6 +401,7 @@ export type Database = {
           address1?: string | null
           address2?: string | null
           bank_accounts_as_text?: string
+          company_name?: string | null
           email?: string | null
           first_name?: string
           id?: never
