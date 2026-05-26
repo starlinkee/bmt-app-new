@@ -33,6 +33,18 @@ export function formatAmount(amount: number): string {
   )
 }
 
+export function tenantDisplayName(tenant: {
+  first_name: string
+  last_name: string
+  tenant_type?: string | null
+  company_name?: string | null
+}): string {
+  if (tenant.tenant_type === 'BUSINESS' && tenant.company_name) {
+    return tenant.company_name
+  }
+  return `${tenant.first_name} ${tenant.last_name}`
+}
+
 export function formatDate(date: string | Date): string {
   const d = typeof date === 'string' ? new Date(date) : date
   const dd = String(d.getDate()).padStart(2, '0')

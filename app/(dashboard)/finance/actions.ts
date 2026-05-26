@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/service'
-import { buildInvoiceNumber } from '@/lib/utils'
+import { buildInvoiceNumber, tenantDisplayName } from '@/lib/utils'
 import { exportSheetAsPdf, writeInputValues } from '@/lib/sheetsEngine'
 import { ensureYearMonthFolder, uploadPdfToDrive } from '@/lib/driveEngine'
 import { sendRentEmail } from '@/lib/email'
@@ -38,7 +38,7 @@ export async function getRentPreview(month: number, year: number) {
 
   const { data: contracts } = await supabase
     .from('contracts')
-    .select('*, tenants(id, first_name, last_name, email, nip, address1, address2, property_id)')
+    .select('*, tenants(id, first_name, last_name, tenant_type, company_name, email, nip, address1, address2, property_id)')
     .eq('is_active', true)
     .eq('contract_type', 'BUSINESS')
     .not('tenant_id', 'in', existingTenantIds.length ? `(${existingTenantIds.join(',')})` : '(-1)')
@@ -73,6 +73,8 @@ export async function generateRents(month: number, year: number) {
       id: number
       first_name: string
       last_name: string
+      tenant_type?: string | null
+      company_name?: string | null
       email?: string
       nip?: string | null
       address1?: string | null
@@ -110,7 +112,7 @@ export async function generateRents(month: number, year: number) {
           data_wystawienia: new Date(Date.UTC(year, month - 1, 1))
             .toLocaleDateString('pl-PL'),
           termin_platnosci: dueDate.toLocaleDateString('pl-PL'),
-          najemca: `${tenant.first_name} ${tenant.last_name}`,
+          najemca: tenantDisplayName(tenant),
           adres_1: tenant.address1 ?? '',
           adres_2: tenant.address2 ?? '',
           nip: tenant.nip ?? '',
@@ -157,7 +159,7 @@ export async function generateRents(month: number, year: number) {
     if (tenant.email) {
       await sendRentEmail(
         tenant.email,
-        `${tenant.first_name} ${tenant.last_name}`,
+        tenantDisplayName(tenant),
         invoiceNumber,
         contract.rent_amount,
         month,
@@ -168,7 +170,7 @@ export async function generateRents(month: number, year: number) {
 
     results.push({
       invoiceNumber,
-      tenantName: `${tenant.first_name} ${tenant.last_name}`,
+      tenantName: tenantDisplayName(tenant),
     })
   }
 
@@ -182,7 +184,7 @@ export async function getRentInvoices(month: number, year: number) {
   const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('invoices')
-    .select('*, tenants(first_name, last_name)')
+    .select('*, tenants(first_name, last_name, tenant_type, company_name)')
     .eq('type', 'RENT')
     .eq('month', month)
     .eq('year', year)

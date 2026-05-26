@@ -44,6 +44,7 @@ function emptyForm() {
     tenant_type: 'PRIVATE',
     first_name: '',
     last_name: '',
+    company_name: '',
     email: '',
     phone: '',
     bank_accounts_as_text: '',
@@ -81,6 +82,7 @@ export default function TenantsPage() {
       tenant_type: t.tenant_type,
       first_name: t.first_name,
       last_name: t.last_name,
+      company_name: (t as unknown as { company_name?: string | null }).company_name ?? '',
       email: t.email ?? '',
       phone: t.phone ?? '',
       bank_accounts_as_text: t.bank_accounts_as_text,
@@ -106,6 +108,7 @@ export default function TenantsPage() {
       tenant_type: form.tenant_type,
       first_name: form.first_name,
       last_name: form.last_name,
+      company_name: form.company_name || undefined,
       email: form.email || undefined,
       phone: form.phone || undefined,
       bank_accounts_as_text: form.bank_accounts_as_text,
@@ -170,7 +173,12 @@ export default function TenantsPage() {
           {tenants.map((t) => (
             <TableRow key={t.id}>
               <TableCell className="font-medium">
-                {t.first_name} {t.last_name}
+                <div>{t.first_name} {t.last_name}</div>
+                {(t as unknown as { company_name?: string | null }).company_name && (
+                  <div className="text-xs text-muted-foreground">
+                    {(t as unknown as { company_name: string }).company_name}
+                  </div>
+                )}
               </TableCell>
               <TableCell>
                 {(t.properties as unknown as { name: string } | null)?.name}
@@ -272,6 +280,14 @@ export default function TenantsPage() {
             </div>
             {form.tenant_type === 'BUSINESS' && (
               <>
+                <div className="space-y-1">
+                  <Label>Nazwa firmy</Label>
+                  <Input
+                    value={form.company_name}
+                    onChange={(e) => setForm({ ...form, company_name: e.target.value })}
+                    placeholder="Używana na rachunkach zamiast imienia i nazwiska"
+                  />
+                </div>
                 <div className="space-y-1">
                   <Label>NIP *</Label>
                   <Input
