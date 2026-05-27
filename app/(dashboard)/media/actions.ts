@@ -61,7 +61,7 @@ export async function createSettlementGroup(data: {
   property_ids: number[]
 }) {
   const supabase = createServiceClient()
-  const { property_ids, ...rest } = data
+  const { property_ids, email_subject_template, email_body_template, ...rest } = data
   const { data: created, error } = await supabase
     .from('settlement_groups')
     .insert(rest)
@@ -95,7 +95,7 @@ export async function updateSettlementGroup(
   },
 ) {
   const supabase = createServiceClient()
-  const { property_ids, ...rest } = data
+  const { property_ids, email_subject_template, email_body_template, ...rest } = data
 
   if (Object.keys(rest).length) {
     const { error } = await supabase
