@@ -112,6 +112,7 @@ export type Database = {
       invoices: {
         Row: {
           amount: number
+          contract_id: number | null
           id: number
           media_settlement_id: number | null
           month: number
@@ -122,6 +123,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          contract_id?: number | null
           id?: never
           media_settlement_id?: number | null
           month: number
@@ -132,6 +134,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          contract_id?: number | null
           id?: never
           media_settlement_id?: number | null
           month?: number
