@@ -399,7 +399,7 @@ export async function processSettlement(
     results.push({
       tenantName: tenantDisplayName(tenant),
       amount,
-      invoiceNumber,
+      invoiceNumber: invoiceNumber ?? `${String(month).padStart(2, '0')}/${year}`,
     })
   }
 
