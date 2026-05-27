@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { getAllFlows } from './actions'
+import { getAllFlows, getFirstTransactionDate } from './actions'
 import { formatAmount, formatDate } from '@/lib/utils'
 import {
   Table,
@@ -101,6 +101,12 @@ export default function PrzeplywyPage() {
     staleTime: 2 * 60 * 1000,
   })
 
+  const { data: firstTransactionDate } = useQuery({
+    queryKey: ['firstTransactionDate'],
+    queryFn: getFirstTransactionDate,
+    staleTime: Infinity,
+  })
+
   function handleSort(key: SortKey) {
     if (sortKey === key) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -149,7 +155,7 @@ export default function PrzeplywyPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-muted-foreground font-normal">
@@ -179,6 +185,18 @@ export default function PrzeplywyPage() {
           <CardContent>
             <p className={`text-2xl font-bold ${net >= 0 ? 'text-green-600' : 'text-destructive'}`}>
               {formatAmount(net)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground font-normal">
+              Kontrolujemy od
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">
+              {firstTransactionDate ? formatDate(firstTransactionDate) : '—'}
             </p>
           </CardContent>
         </Card>
