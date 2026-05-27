@@ -19,9 +19,49 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { TableFilterBar } from '@/components/ui/table-filter-bar'
+import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 
 type TenantWithBalance = Awaited<ReturnType<typeof getTenantsWithBalances>>[number]
 type StatementEntry = Awaited<ReturnType<typeof getTenantStatement>>[number]
+type SortKey = 'name' | 'property' | 'balance'
+type SortDir = 'asc' | 'desc'
+
+const FILTER_COLUMNS = [
+  { key: 'name', label: 'Najemca' },
+  { key: 'property', label: 'Nieruchomość' },
+]
+
+function sortTenants(tenants: TenantWithBalance[], key: SortKey, dir: SortDir): TenantWithBalance[] {
+  return [...tenants].sort((a, b) => {
+    let va: string | number = ''
+    let vb: string | number = ''
+    if (key === 'name') {
+      va = `${a.last_name} ${a.first_name}`.toLowerCase()
+      vb = `${b.last_name} ${b.first_name}`.toLowerCase()
+    } else if (key === 'property') {
+      va = (a.property?.name || a.property?.address1 || '').toLowerCase()
+      vb = (b.property?.name || b.property?.address1 || '').toLowerCase()
+    } else if (key === 'balance') {
+      va = a.balance
+      vb = b.balance
+    }
+    if (va < vb) return dir === 'asc' ? -1 : 1
+    if (va > vb) return dir === 'asc' ? 1 : -1
+    return 0
+  })
+}
+
+function matchesTenantFilter(t: TenantWithBalance, text: string, col: string): boolean {
+  const q = text.toLowerCase()
+  const name = `${t.first_name} ${t.last_name}`.toLowerCase()
+  const company = (t.company_name ?? '').toLowerCase()
+  const property = (t.property?.name || t.property?.address1 || '').toLowerCase()
+  if (col === '__all__') return name.includes(q) || company.includes(q) || property.includes(q)
+  if (col === 'name') return name.includes(q) || company.includes(q)
+  if (col === 'property') return property.includes(q)
+  return false
+}
 
 export default function KontrolaPlatnosciPage() {
   const { data: tenants = [], isLoading } = useQuery({
@@ -32,6 +72,31 @@ export default function KontrolaPlatnosciPage() {
   const [selected, setSelected] = useState<TenantWithBalance | null>(null)
   const [statement, setStatement] = useState<StatementEntry[]>([])
   const [loadingStatement, startTransition] = useTransition()
+  const [sortKey, setSortKey] = useState<SortKey>('name')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [filterText, setFilterText] = useState('')
+  const [filterCol, setFilterCol] = useState('__all__')
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+  }
+
+  function SortIcon({ col }: { col: SortKey }) {
+    if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
+    return sortDir === 'asc'
+      ? <ChevronUp className="ml-1 h-3 w-3 inline" />
+      : <ChevronDown className="ml-1 h-3 w-3 inline" />
+  }
+
+  const filtered = filterText
+    ? tenants.filter((t) => matchesTenantFilter(t, filterText, filterCol))
+    : tenants
+  const sorted = sortTenants(filtered, sortKey, sortDir)
 
   function openTenant(tenant: TenantWithBalance) {
     setSelected(tenant)
@@ -50,18 +115,32 @@ export default function KontrolaPlatnosciPage() {
         <h1 className="text-2xl font-semibold">Kontrola płatności</h1>
         <div className="text-sm text-muted-foreground">
           Łączne saldo:{' '}
-          <span className={`font-semibold ${totalBalance >= 0 ? 'text-green-600' : 'text-destructive'}`}>
+          <span className="font-semibold">
             {formatAmount(totalBalance)}
           </span>
         </div>
       </div>
 
+      <TableFilterBar
+        value={filterText}
+        onChange={setFilterText}
+        column={filterCol}
+        onColumnChange={setFilterCol}
+        columns={FILTER_COLUMNS}
+      />
+
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Najemca</TableHead>
-            <TableHead>Nieruchomość</TableHead>
-            <TableHead className="text-right">Saldo</TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('name')}>
+              Najemca<SortIcon col="name" />
+            </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('property')}>
+              Nieruchomość<SortIcon col="property" />
+            </TableHead>
+            <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort('balance')}>
+              Saldo<SortIcon col="balance" />
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -72,14 +151,14 @@ export default function KontrolaPlatnosciPage() {
               </TableCell>
             </TableRow>
           )}
-          {!isLoading && tenants.length === 0 && (
+          {!isLoading && sorted.length === 0 && (
             <TableRow>
               <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
-                Brak najemców
+                {filterText ? 'Brak wyników dla podanego filtra' : 'Brak najemców'}
               </TableCell>
             </TableRow>
           )}
-          {tenants.map((t) => (
+          {sorted.map((t) => (
             <TableRow
               key={t.id}
               className="cursor-pointer hover:bg-muted/50"

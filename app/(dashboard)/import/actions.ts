@@ -16,8 +16,8 @@ export async function importCsvTransactions(csvContent: string) {
     .from('tenants')
     .select('id, bank_accounts_as_text')
 
-  let matched = 0
-  let unmatched = 0
+  let withSuggestion = 0
+  let withoutSuggestion = 0
   let duplicates = 0
 
   for (const tx of transactions) {
@@ -37,34 +37,25 @@ export async function importCsvTransactions(csvContent: string) {
 
     const tenant = matchTransaction(tx.bankAccount, tenants ?? [])
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).from('transaction_staging').insert({
+      amount: tx.amount,
+      date: tx.date,
+      title: tx.title,
+      bank_account: tx.bankAccount,
+      raw_data: tx.rawData ?? null,
+      suggested_tenant_id: tenant ? tenant.id : null,
+    })
+
     if (tenant) {
-      matched++
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase.from('transactions') as any).insert({
-        type: 'BANK',
-        status: 'MATCHED',
-        amount: tx.amount,
-        date: tx.date,
-        title: tx.title,
-        bank_account: tx.bankAccount,
-        tenant_id: tenant.id,
-        raw_data: tx.rawData ?? null,
-      })
+      withSuggestion++
     } else {
-      unmatched++
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from('transaction_staging').insert({
-        amount: tx.amount,
-        date: tx.date,
-        title: tx.title,
-        bank_account: tx.bankAccount,
-        raw_data: tx.rawData ?? null,
-      })
+      withoutSuggestion++
     }
   }
 
   revalidatePath('/import')
-  return { bank, total: transactions.length, matched, unmatched, skipped, duplicates }
+  return { bank, total: transactions.length, withSuggestion, withoutSuggestion, skipped, duplicates }
 }
 
 export async function getUnmatchedTransactions() {
@@ -81,6 +72,7 @@ export async function getUnmatchedTransactions() {
     title: string
     bank_account: string | null
     raw_data: Record<string, string> | null
+    suggested_tenant_id: number | null
     created_at: string
   }[]
 }

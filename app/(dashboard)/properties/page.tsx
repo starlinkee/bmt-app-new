@@ -35,14 +35,64 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Pencil, Trash2, Plus } from 'lucide-react'
+import { TableFilterBar } from '@/components/ui/table-filter-bar'
+import { Pencil, Trash2, Plus, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 
 type Property = Awaited<ReturnType<typeof getProperties>>[number]
+type SortKey = 'name' | 'address' | 'type' | 'tenants'
+type SortDir = 'asc' | 'desc'
 
 const PROPERTY_TYPES = ['Mieszkanie', 'Lokal użytkowy']
 
+const FILTER_COLUMNS = [
+  { key: 'name', label: 'Nazwa' },
+  { key: 'address', label: 'Adres' },
+  { key: 'type', label: 'Typ' },
+]
+
 function emptyForm() {
   return { name: '', address1: '', address2: '', type: '' }
+}
+
+function sortProperties(props: Property[], key: SortKey, dir: SortDir): Property[] {
+  return [...props].sort((a, b) => {
+    let va: string | number = ''
+    let vb: string | number = ''
+    if (key === 'name') {
+      va = a.name?.toLowerCase() ?? ''
+      vb = b.name?.toLowerCase() ?? ''
+    } else if (key === 'address') {
+      va = a.address1?.toLowerCase() ?? ''
+      vb = b.address1?.toLowerCase() ?? ''
+    } else if (key === 'type') {
+      va = a.type?.toLowerCase() ?? ''
+      vb = b.type?.toLowerCase() ?? ''
+    } else if (key === 'tenants') {
+      va = (a.tenants as unknown as { count: number }[])?.[0]?.count ?? 0
+      vb = (b.tenants as unknown as { count: number }[])?.[0]?.count ?? 0
+    }
+    if (va < vb) return dir === 'asc' ? -1 : 1
+    if (va > vb) return dir === 'asc' ? 1 : -1
+    return 0
+  })
+}
+
+function matchesFilter(p: Property, text: string, col: string): boolean {
+  const q = text.toLowerCase()
+  const address = [p.address1, p.address2].filter(Boolean).join(', ').toLowerCase()
+  const tenantCount = String((p.tenants as unknown as { count: number }[])?.[0]?.count ?? 0)
+  if (col === '__all__') {
+    return (
+      (p.name?.toLowerCase() ?? '').includes(q) ||
+      address.includes(q) ||
+      (p.type?.toLowerCase() ?? '').includes(q) ||
+      tenantCount.includes(q)
+    )
+  }
+  if (col === 'name') return (p.name?.toLowerCase() ?? '').includes(q)
+  if (col === 'address') return address.includes(q)
+  if (col === 'type') return (p.type?.toLowerCase() ?? '').includes(q)
+  return false
 }
 
 export default function PropertiesPage() {
@@ -55,6 +105,31 @@ export default function PropertiesPage() {
   const [editing, setEditing] = useState<Property | null>(null)
   const [form, setForm] = useState(emptyForm())
   const [pending, startTransition] = useTransition()
+  const [sortKey, setSortKey] = useState<SortKey>('name')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [filterText, setFilterText] = useState('')
+  const [filterCol, setFilterCol] = useState('__all__')
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+  }
+
+  function SortIcon({ col }: { col: SortKey }) {
+    if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
+    return sortDir === 'asc'
+      ? <ChevronUp className="ml-1 h-3 w-3 inline" />
+      : <ChevronDown className="ml-1 h-3 w-3 inline" />
+  }
+
+  const filtered = filterText
+    ? properties.filter((p) => matchesFilter(p, filterText, filterCol))
+    : properties
+  const sorted = sortProperties(filtered, sortKey, sortDir)
 
   function openCreate() {
     setEditing(null)
@@ -113,18 +188,34 @@ export default function PropertiesPage() {
         </Button>
       </div>
 
+      <TableFilterBar
+        value={filterText}
+        onChange={setFilterText}
+        column={filterCol}
+        onColumnChange={setFilterCol}
+        columns={FILTER_COLUMNS}
+      />
+
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Nazwa</TableHead>
-            <TableHead>Adres</TableHead>
-            <TableHead>Typ</TableHead>
-            <TableHead>Najemcy</TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('name')}>
+              Nazwa<SortIcon col="name" />
+            </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('address')}>
+              Adres<SortIcon col="address" />
+            </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('type')}>
+              Typ<SortIcon col="type" />
+            </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('tenants')}>
+              Najemcy<SortIcon col="tenants" />
+            </TableHead>
             <TableHead className="w-20" />
           </TableRow>
         </TableHeader>
         <TableBody>
-          {properties.map((p) => (
+          {sorted.map((p) => (
             <TableRow key={p.id}>
               <TableCell className="font-medium">{p.name}</TableCell>
               <TableCell>
@@ -155,10 +246,10 @@ export default function PropertiesPage() {
               </TableCell>
             </TableRow>
           ))}
-          {properties.length === 0 && (
+          {sorted.length === 0 && (
             <TableRow>
               <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                Brak nieruchomości
+                {filterText ? 'Brak wyników dla podanego filtra' : 'Brak nieruchomości'}
               </TableCell>
             </TableRow>
           )}

@@ -12,8 +12,8 @@ export default function ImportPage() {
   const [result, setResult] = useState<{
     bank: string
     total: number
-    matched: number
-    unmatched: number
+    withSuggestion: number
+    withoutSuggestion: number
     skipped: number
     duplicates: number
   } | null>(null)
@@ -70,19 +70,19 @@ export default function ImportPage() {
           <p className="font-medium">Wynik importu</p>
           <ul className="space-y-1 text-muted-foreground">
             <li>Bank: <span className="text-foreground">{result.bank}</span></li>
-            <li>Dodane do historii: <span className="text-green-600">{result.matched}</span></li>
-            <li>Do przypisania: <span className="text-destructive">{result.unmatched}</span></li>
+            <li>Z sugestią najemcy: <span className="text-foreground">{result.withSuggestion}</span></li>
+            <li>Bez dopasowania: <span className="text-foreground">{result.withoutSuggestion}</span></li>
             <li>Pominięte (wychodzące / brak danych): <span className="text-muted-foreground">{result.skipped}</span></li>
             {result.duplicates > 0 && (
               <li>Duplikaty pominięte: <span className="text-muted-foreground">{result.duplicates}</span></li>
             )}
           </ul>
-          {result.unmatched > 0 && (
+          {(result.withSuggestion + result.withoutSuggestion) > 0 && (
             <Link
               href="/import/reconcile"
               className="inline-flex items-center justify-center h-7 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem] border border-border bg-background hover:bg-muted transition-colors"
             >
-              Przypisz transakcje ({result.unmatched})
+              Zatwierdź transakcje ({result.withSuggestion + result.withoutSuggestion})
             </Link>
           )}
         </div>

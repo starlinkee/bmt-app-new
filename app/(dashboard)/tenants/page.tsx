@@ -36,11 +36,36 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Pencil, Trash2, Plus, ExternalLink, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { TableFilterBar } from '@/components/ui/table-filter-bar'
 
 type Tenant = Awaited<ReturnType<typeof getTenants>>[number]
 type Property = Awaited<ReturnType<typeof getProperties>>[number]
 type SortKey = 'name' | 'property' | 'type' | 'email' | 'phone' | 'contracts'
 type SortDir = 'asc' | 'desc'
+
+const FILTER_COLUMNS = [
+  { key: 'name', label: 'Imię i nazwisko' },
+  { key: 'property', label: 'Nieruchomość' },
+  { key: 'type', label: 'Typ' },
+  { key: 'email', label: 'E-mail' },
+  { key: 'phone', label: 'Telefon' },
+]
+
+function matchesTenantFilter(t: Tenant, text: string, col: string): boolean {
+  const q = text.toLowerCase()
+  const name = `${t.first_name} ${t.last_name}`.toLowerCase()
+  const property = ((t.properties as unknown as { name: string } | null)?.name ?? '').toLowerCase()
+  const type = t.tenant_type.toLowerCase()
+  const email = (t.email ?? '').toLowerCase()
+  const phone = (t.phone ?? '').toLowerCase()
+  if (col === '__all__') return name.includes(q) || property.includes(q) || type.includes(q) || email.includes(q) || phone.includes(q)
+  if (col === 'name') return name.includes(q)
+  if (col === 'property') return property.includes(q)
+  if (col === 'type') return type.includes(q)
+  if (col === 'email') return email.includes(q)
+  if (col === 'phone') return phone.includes(q)
+  return false
+}
 
 function sortTenants(tenants: Tenant[], key: SortKey, dir: SortDir): Tenant[] {
   return [...tenants].sort((a, b) => {
@@ -78,6 +103,7 @@ function emptyForm() {
     last_name: '',
     company_name: '',
     email: '',
+    email2: '',
     phone: '',
     bank_accounts_as_text: '',
     nip: '',
@@ -103,6 +129,8 @@ export default function TenantsPage() {
   const [pending, startTransition] = useTransition()
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [filterText, setFilterText] = useState('')
+  const [filterCol, setFilterCol] = useState('__all__')
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -120,7 +148,10 @@ export default function TenantsPage() {
       : <ChevronDown className="ml-1 h-3 w-3 inline" />
   }
 
-  const sortedTenants = sortTenants(tenants, sortKey, sortDir)
+  const filteredTenants = filterText
+    ? tenants.filter((t) => matchesTenantFilter(t, filterText, filterCol))
+    : tenants
+  const sortedTenants = sortTenants(filteredTenants, sortKey, sortDir)
 
   function openCreate() {
     setEditing(null)
@@ -136,6 +167,7 @@ export default function TenantsPage() {
       last_name: t.last_name,
       company_name: (t as unknown as { company_name?: string | null }).company_name ?? '',
       email: t.email ?? '',
+      email2: (t as unknown as { email2?: string | null }).email2 ?? '',
       phone: t.phone ?? '',
       bank_accounts_as_text: t.bank_accounts_as_text,
       nip: t.nip ?? '',
@@ -162,6 +194,7 @@ export default function TenantsPage() {
       last_name: form.last_name,
       company_name: form.company_name || undefined,
       email: form.email || undefined,
+      email2: form.email2 || undefined,
       phone: form.phone || undefined,
       bank_accounts_as_text: form.bank_accounts_as_text,
       nip: form.nip || undefined,
@@ -209,6 +242,14 @@ export default function TenantsPage() {
         </Button>
       </div>
 
+      <TableFilterBar
+        value={filterText}
+        onChange={setFilterText}
+        column={filterCol}
+        onColumnChange={setFilterCol}
+        columns={FILTER_COLUMNS}
+      />
+
       <Table>
         <TableHeader>
           <TableRow>
@@ -252,7 +293,12 @@ export default function TenantsPage() {
                   {t.tenant_type}
                 </Badge>
               </TableCell>
-              <TableCell>{t.email}</TableCell>
+              <TableCell>
+                {t.email}
+                {(t as unknown as { email2?: string | null }).email2 && (
+                  <span className="text-muted-foreground">, {(t as unknown as { email2: string }).email2}</span>
+                )}
+              </TableCell>
               <TableCell>{t.phone}</TableCell>
               <TableCell>
                 {(t.contracts as unknown as { count: number }[])?.[0]?.count ?? 0}
@@ -275,10 +321,10 @@ export default function TenantsPage() {
               </TableCell>
             </TableRow>
           ))}
-          {tenants.length === 0 && (
+          {sortedTenants.length === 0 && (
             <TableRow>
               <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                Brak najemców
+                {filterText ? 'Brak wyników dla podanego filtra' : 'Brak najemców'}
               </TableCell>
             </TableRow>
           )}
@@ -376,6 +422,15 @@ export default function TenantsPage() {
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>E-mail 2</Label>
+              <Input
+                type="email"
+                value={form.email2}
+                onChange={(e) => setForm({ ...form, email2: e.target.value })}
+                placeholder="Opcjonalny drugi adres e-mail"
               />
             </div>
             <div className="space-y-1">

@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       .single(),
     supabase
       .from('contracts')
-      .select('id, rent_amount, reminder_last_sent_at, tenants(first_name, last_name, email)')
+      .select('id, rent_amount, reminder_last_sent_at, tenants(first_name, last_name, email, email2)')
       .eq('is_active', true)
       .eq('contract_type', 'PRIVATE'),
   ])
@@ -52,6 +52,7 @@ export async function POST(request: Request) {
       first_name: string
       last_name: string
       email: string | null
+      email2: string | null
     }
 
     if (!tenant?.email) {
@@ -59,8 +60,9 @@ export async function POST(request: Request) {
       continue
     }
 
+    const recipients = [tenant.email, tenant.email2].filter(Boolean) as string[]
     await sendPrivateMonthlyReminder(
-      tenant.email,
+      recipients,
       `${tenant.first_name} ${tenant.last_name}`,
       now.getMonth() + 1,
       now.getFullYear(),

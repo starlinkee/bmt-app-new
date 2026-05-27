@@ -7,6 +7,7 @@ import {
   validateNamedRanges,
   readOutputValues,
   exportSheetAsPdf,
+  getSheetGidByName,
 } from '@/lib/sheetsEngine'
 import { ensureYearMonthFolder, copySpreadsheet, uploadPdfToDrive } from '@/lib/driveEngine'
 import { getServiceAccountEmail } from '@/lib/sheetsEngine'
@@ -55,6 +56,8 @@ export async function createSettlementGroup(data: {
   input_mapping_json: Record<string, string>
   output_mapping_json: Record<string, string>
   pdf_sheets_json?: Record<string, string>[]
+  email_subject_template?: string
+  email_body_template?: string
   property_ids: number[]
 }) {
   const supabase = createServiceClient()
@@ -86,6 +89,8 @@ export async function updateSettlementGroup(
     input_mapping_json?: Record<string, string>
     output_mapping_json?: Record<string, string>
     pdf_sheets_json?: Record<string, string>[]
+    email_subject_template?: string
+    email_body_template?: string
     property_ids?: number[]
   },
 ) {
@@ -223,7 +228,8 @@ export async function processSettlement(
   const outputs = await readOutputValues(workingSheetId, rangeMapping)
 
   // 5. Eksportuj PDF — osobny plik per sheet zdefiniowany w pdf_sheets_json
-  type PdfSheetDef = { gid: string; name: string }
+  // `tab` = tytuł zakładki w arkuszu (do wyszukania GID po skopiowaniu), `name` = etykieta PDF
+  type PdfSheetDef = { gid?: string; tab?: string; name: string }
   const pdfSheets = (group as Record<string, unknown>).pdf_sheets_json as PdfSheetDef[] | undefined
   const baseName = sheetName.replace(/\//g, '-')
 
@@ -235,7 +241,10 @@ export async function processSettlement(
     exportedPdfs.push({ name: baseName, driveId, buffer })
   } else {
     for (const sheet of pdfSheets) {
-      const buffer = await exportSheetAsPdf(workingSheetId, sheet.gid)
+      const gid = sheet.tab
+        ? await getSheetGidByName(workingSheetId, sheet.tab)
+        : sheet.gid
+      const buffer = await exportSheetAsPdf(workingSheetId, gid)
       const fileName = `${baseName} – ${sheet.name}.pdf`
       const driveId = await uploadPdfToDrive(fileName, buffer, monthFolder)
       exportedPdfs.push({ name: sheet.name, driveId, buffer })
@@ -278,7 +287,7 @@ export async function processSettlement(
     .in('id', tenantIds)
   const tenantMap = Object.fromEntries((tenants ?? []).map((t) => [t.id, t]))
 
-  // 8. Utwórz rachunki zgodnie z output_mapping_json
+  // 8. Utwórz rachunki / wyślij maile zgodnie z output_mapping_json
   for (const entry of outputEntries) {
     const amountStr = outputs[entry.range]
     const amount = parseFloat((amountStr ?? '').replace(',', '.'))
@@ -291,65 +300,68 @@ export async function processSettlement(
       (c: { is_active: boolean; contract_type: string }) =>
         c.is_active && c.contract_type === 'BUSINESS',
     )
-    if (!activeContract) continue
 
-    const invoiceNumber = buildInvoiceNumber(
-      month,
-      year,
-      activeContract.invoice_seq_number,
-      entry.type,
-    )
+    let invoiceNumber: string | undefined
+    let invoicePdfBuffer: Buffer | undefined
 
-    const { error } = await supabase.from('invoices').upsert(
-      {
-        type: entry.type,
-        number: invoiceNumber,
-        amount,
+    if (activeContract) {
+      invoiceNumber = buildInvoiceNumber(
         month,
         year,
-        tenant_id: tenant.id,
-        media_settlement_id: settlement.id,
-      },
-      { onConflict: 'tenant_id,type,month,year', ignoreDuplicates: true },
-    )
-    if (error) continue
+        activeContract.invoice_seq_number,
+        entry.type,
+      )
 
-    // 9. Wygeneruj rachunek używając tego samego szablonu co czynsz (app_config)
-    let invoicePdfBuffer: Buffer | undefined
-    if (config?.rent_invoice_spreadsheet_id) {
-      try {
-        const dueDate = new Date(Date.UTC(year, month, 10))
-        const vars: Record<string, string> = {
-          numer_rachunku: invoiceNumber,
-          data_wystawienia: new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString('pl-PL'),
-          termin_platnosci: dueDate.toLocaleDateString('pl-PL'),
-          najemca: tenantDisplayName(tenant),
-          adres_1: (tenant as Record<string, unknown>).address1 as string ?? '',
-          adres_2: (tenant as Record<string, unknown>).address2 as string ?? '',
-          nip: (tenant as Record<string, unknown>).nip as string ?? '',
-          miesiac: String(month),
-          rok: String(year),
-          kwota: String(amount),
-          kwota_slownie: amountToWordsPLN(amount),
-          opis_rachunku: (activeContract as Record<string, unknown>).opis_rachunku_media as string
-            || (activeContract as Record<string, unknown>).opis_rachunku as string
-            || '',
+      const { error } = await supabase.from('invoices').upsert(
+        {
+          type: entry.type,
+          number: invoiceNumber,
+          amount,
+          month,
+          year,
+          tenant_id: tenant.id,
+          media_settlement_id: settlement.id,
+        },
+        { onConflict: 'tenant_id,type,month,year', ignoreDuplicates: true },
+      )
+      if (error) continue
+
+      // 9. Wygeneruj rachunek używając tego samego szablonu co czynsz (app_config)
+      if (config?.rent_invoice_spreadsheet_id) {
+        try {
+          const dueDate = new Date(Date.UTC(year, month, 10))
+          const vars: Record<string, string> = {
+            numer_rachunku: invoiceNumber,
+            data_wystawienia: new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString('pl-PL'),
+            termin_platnosci: dueDate.toLocaleDateString('pl-PL'),
+            najemca: tenantDisplayName(tenant),
+            adres_1: (tenant as Record<string, unknown>).address1 as string ?? '',
+            adres_2: (tenant as Record<string, unknown>).address2 as string ?? '',
+            nip: (tenant as Record<string, unknown>).nip as string ?? '',
+            miesiac: String(month),
+            rok: String(year),
+            kwota: String(amount),
+            kwota_slownie: amountToWordsPLN(amount),
+            opis_rachunku: (activeContract as Record<string, unknown>).opis_rachunku_media as string
+              || (activeContract as Record<string, unknown>).opis_rachunku as string
+              || '',
+          }
+
+          const invoiceName = `Rachunek ${invoiceNumber.replace(/\//g, '-')} – ${tenantDisplayName(tenant)}`
+          const invoiceSheetId = await copySpreadsheet(config.rent_invoice_spreadsheet_id, invoiceName, monthFolder, getServiceAccountEmail())
+
+          const rawMapping = config.rent_invoice_input_mapping_json as InvoiceMappingEntry[] | null
+          if (rawMapping?.length) {
+            const resolved = resolveInvoiceMapping(rawMapping, vars)
+            const inputMapping = Object.fromEntries(Object.keys(resolved).map((k) => [k, k]))
+            await writeInputValues(invoiceSheetId, inputMapping, resolved)
+          }
+
+          invoicePdfBuffer = await exportSheetAsPdf(invoiceSheetId)
+          await uploadPdfToDrive(`${invoiceNumber.replace(/\//g, '-')}.pdf`, invoicePdfBuffer, monthFolder)
+        } catch {
+          // Rachunek opcjonalny — kontynuuj bez niego
         }
-
-        const invoiceName = `Rachunek ${invoiceNumber.replace(/\//g, '-')} – ${tenantDisplayName(tenant)}`
-        const invoiceSheetId = await copySpreadsheet(config.rent_invoice_spreadsheet_id, invoiceName, monthFolder, getServiceAccountEmail())
-
-        const rawMapping = config.rent_invoice_input_mapping_json as InvoiceMappingEntry[] | null
-        if (rawMapping?.length) {
-          const resolved = resolveInvoiceMapping(rawMapping, vars)
-          const inputMapping = Object.fromEntries(Object.keys(resolved).map((k) => [k, k]))
-          await writeInputValues(invoiceSheetId, inputMapping, resolved)
-        }
-
-        invoicePdfBuffer = await exportSheetAsPdf(invoiceSheetId)
-        await uploadPdfToDrive(`${invoiceNumber.replace(/\//g, '-')}.pdf`, invoicePdfBuffer, monthFolder)
-      } catch {
-        // Rachunek opcjonalny — kontynuuj bez niego
       }
     }
 
@@ -363,21 +375,24 @@ export async function processSettlement(
           buffer: p.buffer,
         }))
 
-      if (invoicePdfBuffer) {
+      if (invoicePdfBuffer && invoiceNumber) {
         attachments.push({
           filename: `Rachunek_${invoiceNumber.replace(/\//g, '-')}.pdf`,
           buffer: invoicePdfBuffer,
         })
       }
 
+      const recipients = [tenant.email, tenant.email2].filter(Boolean) as string[]
       await sendMediaEmail(
-        tenant.email,
+        recipients,
         tenantDisplayName(tenant),
-        invoiceNumber,
+        invoiceNumber ?? `${String(month).padStart(2, '0')}/${year}`,
         amount,
         month,
         year,
         attachments,
+        (group as Record<string, unknown>).email_subject_template as string | null,
+        (group as Record<string, unknown>).email_body_template as string | null,
       )
     }
 

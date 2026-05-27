@@ -29,7 +29,13 @@ export default function ReconcilePage() {
       ])
       setTransactions(txs)
       setTenants(ts)
-      setSelectedTenants({})
+      const suggestions: Record<number, string> = {}
+      for (const tx of txs) {
+        if (tx.suggested_tenant_id != null) {
+          suggestions[tx.id] = String(tx.suggested_tenant_id)
+        }
+      }
+      setSelectedTenants(suggestions)
     })
   }
 
@@ -114,19 +120,23 @@ export default function ReconcilePage() {
               )}
 
               <div className="flex gap-2 pt-1 border-t">
-                <SearchSelect
-                  className="flex-1"
-                  options={tenants.map((t) => ({
-                    value: String(t.id),
-                    label: `${t.first_name} ${t.last_name}`,
-                    description: (t.properties as unknown as { name: string } | null)?.name,
-                  }))}
-                  value={selectedTenants[tx.id] ?? ''}
-                  onValueChange={(v) =>
-                    setSelectedTenants((prev) => ({ ...prev, [tx.id]: v }))
-                  }
-                  placeholder="Wyszukaj najemcę..."
-                />
+                <div className="flex-1 space-y-1">
+                  {tx.suggested_tenant_id != null && selectedTenants[tx.id] === String(tx.suggested_tenant_id) && (
+                    <p className="text-xs text-muted-foreground">Sugestia wg numeru rachunku — wymaga potwierdzenia</p>
+                  )}
+                  <SearchSelect
+                    options={tenants.map((t) => ({
+                      value: String(t.id),
+                      label: `${t.first_name} ${t.last_name}`,
+                      description: (t.properties as unknown as { name: string } | null)?.name,
+                    }))}
+                    value={selectedTenants[tx.id] ?? ''}
+                    onValueChange={(v) =>
+                      setSelectedTenants((prev) => ({ ...prev, [tx.id]: v }))
+                    }
+                    placeholder="Wyszukaj najemcę..."
+                  />
+                </div>
                 <Button
                   size="sm"
                   variant="ghost"

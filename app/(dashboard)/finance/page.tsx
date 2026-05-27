@@ -23,7 +23,55 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { TableFilterBar } from '@/components/ui/table-filter-bar'
 import { formatAmount } from '@/lib/utils'
+import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+
+type Invoice = Awaited<ReturnType<typeof getRentInvoices>>[number]
+type SortKey = 'number' | 'tenant' | 'amount'
+type SortDir = 'asc' | 'desc'
+
+const FILTER_COLUMNS = [
+  { key: 'number', label: 'Numer' },
+  { key: 'tenant', label: 'Najemca' },
+]
+
+function getTenantData(inv: Invoice) {
+  return inv.tenants as unknown as { first_name: string; last_name: string; tenant_type?: string | null; company_name?: string | null } | null
+}
+
+function sortInvoices(invoices: Invoice[], key: SortKey, dir: SortDir): Invoice[] {
+  return [...invoices].sort((a, b) => {
+    const ta = getTenantData(a)
+    const tb = getTenantData(b)
+    let va: string | number = ''
+    let vb: string | number = ''
+    if (key === 'number') {
+      va = a.number ?? ''
+      vb = b.number ?? ''
+    } else if (key === 'tenant') {
+      va = ta ? tenantDisplayName(ta).toLowerCase() : ''
+      vb = tb ? tenantDisplayName(tb).toLowerCase() : ''
+    } else if (key === 'amount') {
+      va = Number(a.amount)
+      vb = Number(b.amount)
+    }
+    if (va < vb) return dir === 'asc' ? -1 : 1
+    if (va > vb) return dir === 'asc' ? 1 : -1
+    return 0
+  })
+}
+
+function matchesInvoiceFilter(inv: Invoice, text: string, col: string): boolean {
+  const q = text.toLowerCase()
+  const t = getTenantData(inv)
+  const tenant = t ? tenantDisplayName(t).toLowerCase() : ''
+  const number = (inv.number ?? '').toLowerCase()
+  if (col === '__all__') return number.includes(q) || tenant.includes(q)
+  if (col === 'number') return number.includes(q)
+  if (col === 'tenant') return tenant.includes(q)
+  return false
+}
 
 export default function FinancePage() {
   const now = new Date()
@@ -34,12 +82,37 @@ export default function FinancePage() {
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof getRentPreview>> | null>(null)
   const [progress, setProgress] = useState(0)
   const [pending, startTransition] = useTransition()
+  const [sortKey, setSortKey] = useState<SortKey>('number')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [filterText, setFilterText] = useState('')
+  const [filterCol, setFilterCol] = useState('__all__')
 
   const { data: invoices = [] } = useQuery({
     queryKey: QUERY_KEYS.rentInvoices(month, year),
     queryFn: () => getRentInvoices(month, year),
-    staleTime: 2 * 60 * 1000, // 2 minuty — faktury mogą być generowane częściej
+    staleTime: 2 * 60 * 1000,
   })
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+  }
+
+  function SortIcon({ col }: { col: SortKey }) {
+    if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
+    return sortDir === 'asc'
+      ? <ChevronUp className="ml-1 h-3 w-3 inline" />
+      : <ChevronDown className="ml-1 h-3 w-3 inline" />
+  }
+
+  const filtered = filterText
+    ? invoices.filter((inv) => matchesInvoiceFilter(inv, filterText, filterCol))
+    : invoices
+  const sorted = sortInvoices(filtered, sortKey, sortDir)
 
   function handlePreview() {
     startTransition(async () => {
@@ -52,7 +125,6 @@ export default function FinancePage() {
   function handleGenerate() {
     const total = (preview?.withEmail?.length ?? 0) + (preview?.withoutEmail?.length ?? 0)
 
-    // Asymptotyczny progress
     setProgress(0)
     const interval = setInterval(() => {
       setProgress((p) => {
@@ -98,17 +170,31 @@ export default function FinancePage() {
         </Button>
       </div>
 
+      <TableFilterBar
+        value={filterText}
+        onChange={setFilterText}
+        column={filterCol}
+        onColumnChange={setFilterCol}
+        columns={FILTER_COLUMNS}
+      />
+
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Numer</TableHead>
-            <TableHead>Najemca</TableHead>
-            <TableHead className="text-right">Kwota</TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('number')}>
+              Numer<SortIcon col="number" />
+            </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('tenant')}>
+              Najemca<SortIcon col="tenant" />
+            </TableHead>
+            <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort('amount')}>
+              Kwota<SortIcon col="amount" />
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {invoices.map((inv) => {
-            const tenant = inv.tenants as unknown as { first_name: string; last_name: string; tenant_type?: string | null; company_name?: string | null } | null
+          {sorted.map((inv) => {
+            const tenant = getTenantData(inv)
             return (
               <TableRow key={inv.id}>
                 <TableCell className="font-mono">{inv.number}</TableCell>
@@ -119,10 +205,10 @@ export default function FinancePage() {
               </TableRow>
             )
           })}
-          {invoices.length === 0 && (
+          {sorted.length === 0 && (
             <TableRow>
               <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
-                Brak czynszów dla {month}/{year}
+                {filterText ? 'Brak wyników dla podanego filtra' : `Brak czynszów dla ${month}/${year}`}
               </TableCell>
             </TableRow>
           )}

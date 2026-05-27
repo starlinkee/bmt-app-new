@@ -20,6 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { TableFilterBar } from '@/components/ui/table-filter-bar'
+import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 
 const CURRENT_YEAR = new Date().getFullYear()
 const YEARS = Array.from({ length: 5 }, (_, i) => CURRENT_YEAR - i)
@@ -30,9 +32,68 @@ const TYPE_LABELS: Record<string, string> = {
   OTHER: 'Inny',
 }
 
+type Entry = Awaited<ReturnType<typeof getAllFlows>>[number]
+type SortKey = 'date' | 'type' | 'tenant' | 'description' | 'amount'
+type SortDir = 'asc' | 'desc'
+
+const FILTER_COLUMNS = [
+  { key: 'tenant', label: 'Najemca' },
+  { key: 'description', label: 'Opis' },
+  { key: 'type', label: 'Typ' },
+]
+
+function getTypeLabel(entry: Entry): string {
+  if (entry.type === 'invoice') {
+    return entry.invoiceType ? (TYPE_LABELS[entry.invoiceType] ?? entry.invoiceType) : 'Rachunek'
+  }
+  return 'Wpłata'
+}
+
+function sortEntries(entries: Entry[], key: SortKey, dir: SortDir): Entry[] {
+  return [...entries].sort((a, b) => {
+    let va: string | number = ''
+    let vb: string | number = ''
+    if (key === 'date') {
+      va = a.date
+      vb = b.date
+    } else if (key === 'type') {
+      va = getTypeLabel(a).toLowerCase()
+      vb = getTypeLabel(b).toLowerCase()
+    } else if (key === 'tenant') {
+      va = (a.tenantName ?? '').toLowerCase()
+      vb = (b.tenantName ?? '').toLowerCase()
+    } else if (key === 'description') {
+      va = (a.description ?? '').toLowerCase()
+      vb = (b.description ?? '').toLowerCase()
+    } else if (key === 'amount') {
+      va = a.amount
+      vb = b.amount
+    }
+    if (va < vb) return dir === 'asc' ? -1 : 1
+    if (va > vb) return dir === 'asc' ? 1 : -1
+    return 0
+  })
+}
+
+function matchesEntryFilter(entry: Entry, text: string, col: string): boolean {
+  const q = text.toLowerCase()
+  const tenant = (entry.tenantName ?? '').toLowerCase()
+  const description = (entry.description ?? '').toLowerCase()
+  const type = getTypeLabel(entry).toLowerCase()
+  if (col === '__all__') return tenant.includes(q) || description.includes(q) || type.includes(q)
+  if (col === 'tenant') return tenant.includes(q)
+  if (col === 'description') return description.includes(q)
+  if (col === 'type') return type.includes(q)
+  return false
+}
+
 export default function PrzeplywyPage() {
   const [year, setYear] = useState(CURRENT_YEAR)
-  const [filter, setFilter] = useState<'all' | 'invoice' | 'transaction'>('all')
+  const [typeFilter, setTypeFilter] = useState<'all' | 'invoice' | 'transaction'>('all')
+  const [sortKey, setSortKey] = useState<SortKey>('date')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [filterText, setFilterText] = useState('')
+  const [filterCol, setFilterCol] = useState('__all__')
 
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ['przeplywy', year],
@@ -40,7 +101,27 @@ export default function PrzeplywyPage() {
     staleTime: 2 * 60 * 1000,
   })
 
-  const visible = filter === 'all' ? entries : entries.filter((e) => e.type === filter)
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+  }
+
+  function SortIcon({ col }: { col: SortKey }) {
+    if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
+    return sortDir === 'asc'
+      ? <ChevronUp className="ml-1 h-3 w-3 inline" />
+      : <ChevronDown className="ml-1 h-3 w-3 inline" />
+  }
+
+  const typeFiltered = typeFilter === 'all' ? entries : entries.filter((e) => e.type === typeFilter)
+  const textFiltered = filterText
+    ? typeFiltered.filter((e) => matchesEntryFilter(e, filterText, filterCol))
+    : typeFiltered
+  const visible = sortEntries(textFiltered, sortKey, sortDir)
 
   const totalIn = entries.filter((e) => e.amount > 0).reduce((s, e) => s + e.amount, 0)
   const totalOut = entries.filter((e) => e.amount < 0).reduce((s, e) => s + Math.abs(e.amount), 0)
@@ -65,16 +146,6 @@ export default function PrzeplywyPage() {
             </SelectContent>
           </Select>
 
-          <Select value={filter} onValueChange={(v) => setFilter(v as typeof filter)}>
-            <SelectTrigger className="w-36">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Wszystko</SelectItem>
-              <SelectItem value="invoice">Rachunki</SelectItem>
-              <SelectItem value="transaction">Wpłaty</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
       </div>
 
@@ -113,14 +184,47 @@ export default function PrzeplywyPage() {
         </Card>
       </div>
 
+      <TableFilterBar
+        value={filterText}
+        onChange={setFilterText}
+        column={filterCol}
+        onColumnChange={setFilterCol}
+        columns={FILTER_COLUMNS}
+      />
+
+      <div className="flex items-center gap-2">
+        <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as typeof typeFilter)}>
+          <SelectTrigger className="w-36">
+            <SelectValue>
+              {typeFilter === 'all' ? 'Wszystko' : typeFilter === 'invoice' ? 'Rachunki' : 'Wpłaty'}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Wszystko</SelectItem>
+            <SelectItem value="invoice">Rachunki</SelectItem>
+            <SelectItem value="transaction">Wpłaty</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Data</TableHead>
-            <TableHead>Typ</TableHead>
-            <TableHead>Najemca</TableHead>
-            <TableHead>Opis</TableHead>
-            <TableHead className="text-right">Kwota</TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('date')}>
+              Data<SortIcon col="date" />
+            </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('type')}>
+              Typ<SortIcon col="type" />
+            </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('tenant')}>
+              Najemca<SortIcon col="tenant" />
+            </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('description')}>
+              Opis<SortIcon col="description" />
+            </TableHead>
+            <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort('amount')}>
+              Kwota<SortIcon col="amount" />
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -134,7 +238,7 @@ export default function PrzeplywyPage() {
           {!isLoading && visible.length === 0 && (
             <TableRow>
               <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                Brak operacji dla {year}
+                {filterText ? 'Brak wyników dla podanego filtra' : `Brak operacji dla ${year}`}
               </TableCell>
             </TableRow>
           )}
