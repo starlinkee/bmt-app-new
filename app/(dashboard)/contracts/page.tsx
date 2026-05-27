@@ -306,7 +306,7 @@ export default function ContractsPage() {
                 <TableCell>{c.contract_type === 'BUSINESS' ? c.invoice_seq_number : null}</TableCell>
                 <TableCell>
                   {(c as Record<string, unknown>).has_media_invoice
-                    ? ((c as Record<string, unknown>).media_invoice_seq_number ?? '—')
+                    ? String((c as Record<string, unknown>).media_invoice_seq_number ?? '—')
                     : null}
                 </TableCell>
                 <TableCell>{(c as Record<string, unknown>).opis_rachunku as string || null}</TableCell>
