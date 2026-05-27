@@ -17,6 +17,8 @@ export async function createContract(data: {
   contract_type: string
   rent_amount: number
   invoice_seq_number: number
+  has_media_invoice: boolean
+  media_invoice_seq_number?: number | null
   opis_rachunku: string
   opis_rachunku_media: string
   start_date: string
@@ -36,6 +38,8 @@ export async function updateContract(
     contract_type: string
     rent_amount: number
     invoice_seq_number: number
+    has_media_invoice: boolean
+    media_invoice_seq_number: number | null
     opis_rachunku: string
     opis_rachunku_media: string
     start_date: string

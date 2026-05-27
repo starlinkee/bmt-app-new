@@ -57,9 +57,11 @@ export type Database = {
         Row: {
           contract_type: string
           end_date: string | null
+          has_media_invoice: boolean
           id: number
           invoice_seq_number: number
           is_active: boolean
+          media_invoice_seq_number: number | null
           opis_rachunku: string
           opis_rachunku_media: string
           reminder_last_sent_at: string | null
@@ -70,9 +72,11 @@ export type Database = {
         Insert: {
           contract_type?: string
           end_date?: string | null
+          has_media_invoice?: boolean
           id?: never
           invoice_seq_number?: number
           is_active?: boolean
+          media_invoice_seq_number?: number | null
           opis_rachunku?: string
           opis_rachunku_media?: string
           reminder_last_sent_at?: string | null
@@ -83,9 +87,11 @@ export type Database = {
         Update: {
           contract_type?: string
           end_date?: string | null
+          has_media_invoice?: boolean
           id?: never
           invoice_seq_number?: number
           is_active?: boolean
+          media_invoice_seq_number?: number | null
           opis_rachunku?: string
           opis_rachunku_media?: string
           reminder_last_sent_at?: string | null

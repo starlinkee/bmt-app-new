@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import { use } from 'react'
-import { getSettlementGroup, processSettlement } from '../actions'
+import { getSettlementGroup, getPreviousMeterReadings, processSettlement } from '../actions'
 import { MonthYearPicker } from '@/components/month-year-picker'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,6 +23,7 @@ export default function MediaGroupPage({
   const [year, setYear] = useState(now.getFullYear())
   const [group, setGroup] = useState<Group | null>(null)
   const [inputValues, setInputValues] = useState<Record<string, string>>({})
+  const [previousReadings, setPreviousReadings] = useState<Record<string, number>>({})
   const [results, setResults] = useState<{ tenantName: string; amount: number; invoiceNumber: string }[]>([])
   const [progress, setProgress] = useState(0)
   const [pending, startTransition] = useTransition()
@@ -33,6 +34,14 @@ export default function MediaGroupPage({
       setGroup(g)
     })
   }, [groupId])
+
+  useEffect(() => {
+    if (!group) return
+    startTransition(async () => {
+      const prev = await getPreviousMeterReadings(Number(groupId), month, year)
+      setPreviousReadings(prev)
+    })
+  }, [groupId, group, month, year])
 
   type FieldDef = string | { range: string; source: 'user' | 'db'; save_key?: string; db_key?: string }
   const inputMapping = (group?.input_mapping_json as Record<string, Record<string, FieldDef>>) ?? {}
@@ -95,6 +104,8 @@ export default function MediaGroupPage({
               const range = typeof fieldDef === 'string' ? fieldDef : fieldDef.range
               const source = typeof fieldDef === 'string' ? 'user' : fieldDef.source
               if (source === 'db') return null
+              const saveKey = typeof fieldDef !== 'string' && fieldDef.source === 'user' ? fieldDef.save_key : undefined
+              const lastReading = saveKey !== undefined ? previousReadings[saveKey] : undefined
               return (
                 <div key={range} className="space-y-1">
                   <Label>{fieldLabel}</Label>
@@ -105,6 +116,9 @@ export default function MediaGroupPage({
                     }
                     placeholder="0"
                   />
+                  {lastReading !== undefined && (
+                    <p className="text-xs text-muted-foreground">Ostatni odczyt: {lastReading}</p>
+                  )}
                 </div>
               )
             })}

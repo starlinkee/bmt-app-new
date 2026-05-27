@@ -23,7 +23,7 @@ const navItems = [
   { href: '/properties', label: 'Nieruchomości', icon: Building2 },
   { href: '/tenants', label: 'Najemcy', icon: Users },
   { href: '/contracts', label: 'Umowy', icon: FileText },
-  { href: '/finance', label: 'Finanse', icon: CreditCard },
+  { href: '/finance', label: 'Czynsze', icon: CreditCard },
   { href: '/media', label: 'Media', icon: Gauge },
   { href: '/import', label: 'Import CSV', icon: Upload },
   { href: '/kontrola-platnosci', label: 'Kontrola płatności', icon: ClipboardList },

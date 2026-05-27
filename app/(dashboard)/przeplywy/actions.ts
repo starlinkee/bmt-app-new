@@ -64,3 +64,15 @@ export async function getAllFlows(year: number): Promise<FlowEntry[]> {
 
   return entries
 }
+
+export async function getFirstTransactionDate(): Promise<string | null> {
+  const supabase = createServiceClient()
+  const { data } = await supabase
+    .from('transactions')
+    .select('date')
+    .neq('status', 'DISMISSED')
+    .order('date', { ascending: true })
+    .limit(1)
+    .single()
+  return data?.date ?? null
+}

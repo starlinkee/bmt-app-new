@@ -12,7 +12,7 @@ import {
 import { ensureYearMonthFolder, copySpreadsheet, uploadPdfToDrive } from '@/lib/driveEngine'
 import { getServiceAccountEmail } from '@/lib/sheetsEngine'
 import { sendMediaEmail } from '@/lib/email'
-import { buildInvoiceNumber, tenantDisplayName } from '@/lib/utils'
+import { tenantDisplayName } from '@/lib/utils'
 import { markMonthlyTaskDone } from '@/lib/tasks'
 import { amountToWordsPLN } from '@/lib/numberWords'
 
@@ -297,20 +297,18 @@ export async function processSettlement(
     if (!tenant) continue
 
     const activeContract = tenant.contracts?.find(
-      (c: { is_active: boolean; contract_type: string }) =>
-        c.is_active && c.contract_type === 'BUSINESS',
+      (c: { is_active: boolean; contract_type: string; has_media_invoice?: boolean }) =>
+        c.is_active && c.contract_type === 'BUSINESS' && c.has_media_invoice,
     )
 
     let invoiceNumber: string | undefined
     let invoicePdfBuffer: Buffer | undefined
 
     if (activeContract) {
-      invoiceNumber = buildInvoiceNumber(
-        month,
-        year,
-        activeContract.invoice_seq_number,
-        entry.type,
-      )
+      const mediaSeq = (activeContract as Record<string, unknown>).media_invoice_seq_number as number | null
+      const mm = String(month).padStart(2, '0')
+      const seq = String(mediaSeq ?? activeContract.invoice_seq_number).padStart(3, '0')
+      invoiceNumber = `${mm}/${year}/${seq}`
 
       const { error } = await supabase.from('invoices').upsert(
         {

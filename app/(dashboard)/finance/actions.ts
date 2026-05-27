@@ -68,7 +68,8 @@ export async function generateRents(month: number, year: number) {
 
   const results: { invoiceNumber: string; tenantName: string }[] = []
 
-  for (const contract of allContracts) {
+  for (let ci = 0; ci < allContracts.length; ci++) {
+    const contract = allContracts[ci]
     const tenant = contract.tenants as {
       id: number
       first_name: string
@@ -149,8 +150,9 @@ export async function generateRents(month: number, year: number) {
           )
         }
 
-        // Rate limiting między iteracjami
-        await new Promise((r) => setTimeout(r, 4000))
+        if (ci < allContracts.length - 1) {
+          await new Promise((r) => setTimeout(r, 4000))
+        }
       } catch {
         // PDF generowanie opcjonalne — kontynuuj bez niego
       }
