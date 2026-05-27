@@ -105,6 +105,20 @@ export async function readOutputValues(
   return result
 }
 
+export async function getSheetGidByName(
+  spreadsheetId: string,
+  sheetName: string,
+): Promise<string | undefined> {
+  const auth = getServiceAccountAuth()
+  const sheets = google.sheets({ version: 'v4', auth })
+  const { data } = await sheets.spreadsheets.get({
+    spreadsheetId,
+    fields: 'sheets.properties(sheetId,title)',
+  })
+  const sheet = (data.sheets ?? []).find((s) => s.properties?.title === sheetName)
+  return sheet?.properties?.sheetId?.toString()
+}
+
 export async function exportSheetAsPdf(
   spreadsheetId: string,
   gid?: string,

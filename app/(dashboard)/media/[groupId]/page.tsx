@@ -24,6 +24,7 @@ export default function MediaGroupPage({
   const [group, setGroup] = useState<Group | null>(null)
   const [inputValues, setInputValues] = useState<Record<string, string>>({})
   const [results, setResults] = useState<{ tenantName: string; amount: number; invoiceNumber: string }[]>([])
+  const [progress, setProgress] = useState(0)
   const [pending, startTransition] = useTransition()
 
   useEffect(() => {
@@ -37,6 +38,14 @@ export default function MediaGroupPage({
   const inputMapping = (group?.input_mapping_json as Record<string, Record<string, FieldDef>>) ?? {}
 
   function handleProcess() {
+    setProgress(0)
+    const interval = setInterval(() => {
+      setProgress((p) => {
+        const delta = (95 - p) * 0.05
+        return Math.min(p + delta, 94)
+      })
+    }, 200)
+
     startTransition(async () => {
       try {
         const res = await processSettlement(
@@ -45,9 +54,13 @@ export default function MediaGroupPage({
           month,
           year,
         )
+        clearInterval(interval)
+        setProgress(100)
         setResults(res)
         toast.success(`Rozliczono. Wystawiono ${res.length} rachunków.`)
       } catch (e) {
+        clearInterval(interval)
+        setProgress(0)
         toast.error(e instanceof Error ? e.message : 'Nieznany błąd')
       }
     })
@@ -103,13 +116,26 @@ export default function MediaGroupPage({
         Przelicz i wystaw
       </Button>
 
+      {pending && progress > 0 && (
+        <div className="space-y-1 max-w-sm">
+          <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all duration-200"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">{Math.round(progress)}%</p>
+        </div>
+      )}
+
       {results.length > 0 && (
         <div className="space-y-2">
           <h2 className="font-semibold">Wystawione rachunki</h2>
           <ul className="space-y-1 text-sm">
             {results.map((r) => (
-              <li key={r.invoiceNumber}>
-                <span className="font-mono">{r.invoiceNumber}</span> —{' '}
+              <li key={r.invoiceNumber ?? r.tenantName}>
+                {r.invoiceNumber && <span className="font-mono">{r.invoiceNumber}</span>}
+                {r.invoiceNumber && ' — '}
                 {r.tenantName} — {formatAmount(r.amount)}
               </li>
             ))}

@@ -33,12 +33,82 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { TableFilterBar } from '@/components/ui/table-filter-bar'
 import { Badge } from '@/components/ui/badge'
-import { Pencil, Trash2, Plus } from 'lucide-react'
+import { Pencil, Trash2, Plus, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 import { formatAmount, formatDate } from '@/lib/utils'
 
 type Contract = Awaited<ReturnType<typeof getContracts>>[number]
 type Tenant = Awaited<ReturnType<typeof getTenants>>[number]
+type SortKey = 'tenant' | 'property' | 'type' | 'amount' | 'number' | 'from' | 'to' | 'active'
+type SortDir = 'asc' | 'desc'
+
+const FILTER_COLUMNS = [
+  { key: 'tenant', label: 'Najemca' },
+  { key: 'property', label: 'Nieruchomość' },
+  { key: 'type', label: 'Typ' },
+  { key: 'active', label: 'Aktywna' },
+]
+
+function getTenantData(c: Contract) {
+  return c.tenants as unknown as {
+    first_name: string
+    last_name: string
+    properties: { name: string }
+  } | null
+}
+
+function sortContracts(contracts: Contract[], key: SortKey, dir: SortDir): Contract[] {
+  return [...contracts].sort((a, b) => {
+    const ta = getTenantData(a)
+    const tb = getTenantData(b)
+    let va: string | number = ''
+    let vb: string | number = ''
+    if (key === 'tenant') {
+      va = `${ta?.last_name ?? ''} ${ta?.first_name ?? ''}`.toLowerCase()
+      vb = `${tb?.last_name ?? ''} ${tb?.first_name ?? ''}`.toLowerCase()
+    } else if (key === 'property') {
+      va = (ta?.properties?.name ?? '').toLowerCase()
+      vb = (tb?.properties?.name ?? '').toLowerCase()
+    } else if (key === 'type') {
+      va = a.contract_type.toLowerCase()
+      vb = b.contract_type.toLowerCase()
+    } else if (key === 'amount') {
+      va = Number(a.rent_amount)
+      vb = Number(b.rent_amount)
+    } else if (key === 'number') {
+      va = a.invoice_seq_number
+      vb = b.invoice_seq_number
+    } else if (key === 'from') {
+      va = a.start_date
+      vb = b.start_date
+    } else if (key === 'to') {
+      va = a.end_date ?? ''
+      vb = b.end_date ?? ''
+    } else if (key === 'active') {
+      va = a.is_active ? 1 : 0
+      vb = b.is_active ? 1 : 0
+    }
+    if (va < vb) return dir === 'asc' ? -1 : 1
+    if (va > vb) return dir === 'asc' ? 1 : -1
+    return 0
+  })
+}
+
+function matchesContractFilter(c: Contract, text: string, col: string): boolean {
+  const q = text.toLowerCase()
+  const t = getTenantData(c)
+  const tenant = `${t?.first_name ?? ''} ${t?.last_name ?? ''}`.toLowerCase()
+  const property = (t?.properties?.name ?? '').toLowerCase()
+  const type = c.contract_type.toLowerCase()
+  const active = c.is_active ? 'tak' : 'nie'
+  if (col === '__all__') return tenant.includes(q) || property.includes(q) || type.includes(q) || active.includes(q)
+  if (col === 'tenant') return tenant.includes(q)
+  if (col === 'property') return property.includes(q)
+  if (col === 'type') return type.includes(q)
+  if (col === 'active') return active.includes(q)
+  return false
+}
 
 function emptyForm() {
   return {
@@ -69,6 +139,31 @@ export default function ContractsPage() {
   const [editing, setEditing] = useState<Contract | null>(null)
   const [form, setForm] = useState(emptyForm())
   const [pending, startTransition] = useTransition()
+  const [sortKey, setSortKey] = useState<SortKey>('tenant')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [filterText, setFilterText] = useState('')
+  const [filterCol, setFilterCol] = useState('__all__')
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+  }
+
+  function SortIcon({ col }: { col: SortKey }) {
+    if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
+    return sortDir === 'asc'
+      ? <ChevronUp className="ml-1 h-3 w-3 inline" />
+      : <ChevronDown className="ml-1 h-3 w-3 inline" />
+  }
+
+  const filtered = filterText
+    ? contracts.filter((c) => matchesContractFilter(c, filterText, filterCol))
+    : contracts
+  const sorted = sortContracts(filtered, sortKey, sortDir)
 
   function openCreate() {
     setEditing(null)
@@ -119,7 +214,6 @@ export default function ContractsPage() {
       }
       setOpen(false)
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.contracts })
-      // Tenants pokazują liczbę umów
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tenants })
     })
   }
@@ -143,27 +237,47 @@ export default function ContractsPage() {
         </Button>
       </div>
 
+      <TableFilterBar
+        value={filterText}
+        onChange={setFilterText}
+        column={filterCol}
+        onColumnChange={setFilterCol}
+        columns={FILTER_COLUMNS}
+      />
+
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Najemca</TableHead>
-            <TableHead>Nieruchomość</TableHead>
-            <TableHead>Typ</TableHead>
-            <TableHead>Kwota</TableHead>
-            <TableHead>Nr</TableHead>
-            <TableHead>Od</TableHead>
-            <TableHead>Do</TableHead>
-            <TableHead>Aktywna</TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('tenant')}>
+              Najemca<SortIcon col="tenant" />
+            </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('property')}>
+              Nieruchomość<SortIcon col="property" />
+            </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('type')}>
+              Typ<SortIcon col="type" />
+            </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('amount')}>
+              Kwota<SortIcon col="amount" />
+            </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('number')}>
+              Nr<SortIcon col="number" />
+            </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('from')}>
+              Od<SortIcon col="from" />
+            </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('to')}>
+              Do<SortIcon col="to" />
+            </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('active')}>
+              Aktywna<SortIcon col="active" />
+            </TableHead>
             <TableHead className="w-20" />
           </TableRow>
         </TableHeader>
         <TableBody>
-          {contracts.map((c) => {
-            const tenant = c.tenants as unknown as {
-              first_name: string
-              last_name: string
-              properties: { name: string }
-            } | null
+          {sorted.map((c) => {
+            const tenant = getTenantData(c)
             return (
               <TableRow key={c.id}>
                 <TableCell>
@@ -201,10 +315,10 @@ export default function ContractsPage() {
               </TableRow>
             )
           })}
-          {contracts.length === 0 && (
+          {sorted.length === 0 && (
             <TableRow>
               <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
-                Brak umów
+                {filterText ? 'Brak wyników dla podanego filtra' : 'Brak umów'}
               </TableCell>
             </TableRow>
           )}

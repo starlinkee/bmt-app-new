@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -22,6 +23,7 @@ type Props = {
 }
 
 export function ReminderButtons({ lastOps }: Props) {
+  const router = useRouter()
   const [loadingPrivate, setLoadingPrivate] = useState(false)
   const [loadingBmt, setLoadingBmt] = useState(false)
   const [lastPrivate, setLastPrivate] = useState(lastOps.reminders_private)
@@ -33,8 +35,10 @@ export function ReminderButtons({ lastOps }: Props) {
       const { sent, skipped } = await sendReminders('PRIVATE')
       setLastPrivate(new Date().toISOString())
       toast.success(`Prywatne: wysłano ${sent}, pominięto ${skipped}`)
+      router.refresh()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Błąd wysyłki')
+      router.refresh()
     } finally {
       setLoadingPrivate(false)
     }
@@ -46,8 +50,10 @@ export function ReminderButtons({ lastOps }: Props) {
       const { sent, skipped } = await sendReminders('BMT')
       setLastBmt(new Date().toISOString())
       toast.success(`BMT: wysłano ${sent}, pominięto ${skipped}`)
+      router.refresh()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Błąd wysyłki')
+      router.refresh()
     } finally {
       setLoadingBmt(false)
     }

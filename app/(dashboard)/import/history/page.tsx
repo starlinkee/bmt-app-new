@@ -1,4 +1,9 @@
+'use client'
+
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { getAllTransactions } from '../actions'
 import { formatAmount, formatDate, formatDateTime } from '@/lib/utils'
 import {
@@ -10,7 +15,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { ArrowLeft } from 'lucide-react'
+import { TableFilterBar } from '@/components/ui/table-filter-bar'
+import { ArrowLeft, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 
 const STATUS_LABELS: Record<string, string> = {
   MATCHED: 'Dopasowana',
@@ -22,15 +28,102 @@ const STATUS_VARIANTS: Record<string, 'default' | 'secondary' | 'destructive' | 
   MANUAL: 'outline',
 }
 
-export default async function TransactionHistoryPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ status?: string }>
-}) {
-  const { status } = await searchParams
-  const transactions = await getAllTransactions(status)
+type Transaction = Awaited<ReturnType<typeof getAllTransactions>>[number]
+type SortKey = 'date' | 'title' | 'bank_account' | 'tenant' | 'amount' | 'status' | 'created_at'
+type SortDir = 'asc' | 'desc'
 
-  const statuses = ['MATCHED', 'MANUAL']
+const FILTER_COLUMNS = [
+  { key: 'title', label: 'Tytuł' },
+  { key: 'tenant', label: 'Najemca' },
+  { key: 'bank_account', label: 'Konto nadawcy' },
+  { key: 'status', label: 'Status' },
+]
+
+const STATUSES = ['MATCHED', 'MANUAL']
+
+function sortTransactions(txs: Transaction[], key: SortKey, dir: SortDir): Transaction[] {
+  return [...txs].sort((a, b) => {
+    const ta = a.tenants as unknown as { first_name: string; last_name: string } | null
+    const tb = b.tenants as unknown as { first_name: string; last_name: string } | null
+    let va: string | number = ''
+    let vb: string | number = ''
+    if (key === 'date') {
+      va = a.date
+      vb = b.date
+    } else if (key === 'title') {
+      va = (a.title ?? '').toLowerCase()
+      vb = (b.title ?? '').toLowerCase()
+    } else if (key === 'bank_account') {
+      va = (a.bank_account ?? '').toLowerCase()
+      vb = (b.bank_account ?? '').toLowerCase()
+    } else if (key === 'tenant') {
+      va = ta ? `${ta.last_name} ${ta.first_name}`.toLowerCase() : ''
+      vb = tb ? `${tb.last_name} ${tb.first_name}`.toLowerCase() : ''
+    } else if (key === 'amount') {
+      va = Number(a.amount)
+      vb = Number(b.amount)
+    } else if (key === 'status') {
+      va = (a.status ?? '').toLowerCase()
+      vb = (b.status ?? '').toLowerCase()
+    } else if (key === 'created_at') {
+      va = a.created_at ?? ''
+      vb = b.created_at ?? ''
+    }
+    if (va < vb) return dir === 'asc' ? -1 : 1
+    if (va > vb) return dir === 'asc' ? 1 : -1
+    return 0
+  })
+}
+
+function matchesTxFilter(tx: Transaction, text: string, col: string): boolean {
+  const q = text.toLowerCase()
+  const tenant = tx.tenants as unknown as { first_name: string; last_name: string } | null
+  const tenantName = tenant ? `${tenant.first_name} ${tenant.last_name}`.toLowerCase() : ''
+  const title = (tx.title ?? '').toLowerCase()
+  const account = (tx.bank_account ?? '').toLowerCase()
+  const status = (STATUS_LABELS[tx.status ?? ''] ?? tx.status ?? '').toLowerCase()
+  if (col === '__all__') return title.includes(q) || tenantName.includes(q) || account.includes(q) || status.includes(q)
+  if (col === 'title') return title.includes(q)
+  if (col === 'tenant') return tenantName.includes(q)
+  if (col === 'bank_account') return account.includes(q)
+  if (col === 'status') return status.includes(q)
+  return false
+}
+
+export default function TransactionHistoryPage() {
+  const searchParams = useSearchParams()
+  const status = searchParams.get('status') ?? undefined
+
+  const { data: transactions = [] } = useQuery({
+    queryKey: ['transactions', status],
+    queryFn: () => getAllTransactions(status),
+  })
+
+  const [sortKey, setSortKey] = useState<SortKey>('date')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [filterText, setFilterText] = useState('')
+  const [filterCol, setFilterCol] = useState('__all__')
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+  }
+
+  function SortIcon({ col }: { col: SortKey }) {
+    if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
+    return sortDir === 'asc'
+      ? <ChevronUp className="ml-1 h-3 w-3 inline" />
+      : <ChevronDown className="ml-1 h-3 w-3 inline" />
+  }
+
+  const filtered = filterText
+    ? transactions.filter((tx) => matchesTxFilter(tx, filterText, filterCol))
+    : transactions
+  const sorted = sortTransactions(filtered, sortKey, sortDir)
 
   return (
     <div className="p-6 space-y-4">
@@ -53,7 +146,7 @@ export default async function TransactionHistoryPage({
         >
           Wszystkie
         </Link>
-        {statuses.map((s) => (
+        {STATUSES.map((s) => (
           <Link
             key={s}
             href={`/import/history?status=${s}`}
@@ -66,22 +159,44 @@ export default async function TransactionHistoryPage({
         ))}
       </div>
 
-      <p className="text-sm text-muted-foreground">{transactions.length} transakcji</p>
+      <p className="text-sm text-muted-foreground">{sorted.length} transakcji</p>
+
+      <TableFilterBar
+        value={filterText}
+        onChange={setFilterText}
+        column={filterCol}
+        onColumnChange={setFilterCol}
+        columns={FILTER_COLUMNS}
+      />
 
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Data</TableHead>
-            <TableHead>Tytuł</TableHead>
-            <TableHead>Konto nadawcy</TableHead>
-            <TableHead>Najemca</TableHead>
-            <TableHead className="text-right">Kwota</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Dodano</TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('date')}>
+              Data<SortIcon col="date" />
+            </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('title')}>
+              Tytuł<SortIcon col="title" />
+            </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('bank_account')}>
+              Konto nadawcy<SortIcon col="bank_account" />
+            </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('tenant')}>
+              Najemca<SortIcon col="tenant" />
+            </TableHead>
+            <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort('amount')}>
+              Kwota<SortIcon col="amount" />
+            </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('status')}>
+              Status<SortIcon col="status" />
+            </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('created_at')}>
+              Dodano<SortIcon col="created_at" />
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {transactions.map((tx) => {
+          {sorted.map((tx) => {
             const tenant = tx.tenants as unknown as { first_name: string; last_name: string } | null
             return (
               <TableRow key={tx.id}>
@@ -116,10 +231,10 @@ export default async function TransactionHistoryPage({
               </TableRow>
             )
           })}
-          {transactions.length === 0 && (
+          {sorted.length === 0 && (
             <TableRow>
               <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                Brak transakcji
+                {filterText ? 'Brak wyników dla podanego filtra' : 'Brak transakcji'}
               </TableCell>
             </TableRow>
           )}

@@ -1,9 +1,10 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ensureMonthlyTasks, getMonthlyTasks } from '@/lib/tasks'
 import { createServiceClient } from '@/lib/supabase/service'
-import { getLastOperationTimes } from './reminder-actions'
+import { getLastOperationTimes, getOperationHistory } from './reminder-actions'
 import { TaskList } from './task-list'
 import { ReminderButtons } from './reminder-buttons'
+import { OperationHistory } from './operation-history'
 
 export default async function DashboardPage() {
   const now = new Date()
@@ -14,7 +15,7 @@ export default async function DashboardPage() {
 
   const supabase = createServiceClient()
 
-  const [tasks, { count: activeContracts }, { data: rentInvoices }, lastOps] =
+  const [tasks, { count: activeContracts }, { data: rentInvoices }, lastOps, opHistory] =
     await Promise.all([
       getMonthlyTasks(month, year),
       supabase
@@ -28,6 +29,7 @@ export default async function DashboardPage() {
         .eq('month', month)
         .eq('year', year),
       getLastOperationTimes(),
+      getOperationHistory(),
     ])
 
   const rentSum = (rentInvoices ?? []).reduce((acc, i) => acc + Number(i.amount), 0)
@@ -79,6 +81,8 @@ export default async function DashboardPage() {
       </div>
 
       <ReminderButtons lastOps={lastOps} />
+
+      <OperationHistory entries={opHistory} />
 
       <Card>
         <CardHeader>

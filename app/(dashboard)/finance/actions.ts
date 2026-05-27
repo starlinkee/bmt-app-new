@@ -38,7 +38,7 @@ export async function getRentPreview(month: number, year: number) {
 
   const { data: contracts } = await supabase
     .from('contracts')
-    .select('*, tenants(id, first_name, last_name, tenant_type, company_name, email, nip, address1, address2, property_id)')
+    .select('*, tenants(id, first_name, last_name, tenant_type, company_name, email, email2, nip, address1, address2, property_id)')
     .eq('is_active', true)
     .eq('contract_type', 'BUSINESS')
     .not('tenant_id', 'in', existingTenantIds.length ? `(${existingTenantIds.join(',')})` : '(-1)')
@@ -157,8 +157,9 @@ export async function generateRents(month: number, year: number) {
     }
 
     if (tenant.email) {
+      const recipients = [tenant.email, (tenant as unknown as { email2?: string | null }).email2].filter(Boolean) as string[]
       await sendRentEmail(
-        tenant.email,
+        recipients,
         tenantDisplayName(tenant),
         invoiceNumber,
         contract.rent_amount,

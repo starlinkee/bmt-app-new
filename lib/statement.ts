@@ -23,6 +23,19 @@ export async function getStatement(tenantId: number): Promise<StatementEntry[]> 
       .order('date', { ascending: true }),
   ])
 
+  const txIds = (transactions ?? []).map((t) => t.id)
+  let amendedTxIds = new Set<number>()
+  if (txIds.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: amendments } = await (supabase as any)
+      .from('transaction_amendments')
+      .select('transaction_id')
+      .in('transaction_id', txIds)
+    amendedTxIds = new Set<number>(
+      (amendments ?? []).map((a: { transaction_id: number }) => a.transaction_id)
+    )
+  }
+
   const entries: StatementEntry[] = []
 
   for (const inv of invoices ?? []) {
@@ -46,6 +59,9 @@ export async function getStatement(tenantId: number): Promise<StatementEntry[]> 
       runningBalance: 0,
       isPaid: true,
       type: 'transaction',
+      rawTxId: tx.id,
+      txStatus: tx.status,
+      hasAmendments: amendedTxIds.has(tx.id),
     })
   }
 

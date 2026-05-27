@@ -30,6 +30,7 @@ export async function createTenant(data: {
   last_name: string
   company_name?: string
   email?: string
+  email2?: string
   phone?: string
   bank_accounts_as_text?: string
   nip?: string
@@ -54,6 +55,7 @@ export async function updateTenant(
     last_name: string
     company_name: string
     email: string
+    email2: string
     phone: string
     bank_accounts_as_text: string
     nip: string

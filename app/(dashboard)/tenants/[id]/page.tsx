@@ -16,6 +16,13 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { AddAdjustmentButton } from './add-adjustment-button'
+import { AddManualTransactionButton } from './add-manual-transaction-button'
+import { EditTransactionButton } from './edit-transaction-button'
+
+const TX_STATUS_LABEL: Record<string, string> = {
+  MATCHED: 'Auto',
+  MANUAL: 'Ręczna',
+}
 
 export default async function TenantDetailPage({
   params,
@@ -84,7 +91,10 @@ export default async function TenantDetailPage({
 
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Wyciąg</h2>
-        <AddAdjustmentButton tenantId={tenantId} />
+        <div className="flex items-center gap-2">
+          <AddManualTransactionButton tenantId={tenantId} />
+          <AddAdjustmentButton tenantId={tenantId} />
+        </div>
       </div>
 
       <Table>
@@ -95,6 +105,7 @@ export default async function TenantDetailPage({
             <TableHead className="text-right">Kwota</TableHead>
             <TableHead className="text-right">Saldo</TableHead>
             <TableHead>Status</TableHead>
+            <TableHead className="w-16"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -116,12 +127,29 @@ export default async function TenantDetailPage({
                 {entry.type === 'invoice' && (
                   <InvoiceStatusBadge isPaid={entry.isPaid} />
                 )}
+                {entry.type === 'transaction' && entry.txStatus && TX_STATUS_LABEL[entry.txStatus] && (
+                  <Badge variant="outline" className="text-xs">
+                    {TX_STATUS_LABEL[entry.txStatus]}
+                  </Badge>
+                )}
+              </TableCell>
+              <TableCell>
+                {entry.type === 'transaction' && entry.rawTxId != null && (
+                  <EditTransactionButton
+                    txId={entry.rawTxId}
+                    tenantId={tenantId}
+                    currentAmount={entry.amount}
+                    currentTitle={entry.description}
+                    currentDate={entry.date}
+                    hasAmendments={entry.hasAmendments ?? false}
+                  />
+                )}
               </TableCell>
             </TableRow>
           ))}
           {statement.length === 0 && (
             <TableRow>
-              <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                 Brak operacji
               </TableCell>
             </TableRow>

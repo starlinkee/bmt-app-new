@@ -14,6 +14,9 @@ export interface StatementEntry {
   runningBalance: number
   isPaid: boolean
   type: 'invoice' | 'transaction'
+  rawTxId?: number
+  txStatus?: string
+  hasAmendments?: boolean
 }
 
 export interface ParsedTransaction {

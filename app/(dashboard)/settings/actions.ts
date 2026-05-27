@@ -20,6 +20,9 @@ export async function upsertAppConfig(data: {
   drive_invoices_folder_id?: string
   reminder_subject?: string
   reminder_body?: string
+  email_provider?: string
+  gmail_user?: string | null
+  gmail_app_password?: string | null
 }) {
   const supabase = createServiceClient()
   const { error } = await supabase

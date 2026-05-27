@@ -17,6 +17,9 @@ export type Database = {
       app_config: {
         Row: {
           drive_invoices_folder_id: string
+          email_provider: string
+          gmail_app_password: string | null
+          gmail_user: string | null
           id: number
           reminder_body: string
           reminder_subject: string
@@ -26,6 +29,9 @@ export type Database = {
         }
         Insert: {
           drive_invoices_folder_id?: string
+          email_provider?: string
+          gmail_app_password?: string | null
+          gmail_user?: string | null
           id?: number
           reminder_body?: string
           reminder_subject?: string
@@ -35,6 +41,9 @@ export type Database = {
         }
         Update: {
           drive_invoices_folder_id?: string
+          email_provider?: string
+          gmail_app_password?: string | null
+          gmail_user?: string | null
           id?: number
           reminder_body?: string
           reminder_subject?: string
@@ -375,6 +384,7 @@ export type Database = {
           bank_accounts_as_text: string
           company_name: string | null
           email: string | null
+          email2: string | null
           first_name: string
           id: number
           last_name: string
@@ -389,6 +399,7 @@ export type Database = {
           bank_accounts_as_text?: string
           company_name?: string | null
           email?: string | null
+          email2?: string | null
           first_name: string
           id?: never
           last_name: string
@@ -403,6 +414,7 @@ export type Database = {
           bank_accounts_as_text?: string
           company_name?: string | null
           email?: string | null
+          email2?: string | null
           first_name?: string
           id?: never
           last_name?: string
