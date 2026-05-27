@@ -318,9 +318,10 @@ export async function processSettlement(
           month,
           year,
           tenant_id: tenant.id,
+          contract_id: activeContract.id,
           media_settlement_id: settlement.id,
         },
-        { onConflict: 'tenant_id,type,month,year', ignoreDuplicates: true },
+        { onConflict: 'contract_id,type,month,year', ignoreDuplicates: true },
       )
       if (error) continue
 

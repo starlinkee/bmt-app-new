@@ -29,19 +29,20 @@ export async function getRentPreview(month: number, year: number) {
   // Aktywne umowy BUSINESS bez rachunku RENT w tym miesiącu
   const { data: existingInvoices } = await supabase
     .from('invoices')
-    .select('tenant_id')
+    .select('contract_id')
     .eq('type', 'RENT')
     .eq('month', month)
     .eq('year', year)
+    .not('contract_id', 'is', null)
 
-  const existingTenantIds = (existingInvoices ?? []).map((i) => i.tenant_id)
+  const existingContractIds = (existingInvoices ?? []).map((i) => i.contract_id).filter(Boolean)
 
   const { data: contracts } = await supabase
     .from('contracts')
     .select('*, tenants(id, first_name, last_name, tenant_type, company_name, email, email2, nip, address1, address2, property_id)')
     .eq('is_active', true)
     .eq('contract_type', 'BUSINESS')
-    .not('tenant_id', 'in', existingTenantIds.length ? `(${existingTenantIds.join(',')})` : '(-1)')
+    .not('id', 'in', existingContractIds.length ? `(${existingContractIds.join(',')})` : '(-1)')
 
   const withEmail: typeof contracts = []
   const withoutEmail: typeof contracts = []
@@ -98,8 +99,9 @@ export async function generateRents(month: number, year: number) {
         month,
         year,
         tenant_id: tenant.id,
+        contract_id: contract.id,
       },
-      { onConflict: 'tenant_id,type,month,year', ignoreDuplicates: true },
+      { onConflict: 'contract_id,type,month,year', ignoreDuplicates: true },
     )
     if (error) continue
 
