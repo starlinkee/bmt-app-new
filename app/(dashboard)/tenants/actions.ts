@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/service'
+import { logAudit } from '@/lib/audit'
 
 export async function getTenants() {
   const supabase = createServiceClient()
@@ -37,13 +38,19 @@ export async function createTenant(data: {
   address1?: string
   address2?: string
   property_id: number
+  sender_account?: number
 }) {
   const supabase = createServiceClient()
-  const { error } = await supabase.from('tenants').insert({
-    ...data,
-    bank_accounts_as_text: data.bank_accounts_as_text ?? '',
-  })
-  if (error) throw error
+  const { data: created, error } = await supabase
+    .from('tenants')
+    .insert({ ...data, bank_accounts_as_text: data.bank_accounts_as_text ?? '' })
+    .select()
+    .single()
+  if (error) {
+    await logAudit({ actionName: 'createTenant', tableName: 'tenants', operation: 'CREATE', errorData: error })
+    throw error
+  }
+  await logAudit({ actionName: 'createTenant', tableName: 'tenants', operation: 'CREATE', recordId: created.id, afterData: created })
   revalidatePath('/tenants')
 }
 
@@ -62,11 +69,17 @@ export async function updateTenant(
     address1: string
     address2: string
     property_id: number
+    sender_account: number
   }>,
 ) {
   const supabase = createServiceClient()
-  const { error } = await supabase.from('tenants').update(data).eq('id', id)
-  if (error) throw error
+  const { data: before } = await supabase.from('tenants').select('*').eq('id', id).single()
+  const { data: after, error } = await supabase.from('tenants').update(data).eq('id', id).select().single()
+  if (error) {
+    await logAudit({ actionName: 'updateTenant', tableName: 'tenants', operation: 'UPDATE', recordId: id, beforeData: before, errorData: error })
+    throw error
+  }
+  await logAudit({ actionName: 'updateTenant', tableName: 'tenants', operation: 'UPDATE', recordId: id, beforeData: before, afterData: after })
   revalidatePath('/tenants')
   revalidatePath(`/tenants/${id}`)
 }
@@ -82,7 +95,12 @@ export async function deleteTenant(id: number) {
     return { error: 'Nie można usunąć najemcy z aktywnymi umowami.' }
   }
 
+  const { data: before } = await supabase.from('tenants').select('*').eq('id', id).single()
   const { error } = await supabase.from('tenants').delete().eq('id', id)
-  if (error) throw error
+  if (error) {
+    await logAudit({ actionName: 'deleteTenant', tableName: 'tenants', operation: 'DELETE', recordId: id, beforeData: before, errorData: error })
+    throw error
+  }
+  await logAudit({ actionName: 'deleteTenant', tableName: 'tenants', operation: 'DELETE', recordId: id, beforeData: before })
   revalidatePath('/tenants')
 }

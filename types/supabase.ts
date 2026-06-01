@@ -18,8 +18,11 @@ export type Database = {
         Row: {
           drive_invoices_folder_id: string
           email_provider: string
+          email_provider_2: string
           gmail_app_password: string | null
+          gmail_app_password_2: string | null
           gmail_user: string | null
+          gmail_user_2: string | null
           id: number
           reminder_body: string
           reminder_subject: string
@@ -30,8 +33,11 @@ export type Database = {
         Insert: {
           drive_invoices_folder_id?: string
           email_provider?: string
+          email_provider_2?: string
           gmail_app_password?: string | null
+          gmail_app_password_2?: string | null
           gmail_user?: string | null
+          gmail_user_2?: string | null
           id?: number
           reminder_body?: string
           reminder_subject?: string
@@ -42,8 +48,11 @@ export type Database = {
         Update: {
           drive_invoices_folder_id?: string
           email_provider?: string
+          email_provider_2?: string
           gmail_app_password?: string | null
+          gmail_app_password_2?: string | null
           gmail_user?: string | null
+          gmail_user_2?: string | null
           id?: number
           reminder_body?: string
           reminder_subject?: string
@@ -400,6 +409,7 @@ export type Database = {
           nip: string | null
           phone: string | null
           property_id: number
+          sender_account: number
           tenant_type: string
         }
         Insert: {
@@ -415,6 +425,7 @@ export type Database = {
           nip?: string | null
           phone?: string | null
           property_id: number
+          sender_account?: number
           tenant_type?: string
         }
         Update: {
@@ -430,6 +441,7 @@ export type Database = {
           nip?: string | null
           phone?: string | null
           property_id?: number
+          sender_account?: number
           tenant_type?: string
         }
         Relationships: [
@@ -446,28 +458,37 @@ export type Database = {
         Row: {
           amount: number
           bank_account: string | null
+          category: string | null
           created_at: string
           date: string
           id: number
+          is_duplicate: boolean
           raw_data: Json | null
+          suggested_tenant_id: number | null
           title: string
         }
         Insert: {
           amount: number
           bank_account?: string | null
+          category?: string | null
           created_at?: string
           date: string
           id?: never
+          is_duplicate?: boolean
           raw_data?: Json | null
+          suggested_tenant_id?: number | null
           title?: string
         }
         Update: {
           amount?: number
           bank_account?: string | null
+          category?: string | null
           created_at?: string
           date?: string
           id?: never
+          is_duplicate?: boolean
           raw_data?: Json | null
+          suggested_tenant_id?: number | null
           title?: string
         }
         Relationships: []
@@ -476,6 +497,7 @@ export type Database = {
         Row: {
           amount: number
           bank_account: string | null
+          category: string | null
           created_at: string
           date: string
           description: string | null
@@ -489,6 +511,7 @@ export type Database = {
         Insert: {
           amount: number
           bank_account?: string | null
+          category?: string | null
           created_at?: string
           date: string
           description?: string | null
@@ -502,6 +525,7 @@ export type Database = {
         Update: {
           amount?: number
           bank_account?: string | null
+          category?: string | null
           created_at?: string
           date?: string
           description?: string | null
@@ -540,6 +564,42 @@ export type Database = {
           operation?: string
           result?: Json | null
           called_at?: string
+        }
+        Relationships: []
+      }
+      audit_log: {
+        Row: {
+          id: number
+          action_name: string
+          table_name: string | null
+          operation: string
+          record_id: string | null
+          before_data: Json | null
+          after_data: Json | null
+          error_data: Json | null
+          created_at: string
+        }
+        Insert: {
+          id?: never
+          action_name: string
+          table_name?: string | null
+          operation: string
+          record_id?: string | null
+          before_data?: Json | null
+          after_data?: Json | null
+          error_data?: Json | null
+          created_at?: string
+        }
+        Update: {
+          id?: never
+          action_name?: string
+          table_name?: string | null
+          operation?: string
+          record_id?: string | null
+          before_data?: Json | null
+          after_data?: Json | null
+          error_data?: Json | null
+          created_at?: string
         }
         Relationships: []
       }

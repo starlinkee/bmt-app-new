@@ -45,3 +45,31 @@ export async function getTenantStatement(tenantId: number) {
   const { getStatement } = await import('@/lib/statement')
   return getStatement(tenantId)
 }
+
+export async function getTenantWithBalance(tenantId: number) {
+  const supabase = createServiceClient()
+
+  const [{ data: tenant }, { data: transactions }, { data: invoices }] = await Promise.all([
+    supabase
+      .from('tenants')
+      .select('id, first_name, last_name, company_name, properties(name, address1)')
+      .eq('id', tenantId)
+      .single(),
+    supabase.from('transactions').select('amount').eq('tenant_id', tenantId).neq('status', 'DISMISSED'),
+    supabase.from('invoices').select('amount').eq('tenant_id', tenantId),
+  ])
+
+  if (!tenant) return null
+
+  const txSum = (transactions ?? []).reduce((sum, tx) => sum + Number(tx.amount), 0)
+  const invSum = (invoices ?? []).reduce((sum, inv) => sum + Number(inv.amount), 0)
+
+  return {
+    id: tenant.id,
+    first_name: tenant.first_name,
+    last_name: tenant.last_name,
+    company_name: tenant.company_name,
+    property: tenant.properties as unknown as { name: string; address1: string } | null,
+    balance: txSum - invSum,
+  }
+}

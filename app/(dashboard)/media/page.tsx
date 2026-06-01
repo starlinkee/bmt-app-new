@@ -386,7 +386,7 @@ export default function MediaPage() {
                 onChange={(e) => setForm({ ...form, pdf_sheets_json: e.target.value })}
                 rows={5}
                 className="font-mono text-xs"
-                placeholder={'[\n  { "tab": "Nazwa zakładki", "name": "etykieta" }\n]'}
+                placeholder={'[\n  { "tab": "Zakładka", "name": "etykieta", "range": "A1:H30", "portrait": true }\n]'}
               />
             </div>
             <div className="space-y-1">

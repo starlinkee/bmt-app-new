@@ -119,17 +119,73 @@ export async function getSheetGidByName(
   return sheet?.properties?.sheetId?.toString()
 }
 
+export async function stripSpreadsheetColors(spreadsheetId: string): Promise<void> {
+  const auth = getServiceAccountAuth()
+  const sheets = google.sheets({ version: 'v4', auth })
+
+  const { data } = await sheets.spreadsheets.get({
+    spreadsheetId,
+    fields: 'sheets.properties.sheetId',
+  })
+
+  const requests = (data.sheets ?? []).map((sheet) => ({
+    repeatCell: {
+      range: {
+        sheetId: sheet.properties!.sheetId!,
+        startRowIndex: 0,
+        endRowIndex: 500,
+        startColumnIndex: 0,
+        endColumnIndex: 26,
+      },
+      cell: {
+        userEnteredFormat: {
+          backgroundColor: { red: 1, green: 1, blue: 1 },
+          textFormat: { foregroundColor: { red: 0, green: 0, blue: 0 } },
+        },
+      },
+      fields: 'userEnteredFormat.backgroundColor,userEnteredFormat.textFormat.foregroundColor',
+    },
+  }))
+
+  if (!requests.length) return
+
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: { requests },
+  })
+}
+
+function parseRange(range: string): { r1: number; c1: number; r2: number; c2: number } | null {
+  const m = range.match(/^([A-Za-z]+)(\d+):([A-Za-z]+)(\d+)$/)
+  if (!m) return null
+  const col = (s: string) => {
+    let n = 0
+    for (const c of s.toUpperCase()) n = n * 26 + c.charCodeAt(0) - 64
+    return n - 1
+  }
+  return { r1: parseInt(m[2]) - 1, c1: col(m[1]), r2: parseInt(m[4]) - 1, c2: col(m[3]) }
+}
+
 export async function exportSheetAsPdf(
   spreadsheetId: string,
   gid?: string,
+  opts?: { printRange?: string; portrait?: boolean },
 ): Promise<Buffer> {
   const auth = getServiceAccountAuth()
   const accessToken = await (await auth.getClient()).getAccessToken()
   const token = (accessToken as { token: string }).token
 
+  let rangeParams = ''
+  if (opts?.printRange) {
+    const r = parseRange(opts.printRange)
+    if (r) rangeParams = `&r1=${r.r1}&c1=${r.c1}&r2=${r.r2}&c2=${r.c2}`
+  }
+
+  const portrait = opts?.portrait !== false
+
   const url =
     `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export` +
-    `?format=pdf&portrait=true&fitw=true${gid ? `&gid=${gid}` : ''}`
+    `?format=pdf&portrait=${portrait}&fitw=true${gid ? `&gid=${gid}` : ''}${rangeParams}`
 
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
@@ -137,6 +193,5 @@ export async function exportSheetAsPdf(
 
   if (!res.ok) throw new Error(`PDF export failed: ${res.status}`)
 
-  const buffer = Buffer.from(await res.arrayBuffer())
-  return buffer
+  return Buffer.from(await res.arrayBuffer())
 }

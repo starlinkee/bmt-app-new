@@ -5,21 +5,8 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-// Numeracja rachunków: MM/YYYY/NNN  (RENT+0, MEDIA+9, OTHER+19)
-const INVOICE_TYPE_OFFSET: Record<string, number> = {
-  RENT: 0,
-  MEDIA: 9,
-  OTHER: 19,
-}
-
-export function buildInvoiceNumber(
-  month: number,
-  year: number,
-  seqNumber: number,
-  type: string,
-): string {
-  const offset = INVOICE_TYPE_OFFSET[type] ?? 0
-  const seq = String(seqNumber + offset).padStart(3, '0')
+export function buildInvoiceNumber(month: number, year: number, seqNumber: number): string {
+  const seq = String(seqNumber).padStart(3, '0')
   const mm = String(month).padStart(2, '0')
   return `${mm}/${year}/${seq}`
 }

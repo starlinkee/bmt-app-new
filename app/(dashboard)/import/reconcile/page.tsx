@@ -11,14 +11,18 @@ import { getTenants } from '@/app/(dashboard)/tenants/actions'
 import { Button } from '@/components/ui/button'
 import { SearchSelect } from '@/components/ui/search-select'
 import { formatAmount, formatDate } from '@/lib/utils'
+import { AlertTriangle, X } from 'lucide-react'
 
 type Transaction = Awaited<ReturnType<typeof getUnmatchedTransactions>>[number]
 type Tenant = Awaited<ReturnType<typeof getTenants>>[number]
+type Category = 'RENT' | 'MEDIA'
 
 export default function ReconcilePage() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [selectedTenants, setSelectedTenants] = useState<Record<number, string>>({})
+  const [selectedCategories, setSelectedCategories] = useState<Record<number, Category>>({})
+  const [bannerDismissed, setBannerDismissed] = useState(false)
   const [pending, startTransition] = useTransition()
 
   function load() {
@@ -29,6 +33,7 @@ export default function ReconcilePage() {
       ])
       setTransactions(txs)
       setTenants(ts)
+      setBannerDismissed(false)
       const suggestions: Record<number, string> = {}
       for (const tx of txs) {
         if (tx.suggested_tenant_id != null) {
@@ -36,17 +41,25 @@ export default function ReconcilePage() {
         }
       }
       setSelectedTenants(suggestions)
+      setSelectedCategories({})
     })
   }
 
   useEffect(() => { load() }, [])
 
-  const selectedCount = Object.values(selectedTenants).filter(Boolean).length
+  const readyCount = transactions.filter(
+    (tx) => selectedTenants[tx.id] && selectedCategories[tx.id],
+  ).length
+  const duplicateCount = transactions.filter((tx) => tx.is_duplicate).length
 
   function handleBulkConfirm() {
     const items = transactions
-      .filter((tx) => selectedTenants[tx.id])
-      .map((tx) => ({ txId: tx.id, tenantId: Number(selectedTenants[tx.id]) }))
+      .filter((tx) => selectedTenants[tx.id] && selectedCategories[tx.id])
+      .map((tx) => ({
+        txId: tx.id,
+        tenantId: Number(selectedTenants[tx.id]),
+        category: selectedCategories[tx.id],
+      }))
 
     if (items.length === 0) return
 
@@ -68,14 +81,30 @@ export default function ReconcilePage() {
   const confirmButton = (
     <Button
       onClick={handleBulkConfirm}
-      disabled={selectedCount === 0 || pending}
+      disabled={readyCount === 0 || pending}
     >
-      Zatwierdź wybrane{selectedCount > 0 ? ` (${selectedCount})` : ''}
+      Zatwierdź wybrane{readyCount > 0 ? ` (${readyCount})` : ''}
     </Button>
   )
 
   return (
     <div className="p-6 space-y-4 max-w-4xl">
+      {duplicateCount > 0 && !bannerDismissed && (
+        <div className="flex items-start gap-3 rounded-lg border border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/40 px-4 py-3 text-sm text-red-700 dark:text-red-400">
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span className="flex-1">
+            <strong>{duplicateCount}</strong> {duplicateCount === 1 ? 'transakcja' : duplicateCount < 5 ? 'transakcje' : 'transakcji'} poniżej {duplicateCount === 1 ? 'jest oznaczona' : 'są oznaczone'} jako możliwy duplikat — taka sama data, kwota i numer konta już istnieje w bazie. Sprawdź zanim zatwierdzisz.
+          </span>
+          <button
+            onClick={() => setBannerDismissed(true)}
+            className="shrink-0 opacity-60 hover:opacity-100 transition-opacity"
+            aria-label="Zamknij"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Przypisywanie transakcji</h1>
         <div className="flex items-center gap-3">
@@ -93,13 +122,30 @@ export default function ReconcilePage() {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const rawData = ((tx as any).raw_data ?? {}) as Record<string, string>
           const rawEntries = Object.entries(rawData).filter(([, v]) => v)
+          const category = selectedCategories[tx.id]
 
           return (
-            <div key={tx.id} className="rounded-lg border bg-card p-4 space-y-3">
+            <div
+              key={tx.id}
+              className={`rounded-lg border bg-card p-4 space-y-3 ${tx.is_duplicate ? 'border-red-300 dark:border-red-800' : ''}`}
+            >
               <div className="flex items-center justify-between">
-                <span className="text-xl font-bold text-green-600">
-                  {formatAmount(Number(tx.amount))}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xl font-bold text-green-600">
+                    {formatAmount(Number(tx.amount))}
+                  </span>
+                  {tx.is_duplicate && (
+                    <span className="relative group">
+                      <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400 cursor-help">
+                        <AlertTriangle className="h-3 w-3" />
+                        Duplikat
+                      </span>
+                      <span className="pointer-events-none absolute bottom-full left-0 mb-1.5 hidden group-hover:block whitespace-nowrap rounded bg-popover text-popover-foreground text-xs px-2 py-1 shadow-md border border-border z-10">
+                        Transakcja o tej samej dacie, kwocie i numerze konta już istnieje w bazie
+                      </span>
+                    </span>
+                  )}
+                </div>
                 <span className="text-sm text-muted-foreground">{formatDate(tx.date)}</span>
               </div>
 
@@ -120,7 +166,7 @@ export default function ReconcilePage() {
               )}
 
               <div className="flex gap-2 pt-1 border-t">
-                <div className="flex-1 space-y-1">
+                <div className="flex-1 space-y-2">
                   {tx.suggested_tenant_id != null && selectedTenants[tx.id] === String(tx.suggested_tenant_id) && (
                     <p className="text-xs text-muted-foreground">Sugestia wg numeru rachunku — wymaga potwierdzenia</p>
                   )}
@@ -136,6 +182,36 @@ export default function ReconcilePage() {
                     }
                     placeholder="Wyszukaj najemcę..."
                   />
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-muted-foreground mr-1">Rodzaj:</span>
+                    <button
+                      onClick={() =>
+                        setSelectedCategories((prev) => ({ ...prev, [tx.id]: 'RENT' }))
+                      }
+                      className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
+                        category === 'RENT'
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-background text-muted-foreground border-border hover:bg-muted'
+                      }`}
+                    >
+                      Czynsz
+                    </button>
+                    <button
+                      onClick={() =>
+                        setSelectedCategories((prev) => ({ ...prev, [tx.id]: 'MEDIA' }))
+                      }
+                      className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
+                        category === 'MEDIA'
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-background text-muted-foreground border-border hover:bg-muted'
+                      }`}
+                    >
+                      Media
+                    </button>
+                    {!category && (
+                      <span className="text-xs text-muted-foreground ml-1 italic">wymagane</span>
+                    )}
+                  </div>
                 </div>
                 <Button
                   size="sm"

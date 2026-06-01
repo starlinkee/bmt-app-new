@@ -11,6 +11,7 @@ export type FlowEntry = {
   tenantName: string
   tenantType: string
   invoiceType?: string
+  transactionCategory?: string | null
 }
 
 export async function getAllFlows(year: number): Promise<FlowEntry[]> {
@@ -57,6 +58,7 @@ export async function getAllFlows(year: number): Promise<FlowEntry[]> {
       amount: Number(tx.amount),
       tenantName: name,
       tenantType: t?.tenant_type ?? '',
+      transactionCategory: tx.category ?? null,
     })
   }
 

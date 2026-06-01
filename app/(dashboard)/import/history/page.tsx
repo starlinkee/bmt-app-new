@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useState, useTransition } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { getAllTransactions } from '../actions'
+import { getAllTransactions, updateTransactionCategory } from '../actions'
 import { formatAmount, formatDate, formatDateTime } from '@/lib/utils'
 import {
   Table,
@@ -29,7 +29,7 @@ const STATUS_VARIANTS: Record<string, 'default' | 'secondary' | 'destructive' | 
 }
 
 type Transaction = Awaited<ReturnType<typeof getAllTransactions>>[number]
-type SortKey = 'date' | 'title' | 'bank_account' | 'tenant' | 'amount' | 'status' | 'created_at'
+type SortKey = 'date' | 'title' | 'bank_account' | 'tenant' | 'amount' | 'status' | 'created_at' | 'category'
 type SortDir = 'asc' | 'desc'
 
 const FILTER_COLUMNS = [
@@ -68,6 +68,9 @@ function sortTransactions(txs: Transaction[], key: SortKey, dir: SortDir): Trans
     } else if (key === 'created_at') {
       va = a.created_at ?? ''
       vb = b.created_at ?? ''
+    } else if (key === 'category') {
+      va = ((a as unknown as { category?: string | null }).category ?? '').toLowerCase()
+      vb = ((b as unknown as { category?: string | null }).category ?? '').toLowerCase()
     }
     if (va < vb) return dir === 'asc' ? -1 : 1
     if (va > vb) return dir === 'asc' ? 1 : -1
@@ -88,6 +91,77 @@ function matchesTxFilter(tx: Transaction, text: string, col: string): boolean {
   if (col === 'bank_account') return account.includes(q)
   if (col === 'status') return status.includes(q)
   return false
+}
+
+function CategoryCell({ tx }: { tx: Transaction }) {
+  const category = (tx as unknown as { category?: string | null }).category
+  const [open, setOpen] = useState(false)
+  const [pending, startTransition] = useTransition()
+  const queryClient = useQueryClient()
+
+  function select(cat: 'RENT' | 'MEDIA') {
+    startTransition(async () => {
+      await updateTransactionCategory(tx.id, cat)
+      queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      setOpen(false)
+    })
+  }
+
+  if (open) {
+    return (
+      <div className="flex gap-1">
+        <button
+          onClick={() => select('RENT')}
+          disabled={pending}
+          className="px-2 py-0.5 rounded text-xs font-medium border border-border bg-background hover:bg-muted transition-colors"
+        >
+          Czynsz
+        </button>
+        <button
+          onClick={() => select('MEDIA')}
+          disabled={pending}
+          className="px-2 py-0.5 rounded text-xs font-medium border border-border bg-background hover:bg-muted transition-colors"
+        >
+          Media
+        </button>
+        <button
+          onClick={() => setOpen(false)}
+          disabled={pending}
+          className="px-1 py-0.5 text-xs text-muted-foreground hover:text-foreground"
+        >
+          ✕
+        </button>
+      </div>
+    )
+  }
+
+  if (category === 'RENT') {
+    return (
+      <button onClick={() => setOpen(true)} className="group">
+        <Badge variant="secondary" className="cursor-pointer group-hover:opacity-70 transition-opacity">
+          Czynsz
+        </Badge>
+      </button>
+    )
+  }
+  if (category === 'MEDIA') {
+    return (
+      <button onClick={() => setOpen(true)} className="group">
+        <Badge variant="outline" className="cursor-pointer group-hover:opacity-70 transition-opacity">
+          Media
+        </Badge>
+      </button>
+    )
+  }
+
+  return (
+    <button
+      onClick={() => setOpen(true)}
+      className="text-xs text-muted-foreground underline decoration-dotted hover:text-foreground transition-colors"
+    >
+      brak
+    </button>
+  )
 }
 
 export default function TransactionHistoryPage() {
@@ -125,6 +199,10 @@ export default function TransactionHistoryPage() {
     : transactions
   const sorted = sortTransactions(filtered, sortKey, sortDir)
 
+  const nullCount = sorted.filter(
+    (tx) => !(tx as unknown as { category?: string | null }).category
+  ).length
+
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center gap-3">
@@ -159,7 +237,14 @@ export default function TransactionHistoryPage() {
         ))}
       </div>
 
-      <p className="text-sm text-muted-foreground">{sorted.length} transakcji</p>
+      <div className="flex items-center gap-3">
+        <p className="text-sm text-muted-foreground">{sorted.length} transakcji</p>
+        {nullCount > 0 && (
+          <p className="text-sm text-amber-600 dark:text-amber-400">
+            {nullCount} bez kategorii — kliknij &quot;brak&quot; żeby przypisać
+          </p>
+        )}
+      </div>
 
       <TableFilterBar
         value={filterText}
@@ -186,6 +271,9 @@ export default function TransactionHistoryPage() {
             </TableHead>
             <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort('amount')}>
               Kwota<SortIcon col="amount" />
+            </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('category')}>
+              Rodzaj<SortIcon col="category" />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('status')}>
               Status<SortIcon col="status" />
@@ -221,6 +309,9 @@ export default function TransactionHistoryPage() {
                   {formatAmount(Number(tx.amount))}
                 </TableCell>
                 <TableCell>
+                  <CategoryCell tx={tx} />
+                </TableCell>
+                <TableCell>
                   <Badge variant={STATUS_VARIANTS[tx.status ?? 'UNMATCHED']}>
                     {STATUS_LABELS[tx.status ?? 'UNMATCHED']}
                   </Badge>
@@ -233,7 +324,7 @@ export default function TransactionHistoryPage() {
           })}
           {sorted.length === 0 && (
             <TableRow>
-              <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                 {filterText ? 'Brak wyników dla podanego filtra' : 'Brak transakcji'}
               </TableCell>
             </TableRow>

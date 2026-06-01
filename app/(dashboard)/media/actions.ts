@@ -2,17 +2,19 @@
 
 import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/service'
+import { logAudit } from '@/lib/audit'
 import {
   writeInputValues,
   validateNamedRanges,
   readOutputValues,
   exportSheetAsPdf,
   getSheetGidByName,
+  getServiceAccountEmail,
+  stripSpreadsheetColors,
 } from '@/lib/sheetsEngine'
 import { ensureYearMonthFolder, copySpreadsheet, uploadPdfToDrive } from '@/lib/driveEngine'
-import { getServiceAccountEmail } from '@/lib/sheetsEngine'
 import { sendMediaEmail } from '@/lib/email'
-import { tenantDisplayName } from '@/lib/utils'
+import { buildInvoiceNumber, tenantDisplayName } from '@/lib/utils'
 import { markMonthlyTaskDone } from '@/lib/tasks'
 import { amountToWordsPLN } from '@/lib/numberWords'
 
@@ -78,6 +80,13 @@ export async function createSettlementGroup(data: {
     )
   }
 
+  await logAudit({
+    actionName: 'createSettlementGroup',
+    tableName: 'settlement_groups',
+    operation: 'CREATE',
+    recordId: created.id,
+    afterData: { ...rest, property_ids },
+  })
   revalidatePath('/media')
 }
 
@@ -97,12 +106,17 @@ export async function updateSettlementGroup(
   const supabase = createServiceClient()
   const { property_ids, email_subject_template, email_body_template, ...rest } = data
 
+  const { data: before } = await supabase.from('settlement_groups').select('*').eq('id', id).single()
+
   if (Object.keys(rest).length) {
     const { error } = await supabase
       .from('settlement_groups')
       .update(rest)
       .eq('id', id)
-    if (error) throw error
+    if (error) {
+      await logAudit({ actionName: 'updateSettlementGroup', tableName: 'settlement_groups', operation: 'UPDATE', recordId: id, beforeData: before, errorData: error })
+      throw error
+    }
   }
 
   if (property_ids !== undefined) {
@@ -121,21 +135,29 @@ export async function updateSettlementGroup(
     }
   }
 
+  const { data: after } = await supabase.from('settlement_groups').select('*').eq('id', id).single()
+  await logAudit({ actionName: 'updateSettlementGroup', tableName: 'settlement_groups', operation: 'UPDATE', recordId: id, beforeData: before, afterData: after })
+
   revalidatePath('/media')
   revalidatePath(`/media/${id}`)
 }
 
 export async function deleteSettlementGroup(id: number) {
   const supabase = createServiceClient()
+  const { data: before } = await supabase.from('settlement_groups').select('*').eq('id', id).single()
   const { error } = await supabase
     .from('settlement_groups')
     .delete()
     .eq('id', id)
-  if (error) throw error
+  if (error) {
+    await logAudit({ actionName: 'deleteSettlementGroup', tableName: 'settlement_groups', operation: 'DELETE', recordId: id, beforeData: before, errorData: error })
+    throw error
+  }
+  await logAudit({ actionName: 'deleteSettlementGroup', tableName: 'settlement_groups', operation: 'DELETE', recordId: id, beforeData: before })
   revalidatePath('/media')
 }
 
-type FieldDef = string | { range: string; source: 'user'; save_key?: string } | { range: string; source: 'db'; db_key: string }
+type FieldDef = string | { range: string; source: 'user'; save_key?: string } | { range: string; source: 'db'; db_key: string } | { range: string; source: 'auto'; auto_type: string }
 
 export async function getPreviousMeterReadings(
   groupId: number,
@@ -164,6 +186,7 @@ export async function processSettlement(
   inputValues: Record<string, string | number>,
   month: number,
   year: number,
+  previousReadingOverrides?: Record<string, string>,
 ) {
   const supabase = createServiceClient()
 
@@ -188,7 +211,12 @@ export async function processSettlement(
 
   // 2. Zbuduj finalny zestaw wartości: user input + auto-fill z DB dla pól source:"db"
   const nestedInput = group.input_mapping_json as Record<string, Record<string, FieldDef>>
-  const previousReadings = await getPreviousMeterReadings(groupId, month, year)
+  const previousReadingsFromDb = await getPreviousMeterReadings(groupId, month, year)
+  const previousReadings: Record<string, number> = { ...previousReadingsFromDb }
+  for (const [key, val] of Object.entries(previousReadingOverrides ?? {})) {
+    const n = parseFloat(String(val).replace(/,/g, '.'))
+    if (!isNaN(n)) previousReadings[key] = n
+  }
 
   const flatMapping: Record<string, string> = {}
   const allValues: Record<string, string | number> = { ...inputValues }
@@ -202,13 +230,15 @@ export async function processSettlement(
       } else if (fieldDef.source === 'user') {
         flatMapping[fieldDef.range] = fieldDef.range
         if (fieldDef.save_key) {
-          const val = parseFloat(String(inputValues[fieldDef.range] ?? '0').replace(',', '.'))
+          const val = parseFloat(String(inputValues[fieldDef.range] ?? '0').replace(/,/g, '.'))
           if (!isNaN(val)) toSave.push({ key: fieldDef.save_key, value: val })
         }
       } else if (fieldDef.source === 'db') {
         flatMapping[fieldDef.range] = fieldDef.range
         const prev = previousReadings[fieldDef.db_key]
         if (prev !== undefined) allValues[fieldDef.range] = prev
+      } else if (fieldDef.source === 'auto') {
+        flatMapping[fieldDef.range] = fieldDef.range
       }
     }
   }
@@ -218,7 +248,13 @@ export async function processSettlement(
     throw new Error(`Brakujące named ranges w arkuszu: ${missing.join(', ')}`)
   }
 
-  await writeInputValues(workingSheetId, flatMapping, allValues)
+  const normalizedAllValues: Record<string, string | number> = {}
+  for (const [k, v] of Object.entries(allValues)) {
+    normalizedAllValues[k] = typeof v === 'string' ? v.replace(/,/g, '.') : v
+  }
+
+  await writeInputValues(workingSheetId, flatMapping, normalizedAllValues)
+  try { await stripSpreadsheetColors(workingSheetId) } catch {}
 
   type OutputEntry = { range: string; tenant_id: number; type: string; email_pdfs?: string[] }
   const outputEntries = group.output_mapping_json as OutputEntry[]
@@ -229,7 +265,7 @@ export async function processSettlement(
 
   // 5. Eksportuj PDF — osobny plik per sheet zdefiniowany w pdf_sheets_json
   // `tab` = tytuł zakładki w arkuszu (do wyszukania GID po skopiowaniu), `name` = etykieta PDF
-  type PdfSheetDef = { gid?: string; tab?: string; name: string }
+  type PdfSheetDef = { gid?: string; tab?: string; name: string; range?: string; portrait?: boolean }
   const pdfSheets = (group as Record<string, unknown>).pdf_sheets_json as PdfSheetDef[] | undefined
   const baseName = sheetName.replace(/\//g, '-')
 
@@ -244,7 +280,7 @@ export async function processSettlement(
       const gid = sheet.tab
         ? await getSheetGidByName(workingSheetId, sheet.tab)
         : sheet.gid
-      const buffer = await exportSheetAsPdf(workingSheetId, gid)
+      const buffer = await exportSheetAsPdf(workingSheetId, gid, { printRange: sheet.range, portrait: sheet.portrait })
       const fileName = `${baseName} – ${sheet.name}.pdf`
       const driveId = await uploadPdfToDrive(fileName, buffer, monthFolder)
       exportedPdfs.push({ name: sheet.name, driveId, buffer })
@@ -288,7 +324,35 @@ export async function processSettlement(
   const tenantMap = Object.fromEntries((tenants ?? []).map((t) => [t.id, t]))
 
   // 8. Utwórz rachunki / wyślij maile zgodnie z output_mapping_json
-  for (const entry of outputEntries) {
+
+  // Pobierz MAX numer rachunku z tego miesiąca (np. po RENT) jako punkt startowy
+  const { data: lastInvoice } = await supabase
+    .from('invoices')
+    .select('number')
+    .eq('month', month)
+    .eq('year', year)
+    .order('number', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  const maxSeq = lastInvoice?.number ? parseInt(lastInvoice.number.split('/')[2]) : 0
+  let mediaSeqCounter = maxSeq
+
+  // Posortuj wpisy wg slotu kontraktu (media_invoice_seq_number → invoice_seq_number)
+  const sortedOutputEntries = [...outputEntries].sort((a, b) => {
+    const ca = (tenantMap[a.tenant_id]?.contracts ?? []).find(
+      (c: { is_active: boolean; contract_type: string; has_media_invoice?: boolean }) =>
+        c.is_active && c.contract_type === 'BUSINESS' && c.has_media_invoice,
+    )
+    const cb = (tenantMap[b.tenant_id]?.contracts ?? []).find(
+      (c: { is_active: boolean; contract_type: string; has_media_invoice?: boolean }) =>
+        c.is_active && c.contract_type === 'BUSINESS' && c.has_media_invoice,
+    )
+    const seqA = (ca as Record<string, unknown>)?.media_invoice_seq_number as number | null ?? (ca as { invoice_seq_number?: number })?.invoice_seq_number ?? 999
+    const seqB = (cb as Record<string, unknown>)?.media_invoice_seq_number as number | null ?? (cb as { invoice_seq_number?: number })?.invoice_seq_number ?? 999
+    return seqA - seqB
+  })
+
+  for (const entry of sortedOutputEntries) {
     const amountStr = outputs[entry.range]
     const amount = parseFloat((amountStr ?? '').replace(',', '.'))
     if (!amount || amount <= 0) continue
@@ -305,10 +369,8 @@ export async function processSettlement(
     let invoicePdfBuffer: Buffer | undefined
 
     if (activeContract) {
-      const mediaSeq = (activeContract as Record<string, unknown>).media_invoice_seq_number as number | null
-      const mm = String(month).padStart(2, '0')
-      const seq = String(mediaSeq ?? activeContract.invoice_seq_number).padStart(3, '0')
-      invoiceNumber = `${mm}/${year}/${seq}`
+      mediaSeqCounter++
+      invoiceNumber = buildInvoiceNumber(month, year, mediaSeqCounter)
 
       const { error } = await supabase.from('invoices').upsert(
         {
@@ -321,7 +383,7 @@ export async function processSettlement(
           contract_id: activeContract.id,
           media_settlement_id: settlement.id,
         },
-        { onConflict: 'contract_id,type,month,year', ignoreDuplicates: true },
+        { ignoreDuplicates: true },
       )
       if (error) continue
 
@@ -356,6 +418,8 @@ export async function processSettlement(
             await writeInputValues(invoiceSheetId, inputMapping, resolved)
           }
 
+          try { await stripSpreadsheetColors(invoiceSheetId) } catch {}
+
           invoicePdfBuffer = await exportSheetAsPdf(invoiceSheetId)
           await uploadPdfToDrive(`${invoiceNumber.replace(/\//g, '-')}.pdf`, invoicePdfBuffer, monthFolder)
         } catch {
@@ -382,6 +446,7 @@ export async function processSettlement(
       }
 
       const recipients = [tenant.email, tenant.email2].filter(Boolean) as string[]
+      const senderAccount = ((tenant as Record<string, unknown>).sender_account as number ?? 1) === 2 ? 2 : 1
       await sendMediaEmail(
         recipients,
         tenantDisplayName(tenant),
@@ -392,6 +457,7 @@ export async function processSettlement(
         attachments,
         (group as Record<string, unknown>).email_subject_template as string | null,
         (group as Record<string, unknown>).email_body_template as string | null,
+        senderAccount,
       )
     }
 
@@ -402,6 +468,13 @@ export async function processSettlement(
     })
   }
 
+  await logAudit({
+    actionName: 'processSettlement',
+    tableName: 'media_settlements',
+    operation: 'UPSERT',
+    recordId: `${groupId}/${month}/${year}`,
+    afterData: { groupId, month, year, count: results.length, results },
+  })
   await markMonthlyTaskDone('MEDIA', month, year)
   revalidatePath(`/media/${groupId}`)
 

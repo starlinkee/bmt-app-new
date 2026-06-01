@@ -46,7 +46,10 @@ function getTypeLabel(entry: Entry): string {
   if (entry.type === 'invoice') {
     return entry.invoiceType ? (TYPE_LABELS[entry.invoiceType] ?? entry.invoiceType) : 'Rachunek'
   }
-  return 'Wpłata'
+  if (entry.transactionCategory) {
+    return `Wpłata (${TYPE_LABELS[entry.transactionCategory] ?? entry.transactionCategory})`
+  }
+  return 'Wpłata (bez kategorii)'
 }
 
 function sortEntries(entries: Entry[], key: SortKey, dir: SortDir): Entry[] {
@@ -272,7 +275,7 @@ export default function PrzeplywyPage() {
                   </span>
                 ) : (
                   <span className="inline-flex items-center rounded-md bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                    Wpłata
+                    {getTypeLabel(entry)}
                   </span>
                 )}
               </TableCell>

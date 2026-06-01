@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { getContracts, createContract, updateContract, deleteContract } from './actions'
+import { getContracts, createContract, updateContract, deleteContract, revaluateContract } from './actions'
 import { getTenants } from '@/app/(dashboard)/tenants/actions'
 import { QUERY_KEYS } from '@/lib/queryKeys'
 import { Button } from '@/components/ui/button'
@@ -35,12 +35,13 @@ import {
 } from '@/components/ui/table'
 import { TableFilterBar } from '@/components/ui/table-filter-bar'
 import { Badge } from '@/components/ui/badge'
-import { Pencil, Trash2, Plus, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Pencil, Trash2, Plus, ChevronUp, ChevronDown, ChevronsUpDown, TrendingUp } from 'lucide-react'
 import { formatAmount, formatDate } from '@/lib/utils'
 
 type Contract = Awaited<ReturnType<typeof getContracts>>[number]
 type Tenant = Awaited<ReturnType<typeof getTenants>>[number]
-type SortKey = 'tenant' | 'property' | 'type' | 'amount' | 'number' | 'from' | 'to' | 'active'
+type SortKey = 'tenant' | 'property' | 'type' | 'amount' | 'number' | 'from' | 'to' | 'active' | 'media'
 type SortDir = 'asc' | 'desc'
 
 const FILTER_COLUMNS = [
@@ -88,6 +89,9 @@ function sortContracts(contracts: Contract[], key: SortKey, dir: SortDir): Contr
     } else if (key === 'active') {
       va = a.is_active ? 1 : 0
       vb = b.is_active ? 1 : 0
+    } else if (key === 'media') {
+      va = ((a as Record<string, unknown>).has_media_invoice ? 1 : 0)
+      vb = ((b as Record<string, unknown>).has_media_invoice ? 1 : 0)
     }
     if (va < vb) return dir === 'asc' ? -1 : 1
     if (va > vb) return dir === 'asc' ? 1 : -1
@@ -141,6 +145,9 @@ export default function ContractsPage() {
   const [editing, setEditing] = useState<Contract | null>(null)
   const [form, setForm] = useState(emptyForm())
   const [pending, startTransition] = useTransition()
+  const [bulkRevalOpen, setBulkRevalOpen] = useState(false)
+  const [inflationInput, setInflationInput] = useState('')
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [sortKey, setSortKey] = useState<SortKey>('tenant')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [filterText, setFilterText] = useState('')
@@ -229,6 +236,34 @@ export default function ContractsPage() {
     })
   }
 
+  function openBulkRevalue() {
+    const activeIds = contracts.filter((c) => c.is_active).map((c) => c.id)
+    setSelectedIds(new Set(activeIds))
+    setInflationInput('')
+    setBulkRevalOpen(true)
+  }
+
+  function handleBulkRevalue() {
+    const pct = parseFloat(inflationInput.replace(',', '.'))
+    if (isNaN(pct) || pct <= 0) {
+      toast.error('Podaj prawidłowy procent inflacji.')
+      return
+    }
+    const toUpdate = contracts.filter((c) => selectedIds.has(c.id))
+    if (toUpdate.length === 0) {
+      toast.error('Zaznacz co najmniej jedną umowę.')
+      return
+    }
+    startTransition(async () => {
+      for (const c of toUpdate) {
+        await revaluateContract(c.id, pct)
+      }
+      toast.success(`Zaktualizowano ${toUpdate.length} ${toUpdate.length === 1 ? 'umowę' : 'umów'}.`)
+      setBulkRevalOpen(false)
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.contracts })
+    })
+  }
+
   function handleDelete(c: Contract) {
     if (!confirm('Usunąć tę umowę?')) return
     startTransition(async () => {
@@ -243,9 +278,14 @@ export default function ContractsPage() {
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Umowy</h1>
-        <Button onClick={openCreate} size="sm">
-          <Plus className="h-4 w-4 mr-1" /> Dodaj
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={openBulkRevalue}>
+            <TrendingUp className="h-4 w-4 mr-1" /> Rewaluuj
+          </Button>
+          <Button onClick={openCreate} size="sm">
+            <Plus className="h-4 w-4 mr-1" /> Dodaj
+          </Button>
+        </div>
       </div>
 
       <TableFilterBar
@@ -273,6 +313,9 @@ export default function ContractsPage() {
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('number')}>
               Nr<SortIcon col="number" />
+            </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('media')}>
+              Media<SortIcon col="media" />
             </TableHead>
             <TableHead>Nr media</TableHead>
             <TableHead>Opis rachunku</TableHead>
@@ -305,6 +348,13 @@ export default function ContractsPage() {
                 <TableCell>{formatAmount(Number(c.rent_amount))}</TableCell>
                 <TableCell>{c.contract_type === 'BUSINESS' ? c.invoice_seq_number : null}</TableCell>
                 <TableCell>
+                  {c.contract_type === 'BUSINESS' && (
+                    <Badge variant={(c as Record<string, unknown>).has_media_invoice ? 'default' : 'outline'}>
+                      {(c as Record<string, unknown>).has_media_invoice ? 'Tak' : 'Nie'}
+                    </Badge>
+                  )}
+                </TableCell>
+                <TableCell>
                   {(c as Record<string, unknown>).has_media_invoice
                     ? String((c as Record<string, unknown>).media_invoice_seq_number ?? '—')
                     : null}
@@ -336,13 +386,95 @@ export default function ContractsPage() {
           })}
           {sorted.length === 0 && (
             <TableRow>
-              <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
                 {filterText ? 'Brak wyników dla podanego filtra' : 'Brak umów'}
               </TableCell>
             </TableRow>
           )}
         </TableBody>
       </Table>
+
+      <Dialog open={bulkRevalOpen} onOpenChange={setBulkRevalOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Rewaluacja czynszów</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <Label>Inflacja (%)</Label>
+              <Input
+                autoFocus
+                value={inflationInput}
+                onChange={(e) => setInflationInput(e.target.value)}
+                placeholder="np. 3.6"
+              />
+            </div>
+            {(() => {
+              const pct = parseFloat(inflationInput.replace(',', '.'))
+              const validPct = !isNaN(pct) && pct > 0
+              const activeContracts = contracts.filter((c) => c.is_active)
+              const allChecked = activeContracts.every((c) => selectedIds.has(c.id))
+              return (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 pb-1 border-b">
+                    <Checkbox
+                      id="select-all"
+                      checked={allChecked}
+                      onCheckedChange={(v) => {
+                        if (v) setSelectedIds(new Set(activeContracts.map((c) => c.id)))
+                        else setSelectedIds(new Set())
+                      }}
+                    />
+                    <label htmlFor="select-all" className="text-sm font-medium cursor-pointer select-none">
+                      Wszystkie aktywne ({activeContracts.length})
+                    </label>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto space-y-1">
+                    {activeContracts.map((c) => {
+                      const tenant = getTenantData(c)
+                      const current = Number(c.rent_amount)
+                      const preview = validPct ? Math.round(current * (1 + pct / 100)) : null
+                      const checked = selectedIds.has(c.id)
+                      return (
+                        <div key={c.id} className="flex items-center gap-2 py-1">
+                          <Checkbox
+                            id={`c-${c.id}`}
+                            checked={checked}
+                            onCheckedChange={(v) => {
+                              setSelectedIds((prev) => {
+                                const next = new Set(prev)
+                                if (v) next.add(c.id)
+                                else next.delete(c.id)
+                                return next
+                              })
+                            }}
+                          />
+                          <label htmlFor={`c-${c.id}`} className="text-sm flex-1 cursor-pointer select-none">
+                            <span className="font-medium">{tenant?.first_name} {tenant?.last_name}</span>
+                            <span className="text-muted-foreground ml-2">{formatAmount(current)}</span>
+                            {preview !== null && (
+                              <span className="text-muted-foreground ml-1">→ {formatAmount(preview)}</span>
+                            )}
+                          </label>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Zaznaczono: {selectedIds.size} z {activeContracts.length}
+                  </p>
+                </div>
+              )
+            })()}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkRevalOpen(false)}>Anuluj</Button>
+            <Button onClick={handleBulkRevalue} disabled={pending}>
+              Zatwierdź ({selectedIds.size})
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>

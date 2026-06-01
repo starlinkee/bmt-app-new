@@ -1,6 +1,7 @@
 import { requireAuth } from '@/lib/auth'
 import { Sidebar } from '@/components/sidebar'
 import { Toaster } from '@/components/ui/sonner'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 export default async function DashboardLayout({
   children,
@@ -16,6 +17,7 @@ export default async function DashboardLayout({
         {children}
       </main>
       <Toaster />
+      <ThemeToggle />
     </div>
   )
 }

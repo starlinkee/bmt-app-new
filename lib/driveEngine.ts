@@ -95,6 +95,12 @@ export async function ensureYearMonthFolder(
   return monthFolder
 }
 
+export async function deleteFile(fileId: string): Promise<void> {
+  const auth = getOAuthClient()
+  const drive = google.drive({ version: 'v3', auth })
+  await drive.files.delete({ fileId })
+}
+
 export async function uploadPdfToDrive(
   filename: string,
   buffer: Buffer,

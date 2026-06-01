@@ -33,9 +33,10 @@ export default function SettingsPage() {
     drive_invoices_folder_id: '',
     reminder_subject: DEFAULT_REMINDER_SUBJECT,
     reminder_body: DEFAULT_REMINDER_BODY,
-    email_provider: 'resend',
     gmail_user: '',
     gmail_app_password: '',
+    gmail_user_2: '',
+    gmail_app_password_2: '',
   })
   const [jsonError, setJsonError] = useState('')
   const [pending, startTransition] = useTransition()
@@ -55,9 +56,10 @@ export default function SettingsPage() {
           drive_invoices_folder_id: config.drive_invoices_folder_id ?? '',
           reminder_subject: config.reminder_subject ?? DEFAULT_REMINDER_SUBJECT,
           reminder_body: config.reminder_body ?? DEFAULT_REMINDER_BODY,
-          email_provider: config.email_provider ?? 'resend',
           gmail_user: config.gmail_user ?? '',
           gmail_app_password: config.gmail_app_password ?? '',
+          gmail_user_2: (config as Record<string, unknown>).gmail_user_2 as string ?? '',
+          gmail_app_password_2: (config as Record<string, unknown>).gmail_app_password_2 as string ?? '',
         })
       }
     })
@@ -82,9 +84,12 @@ export default function SettingsPage() {
           drive_invoices_folder_id: form.drive_invoices_folder_id,
           reminder_subject: form.reminder_subject,
           reminder_body: form.reminder_body,
-          email_provider: form.email_provider,
+          email_provider: 'gmail_smtp',
           gmail_user: form.gmail_user || null,
           gmail_app_password: form.gmail_app_password || null,
+          email_provider_2: 'gmail_smtp',
+          gmail_user_2: form.gmail_user_2 || null,
+          gmail_app_password_2: form.gmail_app_password_2 || null,
         })
         toast.success('Ustawienia zapisane.')
       } catch (e) {
@@ -176,64 +181,71 @@ export default function SettingsPage() {
 
       <div className="space-y-4">
         <div>
-          <h2 className="text-lg font-semibold">Wysyłka e-mail</h2>
+          <h2 className="text-lg font-semibold">Wysyłka e-mail — konto 1</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Wybierz dostawcę używanego do wysyłania wszystkich wiadomości e-mail z aplikacji.
+            Główne konto Gmail używane do wysyłania wiadomości e-mail z aplikacji.
           </p>
         </div>
 
-        <div className="space-y-2">
-          <Label>Dostawca</Label>
-          <div className="flex gap-4">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="email_provider"
-                value="resend"
-                checked={form.email_provider === 'resend'}
-                onChange={(e) => setForm({ ...form, email_provider: e.target.value })}
-              />
-              <span className="text-sm">Resend</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="email_provider"
-                value="gmail_smtp"
-                checked={form.email_provider === 'gmail_smtp'}
-                onChange={(e) => setForm({ ...form, email_provider: e.target.value })}
-              />
-              <span className="text-sm">Gmail SMTP</span>
-            </label>
-          </div>
+        <div className="space-y-1">
+          <Label>Adres Gmail</Label>
+          <Input
+            type="email"
+            value={form.gmail_user}
+            onChange={(e) => setForm({ ...form, gmail_user: e.target.value })}
+            placeholder="twoj@gmail.com"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label>Hasło aplikacji Google</Label>
+          <Input
+            type="password"
+            value={form.gmail_app_password}
+            onChange={(e) => setForm({ ...form, gmail_app_password: e.target.value })}
+            placeholder="xxxx xxxx xxxx xxxx"
+          />
+          <p className="text-xs text-muted-foreground">
+            Wygeneruj w: Konto Google → Bezpieczeństwo → Weryfikacja dwuetapowa → Hasła do aplikacji.
+            Wymagana włączona weryfikacja dwuetapowa.
+          </p>
         </div>
 
-        {form.email_provider === 'gmail_smtp' && (
-          <>
-            <div className="space-y-1">
-              <Label>Adres Gmail</Label>
-              <Input
-                type="email"
-                value={form.gmail_user}
-                onChange={(e) => setForm({ ...form, gmail_user: e.target.value })}
-                placeholder="twoj@gmail.com"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Hasło aplikacji Google</Label>
-              <Input
-                type="password"
-                value={form.gmail_app_password}
-                onChange={(e) => setForm({ ...form, gmail_app_password: e.target.value })}
-                placeholder="xxxx xxxx xxxx xxxx"
-              />
-              <p className="text-xs text-muted-foreground">
-                Wygeneruj w: Konto Google → Bezpieczeństwo → Weryfikacja dwuetapowa → Hasła do aplikacji.
-                Wymagana włączona weryfikacja dwuetapowa.
-              </p>
-            </div>
-          </>
-        )}
+        <Button onClick={handleSave} disabled={pending}>
+          Zapisz ustawienia
+        </Button>
+      </div>
+
+      <hr />
+
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold">Wysyłka e-mail — konto 2</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Drugie konto nadawcy. Możesz przypisać je wybranym najemcom przy tworzeniu lub edycji.
+          </p>
+        </div>
+
+        <div className="space-y-1">
+          <Label>Adres Gmail (konto 2)</Label>
+          <Input
+            type="email"
+            value={form.gmail_user_2}
+            onChange={(e) => setForm({ ...form, gmail_user_2: e.target.value })}
+            placeholder="drugie@gmail.com"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label>Hasło aplikacji Google (konto 2)</Label>
+          <Input
+            type="password"
+            value={form.gmail_app_password_2}
+            onChange={(e) => setForm({ ...form, gmail_app_password_2: e.target.value })}
+            placeholder="xxxx xxxx xxxx xxxx"
+          />
+          <p className="text-xs text-muted-foreground">
+            Wygeneruj w: Konto Google → Bezpieczeństwo → Weryfikacja dwuetapowa → Hasła do aplikacji.
+          </p>
+        </div>
 
         <Button onClick={handleSave} disabled={pending}>
           Zapisz ustawienia
