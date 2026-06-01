@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import { getTenants, createTenant, updateTenant, deleteTenant } from './actions'
 import { getProperties } from '@/app/(dashboard)/properties/actions'
+import { getAppConfig } from '@/app/(dashboard)/settings/actions'
 import { QUERY_KEYS } from '@/lib/queryKeys'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -110,6 +111,7 @@ function emptyForm() {
     address1: '',
     address2: '',
     property_id: '',
+    sender_account: '1',
   }
 }
 
@@ -122,6 +124,10 @@ export default function TenantsPage() {
   const { data: properties = [] } = useQuery<Property[]>({
     queryKey: QUERY_KEYS.properties,
     queryFn: getProperties,
+  })
+  const { data: appConfig } = useQuery({
+    queryKey: ['app_config'],
+    queryFn: getAppConfig,
   })
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Tenant | null>(null)
@@ -174,6 +180,7 @@ export default function TenantsPage() {
       address1: t.address1 ?? '',
       address2: t.address2 ?? '',
       property_id: String(t.property_id),
+      sender_account: String((t as unknown as { sender_account?: number | null }).sender_account ?? 1),
     })
     setOpen(true)
   }
@@ -201,6 +208,7 @@ export default function TenantsPage() {
       address1: form.address1 || undefined,
       address2: form.address2 || undefined,
       property_id: Number(form.property_id),
+      sender_account: Number(form.sender_account),
     }
 
     startTransition(async () => {
@@ -432,6 +440,38 @@ export default function TenantsPage() {
                 onChange={(e) => setForm({ ...form, email2: e.target.value })}
                 placeholder="Opcjonalny drugi adres e-mail"
               />
+            </div>
+            <div className="space-y-1">
+              <Label>Konto nadawcy e-mail</Label>
+              <Select
+                value={form.sender_account}
+                onValueChange={(v) => setForm({ ...form, sender_account: v ?? '1' })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">
+                    {appConfig?.gmail_user
+                      ? `Konto 1 (${appConfig.gmail_user})`
+                      : 'Konto 1 (nie skonfigurowano)'}
+                  </SelectItem>
+                  <SelectItem value="2">
+                    {(appConfig as Record<string, unknown> | null)?.gmail_user_2
+                      ? `Konto 2 (${(appConfig as Record<string, unknown>).gmail_user_2 as string})`
+                      : 'Konto 2 (nie skonfigurowano)'}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              {(!appConfig?.gmail_user || !(appConfig as Record<string, unknown>)?.gmail_user_2) && (
+                <p className="text-xs text-muted-foreground">
+                  Brakujące konta skonfiguruj w{' '}
+                  <Link href="/settings" className="underline underline-offset-2">
+                    Ustawieniach
+                  </Link>
+                  .
+                </p>
+              )}
             </div>
             <div className="space-y-1">
               <Label>Telefon</Label>

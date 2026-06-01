@@ -14,6 +14,7 @@ import {
   LogOut,
   ClipboardList,
   ArrowLeftRight,
+  History,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { logoutAction } from '@/app/login/actions'
@@ -29,13 +30,14 @@ const navItems = [
   { href: '/kontrola-platnosci', label: 'Kontrola płatności', icon: ClipboardList },
   { href: '/przeplywy', label: 'Przepływy', icon: ArrowLeftRight },
   { href: '/settings', label: 'Ustawienia', icon: Settings },
+  { href: '/audit', label: 'Historia operacji', icon: History },
 ]
 
 export function Sidebar() {
   const pathname = usePathname()
 
   return (
-    <aside className="flex h-full w-56 flex-col border-r bg-[oklch(0.93_0_0)]" style={{ fontSize: '115%' }}>
+    <aside className="flex h-full w-56 flex-col border-r bg-sidebar" style={{ fontSize: '115%' }}>
       <div className="flex h-14 items-center border-b px-4">
         <span className="font-semibold tracking-tight">BMT Nieruchomości</span>
       </div>

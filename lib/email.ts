@@ -1,9 +1,8 @@
-import { Resend } from 'resend'
 import nodemailer from 'nodemailer'
 import { createServiceClient } from '@/lib/supabase/service'
 import { formatAmount } from '@/lib/utils'
 
-type EmailProvider = 'resend' | 'gmail_smtp'
+type EmailProvider = 'gmail_smtp'
 
 type ProviderConfig = {
   provider: EmailProvider
@@ -11,15 +10,22 @@ type ProviderConfig = {
   gmailAppPassword: string | null
 }
 
-async function getProviderConfig(): Promise<ProviderConfig> {
+async function getProviderConfig(account: 1 | 2 = 1): Promise<ProviderConfig> {
   const supabase = createServiceClient()
   const { data } = await supabase
     .from('app_config')
-    .select('email_provider, gmail_user, gmail_app_password')
+    .select('email_provider, gmail_user, gmail_app_password, email_provider_2, gmail_user_2, gmail_app_password_2')
     .eq('id', 1)
     .single()
+  if (account === 2) {
+    return {
+      provider: (data?.email_provider_2 as EmailProvider) ?? 'gmail_smtp',
+      gmailUser: data?.gmail_user_2 ?? null,
+      gmailAppPassword: data?.gmail_app_password_2 ?? null,
+    }
+  }
   return {
-    provider: (data?.email_provider as EmailProvider) ?? 'resend',
+    provider: (data?.email_provider as EmailProvider) ?? 'gmail_smtp',
     gmailUser: data?.gmail_user ?? null,
     gmailAppPassword: data?.gmail_app_password ?? null,
   }
@@ -51,18 +57,6 @@ async function sendEmail({ to, subject, html, attachments = [], cfg }: SendParam
       html,
       attachments: attachments.map((a) => ({ filename: a.filename, content: a.content })),
     })
-  } else {
-    const resend = new Resend(process.env.RESEND_API_KEY)
-    const from = process.env.RESEND_FROM ?? 'BMT <noreply@example.com>'
-    const replyTo = process.env.RESEND_REPLY_TO
-    await resend.emails.send({
-      from,
-      to,
-      subject,
-      html,
-      attachments,
-      ...(replyTo ? { replyTo } : {}),
-    })
   }
 }
 
@@ -74,8 +68,9 @@ export async function sendRentEmail(
   month: number,
   year: number,
   pdfBuffer?: Buffer,
+  senderAccount: 1 | 2 = 1,
 ) {
-  const cfg = await getProviderConfig()
+  const cfg = await getProviderConfig(senderAccount)
   const subject = `Faktura czynszu ${invoiceNumber}`
   const html = `
     <p>Szanowny/a ${tenantName},</p>
@@ -106,8 +101,9 @@ export async function sendMediaEmail(
   pdfAttachments: { filename: string; buffer: Buffer }[] = [],
   subjectTemplate?: string | null,
   bodyTemplate?: string | null,
+  senderAccount: 1 | 2 = 1,
 ) {
-  const cfg = await getProviderConfig()
+  const cfg = await getProviderConfig(senderAccount)
   const vars: Record<string, string> = {
     imie: tenantName,
     numer_rachunku: invoiceNumber,
@@ -156,8 +152,9 @@ export async function sendPrivateMonthlyReminder(
   rentAmount: number,
   subjectTemplate: string,
   bodyTemplate: string,
+  senderAccount: 1 | 2 = 1,
 ) {
-  const cfg = await getProviderConfig()
+  const cfg = await getProviderConfig(senderAccount)
   const subject = applyReminderTemplate(subjectTemplate, tenantName, month, year, rentAmount)
   const html = applyReminderTemplate(bodyTemplate, tenantName, month, year, rentAmount)
     .split('\n')

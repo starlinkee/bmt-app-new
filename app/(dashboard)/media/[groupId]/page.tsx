@@ -11,6 +11,51 @@ import { Label } from '@/components/ui/label'
 import { formatAmount } from '@/lib/utils'
 
 type Group = Awaited<ReturnType<typeof getSettlementGroup>>
+type FieldDef = string | { range: string; source: 'user' | 'db' | 'auto'; save_key?: string; db_key?: string; auto_type?: 'billing_period' | 'current_date' | 'previous_date' }
+
+function lastDayOfMonth(year: number, month: number): string {
+  // JS Date(y, m, 0) = last day of month (m-1) in 1-indexed terms; handles negative/overflow months correctly
+  const d = new Date(year, month, 0)
+  const day = String(d.getDate()).padStart(2, '0')
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  return `${day}.${m}.${d.getFullYear()}`
+}
+
+function detectAutoType(label: string): 'billing_period' | 'current_date' | 'previous_date' | null {
+  const l = label.toLowerCase()
+  if (l.includes('okres rozliczeniowy')) return 'billing_period'
+  if (l.includes('aktualna data') || l.includes('data aktualna')) return 'current_date'
+  if (l.includes('poprzednia data') || l.includes('data poprzednia')) return 'previous_date'
+  return null
+}
+
+function computeAutoValues(month: number, year: number, inputMapping: Record<string, Record<string, FieldDef>>): Record<string, string> {
+  const auto: Record<string, string> = {}
+  for (const fields of Object.values(inputMapping)) {
+    for (const [label, fieldDef] of Object.entries(fields)) {
+      const range = typeof fieldDef === 'string' ? fieldDef : fieldDef.range
+      const source = typeof fieldDef === 'string' ? 'user' : fieldDef.source
+      if (source === 'db') continue
+
+      // explicit auto_type in JSON takes priority, otherwise detect by label
+      let autoType: string | null = null
+      if (typeof fieldDef !== 'string' && fieldDef.source === 'auto' && fieldDef.auto_type) {
+        autoType = fieldDef.auto_type
+      } else {
+        autoType = detectAutoType(label)
+      }
+
+      if (autoType === 'billing_period') {
+        auto[range] = `${String(month).padStart(2, '0')}/${year}`
+      } else if (autoType === 'current_date') {
+        auto[range] = lastDayOfMonth(year, month - 1)
+      } else if (autoType === 'previous_date') {
+        auto[range] = lastDayOfMonth(year, month - 2)
+      }
+    }
+  }
+  return auto
+}
 
 export default function MediaGroupPage({
   params,
@@ -24,6 +69,7 @@ export default function MediaGroupPage({
   const [group, setGroup] = useState<Group | null>(null)
   const [inputValues, setInputValues] = useState<Record<string, string>>({})
   const [previousReadings, setPreviousReadings] = useState<Record<string, number>>({})
+  const [editedPreviousReadings, setEditedPreviousReadings] = useState<Record<string, string>>({})
   const [results, setResults] = useState<{ tenantName: string; amount: number; invoiceNumber: string }[]>([])
   const [progress, setProgress] = useState(0)
   const [pending, startTransition] = useTransition()
@@ -40,11 +86,29 @@ export default function MediaGroupPage({
     startTransition(async () => {
       const prev = await getPreviousMeterReadings(Number(groupId), month, year)
       setPreviousReadings(prev)
+      setEditedPreviousReadings({})
     })
   }, [groupId, group, month, year])
 
-  type FieldDef = string | { range: string; source: 'user' | 'db'; save_key?: string; db_key?: string }
+  useEffect(() => {
+    if (!group) return
+    const inputMapping = (group.input_mapping_json as Record<string, Record<string, FieldDef>>) ?? {}
+    const autoVals = computeAutoValues(month, year, inputMapping)
+    if (Object.keys(autoVals).length === 0) return
+    setInputValues(prev => ({ ...prev, ...autoVals }))
+  }, [month, year, group])
+
   const inputMapping = (group?.input_mapping_json as Record<string, Record<string, FieldDef>>) ?? {}
+
+  function getReadingError(range: string, saveKey: string | undefined): boolean {
+    if (saveKey === undefined) return false
+    const currentRaw = inputValues[range]
+    const prevRaw = saveKey in editedPreviousReadings ? editedPreviousReadings[saveKey] : previousReadings[saveKey] !== undefined ? String(previousReadings[saveKey]) : undefined
+    if (currentRaw === undefined || currentRaw === '' || prevRaw === undefined || prevRaw === '') return false
+    const current = parseFloat(currentRaw.replace(',', '.'))
+    const prev = parseFloat(prevRaw.replace(',', '.'))
+    return !isNaN(current) && !isNaN(prev) && current < prev
+  }
 
   function handleProcess() {
     setProgress(0)
@@ -55,6 +119,20 @@ export default function MediaGroupPage({
       })
     }, 200)
 
+    const hasReadingErrors = Object.entries(inputMapping).some(([, fields]) =>
+      Object.entries(fields).some(([, fieldDef]) => {
+        const range = typeof fieldDef === 'string' ? fieldDef : fieldDef.range
+        const saveKey = typeof fieldDef !== 'string' && fieldDef.source === 'user' ? fieldDef.save_key : undefined
+        return getReadingError(range, saveKey)
+      })
+    )
+    if (hasReadingErrors) {
+      clearInterval(interval)
+      setProgress(0)
+      toast.error('Aktualny odczyt nie może być mniejszy od poprzedniego.')
+      return
+    }
+
     startTransition(async () => {
       try {
         const res = await processSettlement(
@@ -62,6 +140,7 @@ export default function MediaGroupPage({
           inputValues,
           month,
           year,
+          editedPreviousReadings,
         )
         clearInterval(interval)
         setProgress(100)
@@ -94,7 +173,7 @@ export default function MediaGroupPage({
         />
       </div>
 
-      <div className="space-y-6 max-w-sm">
+      <div className="space-y-6 max-w-xl">
         {Object.entries(inputMapping).map(([groupLabel, fields]) => (
           <div key={groupLabel} className="space-y-3">
             <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
@@ -104,21 +183,44 @@ export default function MediaGroupPage({
               const range = typeof fieldDef === 'string' ? fieldDef : fieldDef.range
               const source = typeof fieldDef === 'string' ? 'user' : fieldDef.source
               if (source === 'db') return null
+              const isAuto = source === 'auto' || detectAutoType(fieldLabel) !== null
               const saveKey = typeof fieldDef !== 'string' && fieldDef.source === 'user' ? fieldDef.save_key : undefined
-              const lastReading = saveKey !== undefined ? previousReadings[saveKey] : undefined
+              const lastReading = saveKey !== undefined
+                ? (saveKey in editedPreviousReadings ? editedPreviousReadings[saveKey] : previousReadings[saveKey] !== undefined ? String(previousReadings[saveKey]) : undefined)
+                : undefined
+              const hasError = getReadingError(range, saveKey)
               return (
                 <div key={range} className="space-y-1">
                   <Label>{fieldLabel}</Label>
-                  <Input
-                    value={inputValues[range] ?? ''}
-                    onChange={(e) =>
-                      setInputValues({ ...inputValues, [range]: e.target.value })
-                    }
-                    placeholder="0"
-                  />
-                  {lastReading !== undefined && (
-                    <p className="text-xs text-muted-foreground">Ostatni odczyt: {lastReading}</p>
-                  )}
+                  <div className="flex gap-2 items-center">
+                    <div className="flex-1 space-y-1">
+                    <Input
+                      value={inputValues[range] ?? ''}
+                      onChange={(e) =>
+                        setInputValues({ ...inputValues, [range]: e.target.value })
+                      }
+                      placeholder={isAuto ? '' : '0'}
+                      readOnly={isAuto}
+                      className={isAuto ? 'bg-muted text-muted-foreground cursor-default' : hasError ? 'border-destructive focus-visible:ring-destructive' : ''}
+                    />
+                    {hasError && (
+                      <p className="text-xs text-destructive">Aktualny odczyt nie może być mniejszy od poprzedniego.</p>
+                    )}
+                    </div>
+                    {lastReading !== undefined && (
+                      <div className="flex flex-col gap-0.5 shrink-0">
+                        <span className="text-xs text-muted-foreground">Poprzedni odczyt</span>
+                        <Input
+                          value={lastReading}
+                          onChange={(e) =>
+                            setEditedPreviousReadings(prev => ({ ...prev, [saveKey!]: e.target.value }))
+                          }
+                          className="w-32"
+                          placeholder="0"
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
               )
             })}

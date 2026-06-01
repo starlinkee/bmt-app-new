@@ -47,6 +47,7 @@ export async function getStatement(tenantId: number): Promise<StatementEntry[]> 
       runningBalance: 0,
       isPaid: false,
       type: 'invoice',
+      invoiceType: inv.type,
     })
   }
 
@@ -59,6 +60,7 @@ export async function getStatement(tenantId: number): Promise<StatementEntry[]> 
       runningBalance: 0,
       isPaid: true,
       type: 'transaction',
+      transactionCategory: tx.category ?? null,
       rawTxId: tx.id,
       txStatus: tx.status,
       hasAmendments: amendedTxIds.has(tx.id),
