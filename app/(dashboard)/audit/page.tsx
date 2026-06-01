@@ -29,11 +29,11 @@ type SortKey = 'created_at' | 'action_name' | 'table_name' | 'operation'
 type SortDir = 'asc' | 'desc'
 
 const OPERATION_LABELS: Record<string, string> = {
-  CREATE: 'Dodanie',
-  UPDATE: 'Edycja',
-  DELETE: 'Usunięcie',
-  UPSERT: 'Upsert',
-  IMPORT: 'Import',
+  CREATE:  'Dodanie',
+  UPDATE:  'Edycja',
+  DELETE:  'Usunięcie',
+  UPSERT:  'Upsert',
+  IMPORT:  'Import',
   DISMISS: 'Odrzucenie',
 }
 
@@ -76,12 +76,184 @@ const ACTION_LABELS: Record<string, string> = {
   generateRents:             'Generuj czynsze',
 }
 
+const FIELD_LABELS: Record<string, string> = {
+  // contracts
+  rent_amount:              'Czynsz',
+  contract_type:            'Typ umowy',
+  start_date:               'Data rozpoczęcia',
+  end_date:                 'Data zakończenia',
+  is_active:                'Aktywna',
+  invoice_seq_number:       'Nr sekwencyjny faktury',
+  has_media_invoice:        'Faktura za media',
+  media_invoice_seq_number: 'Nr sekwencyjny faktury (media)',
+  opis_rachunku:            'Opis rachunku',
+  opis_rachunku_media:      'Opis rachunku (media)',
+  tenant_id:                'ID najemcy',
+  // tenants
+  first_name:               'Imię',
+  last_name:                'Nazwisko',
+  company_name:             'Firma',
+  email:                    'E-mail',
+  email2:                   'E-mail 2',
+  phone:                    'Telefon',
+  bank_accounts_as_text:    'Konta bankowe',
+  nip:                      'NIP',
+  address1:                 'Adres 1',
+  address2:                 'Adres 2',
+  property_id:              'ID lokalu',
+  tenant_type:              'Typ najemcy',
+  sender_account:           'Konto nadawcy',
+  // transactions / staging
+  amount:                   'Kwota',
+  date:                     'Data',
+  title:                    'Tytuł',
+  bank_account:             'Konto bankowe',
+  suggested_tenant_id:      'Sugerowany najemca',
+  is_duplicate:             'Duplikat',
+  raw_data:                 'Dane surowe',
+  type:                     'Typ',
+  category:                 'Kategoria',
+  status:                   'Status',
+  booking_date:             'Data księgowania',
+  transaction_date:         'Data transakcji',
+  sender_name:              'Nadawca',
+  // import summary
+  bank:                     'Bank',
+  total:                    'Łącznie',
+  withSuggestion:           'Z sugestią',
+  withoutSuggestion:        'Bez sugestii',
+  skipped:                  'Pominięto',
+  duplicates:               'Duplikaty',
+  // common
+  id:                       'ID',
+  created_at:               'Utworzono',
+  updated_at:               'Zaktualizowano',
+}
+
+const MONETARY_FIELDS = new Set(['rent_amount', 'amount'])
+const BOOLEAN_FIELDS  = new Set(['is_active', 'has_media_invoice', 'is_duplicate'])
+const DATE_FIELDS     = new Set(['start_date', 'end_date', 'date', 'booking_date', 'transaction_date'])
+const SKIP_FIELDS     = new Set(['id', 'created_at', 'updated_at'])
+
+function isObj(v: unknown): v is Record<string, unknown> {
+  return v !== null && typeof v === 'object' && !Array.isArray(v)
+}
+
+function formatFieldValue(field: string, value: unknown): string {
+  if (value === null || value === undefined) return '—'
+  if (MONETARY_FIELDS.has(field)) {
+    const n = Number(value)
+    if (!isNaN(n)) return new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(n)
+  }
+  if (BOOLEAN_FIELDS.has(field)) return value ? 'Tak' : 'Nie'
+  if (DATE_FIELDS.has(field) && typeof value === 'string') {
+    const d = new Date(value)
+    if (!isNaN(d.getTime())) return d.toLocaleDateString('pl-PL')
+  }
+  if (typeof value === 'string' && value.length > 120) return value.slice(0, 120) + '…'
+  if (typeof value === 'object') return JSON.stringify(value)
+  return String(value)
+}
+
+type DiffRow = { field: string; label: string; before: string; after: string }
+
+function computeDiff(before: unknown, after: unknown): DiffRow[] {
+  if (!isObj(before) || !isObj(after)) return []
+  const allKeys = [...new Set([...Object.keys(before), ...Object.keys(after)])]
+  const rows: DiffRow[] = []
+  for (const field of allKeys) {
+    if (SKIP_FIELDS.has(field)) continue
+    const bv = before[field]
+    const av = after[field]
+    if (String(bv ?? '') === String(av ?? '')) continue
+    rows.push({
+      field,
+      label:  FIELD_LABELS[field] ?? field,
+      before: formatFieldValue(field, bv),
+      after:  formatFieldValue(field, av),
+    })
+  }
+  return rows
+}
+
+function getFields(data: unknown): DiffRow[] {
+  if (!isObj(data)) return []
+  return Object.entries(data)
+    .filter(([k]) => !SKIP_FIELDS.has(k))
+    .map(([k, v]) => ({
+      field:  k,
+      label:  FIELD_LABELS[k] ?? k,
+      before: '',
+      after:  formatFieldValue(k, v),
+    }))
+}
+
+const SUMMARY_PRIORITY = ['rent_amount', 'amount', 'start_date', 'end_date', 'date', 'is_active', 'status', 'category']
+
+function getInlineSummary(log: AuditLog): string | null {
+  if (log.operation !== 'UPDATE' && log.operation !== 'UPSERT') return null
+  const diffs = computeDiff(log.before_data, log.after_data)
+  if (diffs.length === 0) return null
+  const sorted = [...diffs].sort((a, b) => {
+    const ai = SUMMARY_PRIORITY.indexOf(a.field)
+    const bi = SUMMARY_PRIORITY.indexOf(b.field)
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
+  })
+  return sorted.slice(0, 2).map((d) => `${d.label}: ${d.before} → ${d.after}`).join(' · ')
+}
+
 function formatDateTime(iso: string) {
   const d = new Date(iso)
   return d.toLocaleString('pl-PL', {
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit', second: '2-digit',
   })
+}
+
+function DiffTable({ rows }: { rows: DiffRow[] }) {
+  if (rows.length === 0) return <p className="text-sm text-muted-foreground italic">Brak zmienionych pól.</p>
+  return (
+    <table className="w-full text-sm border-collapse">
+      <thead>
+        <tr>
+          <th className="text-left text-xs font-semibold text-muted-foreground pb-2 pr-6 w-48">Pole</th>
+          <th className="text-left text-xs font-semibold text-muted-foreground pb-2 pr-6">Przed</th>
+          <th className="text-left text-xs font-semibold text-muted-foreground pb-2">Po</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.field} className="border-t border-border/40">
+            <td className="py-1.5 pr-6 text-xs text-muted-foreground">{row.label}</td>
+            <td className="py-1.5 pr-6 text-xs text-muted-foreground">{row.before}</td>
+            <td className="py-1.5 text-xs font-medium">{row.after}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+function FieldTable({ rows }: { rows: DiffRow[] }) {
+  if (rows.length === 0) return null
+  return (
+    <table className="w-full text-sm border-collapse">
+      <thead>
+        <tr>
+          <th className="text-left text-xs font-semibold text-muted-foreground pb-2 pr-6 w-48">Pole</th>
+          <th className="text-left text-xs font-semibold text-muted-foreground pb-2">Wartość</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.field} className="border-t border-border/40">
+            <td className="py-1.5 pr-6 text-xs text-muted-foreground">{row.label}</td>
+            <td className="py-1.5 text-xs">{row.after}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
 }
 
 function JsonBlock({ data, label }: { data: unknown; label: string }) {
@@ -96,18 +268,66 @@ function JsonBlock({ data, label }: { data: unknown; label: string }) {
   )
 }
 
+function DetailPanel({ log }: { log: AuditLog }) {
+  const [showRaw, setShowRaw] = useState(false)
+  const op = log.operation
+
+  let mainContent: React.ReactNode = null
+  if (op === 'UPDATE' || op === 'UPSERT') {
+    mainContent = <DiffTable rows={computeDiff(log.before_data, log.after_data)} />
+  } else if (op === 'CREATE') {
+    mainContent = <FieldTable rows={getFields(log.after_data)} />
+  } else if (op === 'DELETE') {
+    mainContent = <FieldTable rows={getFields(log.before_data)} />
+  } else if (op === 'DISMISS' || op === 'IMPORT') {
+    mainContent = <FieldTable rows={getFields(log.after_data ?? log.before_data)} />
+  }
+
+  const hasRaw = log.before_data !== null || log.after_data !== null
+
+  return (
+    <div className="space-y-3">
+      {mainContent}
+      {log.error_data && (
+        <div className="rounded border border-destructive/30 bg-destructive/5 p-3">
+          <div className="text-xs font-semibold text-destructive mb-1">BŁĄD</div>
+          <pre className="text-xs text-destructive overflow-x-auto whitespace-pre-wrap break-all">
+            {JSON.stringify(log.error_data, null, 2)}
+          </pre>
+        </div>
+      )}
+      {hasRaw && (
+        <div>
+          <button
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            onClick={(e) => { e.stopPropagation(); setShowRaw((v) => !v) }}
+          >
+            {showRaw ? '▲ Ukryj surowe dane JSON' : '▼ Pokaż surowe dane JSON'}
+          </button>
+          {showRaw && (
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 mt-2">
+              <JsonBlock data={log.before_data} label="PRZED" />
+              <JsonBlock data={log.after_data} label="PO" />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function AuditPage() {
   const { data: logs = [], isLoading } = useQuery({
     queryKey: QUERY_KEYS.auditLog,
     queryFn: getAuditLogs,
   })
 
-  const [sortKey, setSortKey] = useState<SortKey>('created_at')
-  const [sortDir, setSortDir] = useState<SortDir>('desc')
-  const [filterText, setFilterText] = useState('')
+  const [sortKey, setSortKey]           = useState<SortKey>('created_at')
+  const [sortDir, setSortDir]           = useState<SortDir>('desc')
+  const [filterText, setFilterText]     = useState('')
   const [filterOperation, setFilterOperation] = useState('__all__')
-  const [filterTable, setFilterTable] = useState('__all__')
-  const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [filterTable, setFilterTable]   = useState('__all__')
+  const [expandedId, setExpandedId]     = useState<number | null>(null)
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -126,7 +346,7 @@ export default function AuditPage() {
   }
 
   const allOperations = [...new Set(logs.map((l) => l.operation))].sort()
-  const allTables = [...new Set(logs.map((l) => l.table_name).filter(Boolean))].sort() as string[]
+  const allTables     = [...new Set(logs.map((l) => l.table_name).filter(Boolean))].sort() as string[]
 
   const filtered = logs.filter((l) => {
     if (filterOperation !== '__all__' && l.operation !== filterOperation) return false
@@ -140,21 +360,12 @@ export default function AuditPage() {
   })
 
   const sorted = [...filtered].sort((a, b) => {
-    let va: string = ''
-    let vb: string = ''
-    if (sortKey === 'created_at') {
-      va = a.created_at
-      vb = b.created_at
-    } else if (sortKey === 'action_name') {
-      va = (ACTION_LABELS[a.action_name] ?? a.action_name).toLowerCase()
-      vb = (ACTION_LABELS[b.action_name] ?? b.action_name).toLowerCase()
-    } else if (sortKey === 'table_name') {
-      va = (TABLE_LABELS[a.table_name ?? ''] ?? a.table_name ?? '').toLowerCase()
-      vb = (TABLE_LABELS[b.table_name ?? ''] ?? b.table_name ?? '').toLowerCase()
-    } else if (sortKey === 'operation') {
-      va = a.operation
-      vb = b.operation
-    }
+    let va = ''
+    let vb = ''
+    if (sortKey === 'created_at')  { va = a.created_at; vb = b.created_at }
+    else if (sortKey === 'action_name') { va = (ACTION_LABELS[a.action_name] ?? a.action_name).toLowerCase(); vb = (ACTION_LABELS[b.action_name] ?? b.action_name).toLowerCase() }
+    else if (sortKey === 'table_name')  { va = (TABLE_LABELS[a.table_name ?? ''] ?? a.table_name ?? '').toLowerCase(); vb = (TABLE_LABELS[b.table_name ?? ''] ?? b.table_name ?? '').toLowerCase() }
+    else if (sortKey === 'operation')   { va = a.operation; vb = b.operation }
     if (va < vb) return sortDir === 'asc' ? -1 : 1
     if (va > vb) return sortDir === 'asc' ? 1 : -1
     return 0
@@ -164,9 +375,7 @@ export default function AuditPage() {
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Historia operacji</h1>
-        <div className="text-sm text-muted-foreground">
-          {filtered.length} z {logs.length} wpisów
-        </div>
+        <div className="text-sm text-muted-foreground">{filtered.length} z {logs.length} wpisów</div>
       </div>
 
       <div className="flex gap-2 flex-wrap">
@@ -241,21 +450,18 @@ export default function AuditPage() {
         <TableBody>
           {isLoading && (
             <TableRow>
-              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                Ładowanie…
-              </TableCell>
+              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">Ładowanie…</TableCell>
             </TableRow>
           )}
           {!isLoading && sorted.length === 0 && (
             <TableRow>
-              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                Brak wpisów
-              </TableCell>
+              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">Brak wpisów</TableCell>
             </TableRow>
           )}
           {sorted.map((log) => {
             const isExpanded = expandedId === log.id
-            const hasError = log.error_data !== null
+            const hasError   = log.error_data !== null
+            const summary    = getInlineSummary(log)
             return (
               <Fragment key={log.id}>
                 <TableRow
@@ -265,8 +471,9 @@ export default function AuditPage() {
                   <TableCell className="font-mono text-xs text-muted-foreground">
                     {formatDateTime(log.created_at)}
                   </TableCell>
-                  <TableCell className="font-medium">
-                    {ACTION_LABELS[log.action_name] ?? log.action_name}
+                  <TableCell>
+                    <div className="font-medium">{ACTION_LABELS[log.action_name] ?? log.action_name}</div>
+                    {summary && <div className="text-xs text-muted-foreground mt-0.5">{summary}</div>}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {TABLE_LABELS[log.table_name ?? ''] ?? log.table_name ?? '—'}
@@ -280,26 +487,13 @@ export default function AuditPage() {
                     {log.record_id ?? '—'}
                   </TableCell>
                   <TableCell>
-                    {hasError && (
-                      <AlertCircle className="h-4 w-4 text-destructive" title="Błąd" />
-                    )}
+                    {hasError && <AlertCircle className="h-4 w-4 text-destructive" aria-label="Błąd" />}
                   </TableCell>
                 </TableRow>
                 {isExpanded && (
                   <TableRow className="bg-muted/20 hover:bg-muted/20">
-                    <TableCell colSpan={6} className="px-6 pb-4 pt-0">
-                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <JsonBlock data={log.before_data} label="PRZED" />
-                        <JsonBlock data={log.after_data} label="PO" />
-                      </div>
-                      {log.error_data && (
-                        <div className="mt-2 rounded border border-destructive/30 bg-destructive/5 p-3">
-                          <div className="text-xs font-semibold text-destructive mb-1">BŁĄD</div>
-                          <pre className="text-xs text-destructive overflow-x-auto whitespace-pre-wrap break-all">
-                            {JSON.stringify(log.error_data, null, 2)}
-                          </pre>
-                        </div>
-                      )}
+                    <TableCell colSpan={6} className="px-6 pb-4 pt-2">
+                      <DetailPanel log={log} />
                     </TableCell>
                   </TableRow>
                 )}
