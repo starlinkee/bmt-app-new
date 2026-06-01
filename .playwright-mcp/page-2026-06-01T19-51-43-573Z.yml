@@ -1,0 +1,67 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - heading "ADNIER S.C." [level=1] [ref=e7]:
+            - link "ADNIER S.C." [ref=e8] [cursor=pointer]:
+              - /url: http://www.adnier.pl/
+              - img "ADNIER S.C." [ref=e9]
+          - generic [ref=e11]:
+            - text: Zarządzanie Nieruchomościami
+            - text: "tel.: 12 412 53 72"
+        - link "Adres e-mail biuro@adnier.pl" [ref=e13] [cursor=pointer]:
+          - /url: mailto:biuro@adnier.pl
+          - img "Adres e-mail" [ref=e14]
+          - text: biuro@adnier.pl
+      - navigation [ref=e18]:
+        - list [ref=e19]:
+          - listitem [ref=e20]:
+            - link "Tryb" [ref=e21] [cursor=pointer]:
+              - /url: "#"
+        - link "pomoc" [ref=e22] [cursor=pointer]:
+          - /url: http://mmsoft.com.pl/uploadNew/files/pomoc_lokalenet.pdf
+          - generic [ref=e23]: 
+          - text: pomoc
+    - main [ref=e24]:
+      - article [ref=e25]:
+        - heading "Logowanie do systemu:" [level=1] [ref=e26]
+        - generic [ref=e27]:
+          - generic [ref=e28]:
+            - generic [ref=e29]:
+              - generic [ref=e30]: "Identyfikator:"
+              - generic [ref=e32]:
+                - textbox "Identyfikator:" [ref=e33]
+                - img [ref=e35]
+            - generic [ref=e38]:
+              - generic [ref=e39]: "Hasło:"
+              - generic [ref=e41]:
+                - textbox "Hasło:" [ref=e42]
+                - generic [ref=e44]: "***"
+            - button "Zaloguj" [ref=e46] [cursor=pointer]
+            - link "Nie pamiętam hasła" [ref=e50] [cursor=pointer]:
+              - /url: javascript:jaklog(12)
+          - generic [ref=e52]:
+            - paragraph [ref=e53]: Aplikacja mobilna LokaleNet na Android i iOS.
+            - table [ref=e54]:
+              - rowgroup [ref=e55]:
+                - row [ref=e56]:
+                  - cell [ref=e57]:
+                    - link [ref=e58] [cursor=pointer]:
+                      - /url: https://play.google.com/store/apps/details?id=net.lokale.app.dev
+                  - cell [ref=e59]:
+                    - link [ref=e60] [cursor=pointer]:
+                      - /url: https://apps.apple.com/app/lokalenet/id1670413194?l=pl&platform=iphone
+            - paragraph [ref=e61]
+            - paragraph [ref=e62]:
+              - link "Informacja o przetwarzaniu danych w usłudze LokaleNet" [ref=e63] [cursor=pointer]:
+                - /url: "#oknoinfo"
+  - contentinfo [ref=e64]:
+    - generic [ref=e65]:
+      - iframe [ref=e66]:
+        
+      - paragraph [ref=e67]:
+        - text: "Serwis wykonany przez:"
+        - link "MMSOFT sp. z o.o." [ref=e68] [cursor=pointer]:
+          - /url: http://mmsoft.com.pl
+      - paragraph [ref=e69]: (c) All rights reserved 2024

@@ -29,7 +29,6 @@ const navItems = [
   { href: '/import', label: 'Import CSV', icon: Upload },
   { href: '/kontrola-platnosci', label: 'Kontrola płatności', icon: ClipboardList },
   { href: '/przeplywy', label: 'Przepływy', icon: ArrowLeftRight },
-  { href: '/settings', label: 'Ustawienia', icon: Settings },
   { href: '/audit', label: 'Historia operacji', icon: History },
 ]
 
@@ -65,7 +64,19 @@ export function Sidebar() {
           })}
         </ul>
       </nav>
-      <div className="border-t p-2">
+      <div className="border-t p-2 space-y-0.5">
+        <Link
+          href="/settings"
+          className={cn(
+            'flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors',
+            pathname.startsWith('/settings')
+              ? 'bg-primary text-primary-foreground'
+              : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+          )}
+        >
+          <Settings className="h-4 w-4 shrink-0" />
+          Ustawienia
+        </Link>
         <form action={logoutAction}>
           <button
             type="submit"

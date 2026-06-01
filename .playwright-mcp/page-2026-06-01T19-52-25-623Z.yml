@@ -1,0 +1,126 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - heading "ADNIER S.C." [level=1] [ref=e7]:
+            - link "ADNIER S.C." [ref=e8] [cursor=pointer]:
+              - /url: http://www.adnier.pl/
+              - img "ADNIER S.C." [ref=e9]
+          - generic [ref=e11]:
+            - text: Zarządzanie Nieruchomościami
+            - text: "tel.: 12 412 53 72"
+        - link "Adres e-mail biuro@adnier.pl" [ref=e13] [cursor=pointer]:
+          - /url: mailto:biuro@adnier.pl
+          - img "Adres e-mail" [ref=e14]
+          - text: biuro@adnier.pl
+      - generic [ref=e17]:
+        - navigation [ref=e18]:
+          - list [ref=e19]:
+            - listitem [ref=e20]:
+              - link "Informacje" [ref=e21] [cursor=pointer]:
+                - /url: javascript:akcja('Informacje',0)
+            - listitem [ref=e22]:
+              - link "Saldo" [ref=e23] [cursor=pointer]:
+                - /url: javascript:akcja('Saldo',100)
+            - listitem [ref=e24]:
+              - link "Naliczenie" [ref=e25] [cursor=pointer]:
+                - /url: javascript:akcja('Naliczenie',0)
+            - listitem [ref=e26]:
+              - link "Odczyty" [ref=e27] [cursor=pointer]:
+                - /url: javascript:akcja('Odczyty',0)
+            - listitem [ref=e28]:
+              - link "Głosowania" [ref=e29] [cursor=pointer]:
+                - /url: javascript:akcja('Uchwaly',0)
+            - listitem [ref=e30]:
+              - link "Moje dane" [ref=e31] [cursor=pointer]:
+                - /url: javascript:akcja('Mojedane',0)
+            - listitem [ref=e32]:
+              - link "Zmiana hasła" [ref=e33] [cursor=pointer]:
+                - /url: javascript:akcja('Zmianahasla',0)
+          - generic [ref=e34]:
+            - link [ref=e35] [cursor=pointer]:
+              - /url: javascript:akcja('Koszyk',0)
+              - img [ref=e36]
+            - link "WYLOGOWANIE" [ref=e41] [cursor=pointer]:
+              - /url: javascript:akcja('Wylogowanie',0)
+              - img [ref=e42]
+              - text: WYLOGOWANIE
+        - navigation [ref=e46]:
+          - list
+    - paragraph [ref=e48]: Lubostroń 15 A/ 38, kom.33, mp 21
+    - main [ref=e50]:
+      - complementary [ref=e51]:
+        - heading "Szczegółowość" [level=3] [ref=e52]:
+          - generic [ref=e53]: Szczegółowość
+        - list [ref=e54]:
+          - listitem [ref=e55]:
+            - link "sumarycznie" [ref=e56] [cursor=pointer]:
+              - /url: javascript:dane(-1,0)
+          - listitem [ref=e57]:
+            - link "tabela" [ref=e58] [cursor=pointer]:
+              - /url: javascript:dane(5,0)
+          - listitem [ref=e59]:
+            - link "szczegóły" [ref=e60] [cursor=pointer]:
+              - /url: javascript:dane(3,0)
+          - listitem [ref=e61]:
+            - link "szczegóły z opisem" [ref=e62] [cursor=pointer]:
+              - /url: javascript:dane(4,0)
+          - listitem [ref=e63]:
+            - link "z podziałem" [ref=e64] [cursor=pointer]:
+              - /url: javascript:dane(1,0)
+          - listitem [ref=e65]:
+            - link "z podziałem i opisem" [ref=e66] [cursor=pointer]:
+              - /url: javascript:dane(2,0)
+        - heading "Lata" [level=3] [ref=e67]:
+          - generic [ref=e68]: Lata
+        - list [ref=e69]:
+          - listitem [ref=e70]:
+            - link "Rok bieżący" [ref=e71] [cursor=pointer]:
+              - /url: javascript:dane(0,1)
+      - article [ref=e72]:
+        - heading "Saldo | Rok bieżący" [level=1] [ref=e73]
+        - 'heading "Data ostatniego wprowadzonego wyciągu bankowego: 2026-05-19" [level=3] [ref=e74]'
+        - generic [ref=e75]:
+          - table [ref=e76]:
+            - rowgroup [ref=e77]:
+              - row [ref=e78]:
+                - columnheader [ref=e79]
+            - rowgroup [ref=e80]:
+              - row "Rozrachunki z właścicielami Zaległość 746,98 zł" [ref=e81]:
+                - cell "Rozrachunki z właścicielami" [ref=e82]
+                - cell "Zaległość" [ref=e83]
+                - cell "746,98 zł" [ref=e84]
+              - row "Rozrachunki z właścicielami - fund.remon Zaległość 49,48 zł" [ref=e85]:
+                - cell "Rozrachunki z właścicielami - fund.remon" [ref=e86]
+                - cell "Zaległość" [ref=e87]
+                - cell "49,48 zł" [ref=e88]
+              - row "Rozrachunki z właścicielami - LICZNIKI Zaległość 50,00 zł" [ref=e89]:
+                - cell "Rozrachunki z właścicielami - LICZNIKI" [ref=e90]
+                - cell "Zaległość" [ref=e91]
+                - cell "50,00 zł" [ref=e92]
+            - rowgroup [ref=e93]:
+              - row "Razem Zaległość 846,46 zł" [ref=e94]:
+                - cell "Razem" [ref=e95]
+                - cell "Zaległość" [ref=e96]
+                - cell "846,46 zł" [ref=e97]
+          - table:
+            - rowgroup:
+              - row
+        - link "Zapłać on-line" [ref=e99] [cursor=pointer]:
+          - /url: javascript:akcja('DoKoszyka','846.46|-|Saldo|100|d7293dc79d1bbcfe74e0734709d34d7cf23798d9a5b33370bd8476606d22e86d|1')
+          - img [ref=e100]
+          - text: Zapłać on-line
+        - generic [ref=e105]:
+          - strong [ref=e107]: "Konto bankowe:"
+          - generic [ref=e108]: 80 1020 2892 2482 0000 0000 0038 - PKO BP indywidualne (indywidualne)
+  - contentinfo [ref=e109]:
+    - generic [ref=e110]:
+      - iframe [ref=e111]:
+        
+      - paragraph [ref=e112]: "Ostatnia synchronizacja: 2026-06-01 13:38:40"
+      - paragraph [ref=e113]:
+        - text: "Serwis wykonany przez:"
+        - link "MMSOFT sp. z o.o." [ref=e114] [cursor=pointer]:
+          - /url: http://mmsoft.com.pl
+      - paragraph [ref=e115]: (c) All rights reserved 2024
