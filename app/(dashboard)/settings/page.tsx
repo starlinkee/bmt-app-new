@@ -9,14 +9,19 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 
 const DEFAULT_MAPPING = JSON.stringify(
-  {
-    'Imię i nazwisko': 'B2',
-    'Adres': 'B3',
-    'Kwota': 'B4',
-    'Numer faktury': 'B5',
-    'Miesiąc': 'B6',
-    'Rok': 'B7',
-  },
+  [
+    { range: 'B2', value: '{najemca}' },
+    { range: 'B3', value: '{adres_1}' },
+    { range: 'B4', value: '{adres_2}' },
+    { range: 'B5', value: '{numer_rachunku}' },
+    { range: 'B6', value: '{kwota}' },
+    { range: 'B7', value: '{kwota_slownie}' },
+    { range: 'B8', value: '{miesiac}/{rok}' },
+    { range: 'B9', value: '{data_wystawienia}' },
+    { range: 'B10', value: '{termin_platnosci}' },
+    { range: 'B11', value: '{opis_rachunku}' },
+    { range: 'B12', value: '{nip}' },
+  ],
   null,
   2,
 )
@@ -66,7 +71,8 @@ export default function SettingsPage() {
   }, [])
 
   function handleSave() {
-    let mapping: Record<string, string>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let mapping: any
     try {
       mapping = JSON.parse(form.rent_invoice_input_mapping_json)
     } catch {
@@ -137,7 +143,20 @@ export default function SettingsPage() {
             className="font-mono text-xs"
           />
           <p className="text-xs text-muted-foreground">
-            Klucz = nazwa pola w szablonie, wartość = adres komórki w arkuszu (np. &quot;B2&quot;).
+            Tablica obiektów: <code className="bg-muted px-1 rounded">range</code> = adres komórki (np. &quot;B2&quot;),
+            {' '}<code className="bg-muted px-1 rounded">value</code> = wartość z dostępnymi zmiennymi:
+            {' '}<code className="bg-muted px-1 rounded">{'{najemca}'}</code>{' '}
+            <code className="bg-muted px-1 rounded">{'{numer_rachunku}'}</code>{' '}
+            <code className="bg-muted px-1 rounded">{'{kwota}'}</code>{' '}
+            <code className="bg-muted px-1 rounded">{'{kwota_slownie}'}</code>{' '}
+            <code className="bg-muted px-1 rounded">{'{adres_1}'}</code>{' '}
+            <code className="bg-muted px-1 rounded">{'{adres_2}'}</code>{' '}
+            <code className="bg-muted px-1 rounded">{'{nip}'}</code>{' '}
+            <code className="bg-muted px-1 rounded">{'{miesiac}'}</code>{' '}
+            <code className="bg-muted px-1 rounded">{'{rok}'}</code>{' '}
+            <code className="bg-muted px-1 rounded">{'{data_wystawienia}'}</code>{' '}
+            <code className="bg-muted px-1 rounded">{'{termin_platnosci}'}</code>{' '}
+            <code className="bg-muted px-1 rounded">{'{opis_rachunku}'}</code>
           </p>
           {jsonError && <p className="text-sm text-destructive">{jsonError}</p>}
         </div>
@@ -291,6 +310,7 @@ export default function SettingsPage() {
           Zapisz ustawienia
         </Button>
       </div>
+
     </div>
   )
 }

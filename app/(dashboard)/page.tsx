@@ -1,8 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ensureMonthlyTasks, getMonthlyTasks } from '@/lib/tasks'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getLastOperationTimes, getOperationHistory } from './reminder-actions'
-import { TaskList } from './task-list'
 import { ReminderButtons } from './reminder-buttons'
 import { OperationHistory } from './operation-history'
 
@@ -11,13 +9,10 @@ export default async function DashboardPage() {
   const month = now.getMonth() + 1
   const year = now.getFullYear()
 
-  await ensureMonthlyTasks(month, year)
-
   const supabase = createServiceClient()
 
-  const [tasks, { count: activeContracts }, { data: rentInvoices }, lastOps, opHistory] =
+  const [{ count: activeContracts }, { data: rentInvoices }, lastOps, opHistory] =
     await Promise.all([
-      getMonthlyTasks(month, year),
       supabase
         .from('contracts')
         .select('*', { count: 'exact', head: true })
@@ -34,12 +29,6 @@ export default async function DashboardPage() {
 
   const rentSum = (rentInvoices ?? []).reduce((acc, i) => acc + Number(i.amount), 0)
   const rentCount = rentInvoices?.length ?? 0
-
-  const taskItems = tasks.map((t) => ({
-    label: t.type === 'RENT' ? 'Wystawienie czynszów' : 'Rozliczenie mediów',
-    status: t.status as 'TODO' | 'DONE',
-    href: t.type === 'RENT' ? '/finance' : '/media',
-  }))
 
   return (
     <div className="p-6 space-y-6">
@@ -83,15 +72,6 @@ export default async function DashboardPage() {
       <ReminderButtons lastOps={lastOps} />
 
       <OperationHistory entries={opHistory} />
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Zadania na {month}/{year}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <TaskList items={taskItems} />
-        </CardContent>
-      </Card>
     </div>
   )
 }

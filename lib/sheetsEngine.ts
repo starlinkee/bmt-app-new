@@ -6,14 +6,18 @@ function parseServiceAccountJson() {
   return JSON.parse(json)
 }
 
+let _serviceAccountAuth: InstanceType<typeof google.auth.GoogleAuth> | null = null
 function getServiceAccountAuth() {
-  return new google.auth.GoogleAuth({
-    credentials: parseServiceAccountJson(),
-    scopes: [
-      'https://www.googleapis.com/auth/spreadsheets',
-      'https://www.googleapis.com/auth/drive.readonly',
-    ],
-  })
+  if (!_serviceAccountAuth) {
+    _serviceAccountAuth = new google.auth.GoogleAuth({
+      credentials: parseServiceAccountJson(),
+      scopes: [
+        'https://www.googleapis.com/auth/spreadsheets',
+        'https://www.googleapis.com/auth/drive.readonly',
+      ],
+    })
+  }
+  return _serviceAccountAuth
 }
 
 export function getServiceAccountEmail(): string {
@@ -119,6 +123,20 @@ export async function getSheetGidByName(
   return sheet?.properties?.sheetId?.toString()
 }
 
+export async function getAllSheetGids(spreadsheetId: string): Promise<Record<string, string>> {
+  const auth = getServiceAccountAuth()
+  const sheets = google.sheets({ version: 'v4', auth })
+  const { data } = await sheets.spreadsheets.get({
+    spreadsheetId,
+    fields: 'sheets.properties(sheetId,title)',
+  })
+  return Object.fromEntries(
+    (data.sheets ?? [])
+      .filter((s) => s.properties?.title && s.properties?.sheetId != null)
+      .map((s) => [s.properties!.title!, s.properties!.sheetId!.toString()]),
+  )
+}
+
 export async function stripSpreadsheetColors(spreadsheetId: string): Promise<void> {
   const auth = getServiceAccountAuth()
   const sheets = google.sheets({ version: 'v4', auth })
@@ -185,7 +203,7 @@ export async function exportSheetAsPdf(
 
   const url =
     `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export` +
-    `?format=pdf&portrait=${portrait}&fitw=true${gid ? `&gid=${gid}` : ''}${rangeParams}`
+    `?format=pdf&portrait=${portrait}&fitw=true&fith=true${gid ? `&gid=${gid}` : ''}${rangeParams}`
 
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },

@@ -228,9 +228,14 @@ export default function FinancePage() {
               <ul className="space-y-0.5 text-muted-foreground">
                 {(preview?.withEmail ?? []).map((c) => {
                   const t = c.tenants as unknown as { first_name: string; last_name: string; tenant_type?: string | null; company_name?: string | null } | null
+                  const senderAcc = ((c.tenants as unknown as { sender_account?: number | null })?.sender_account ?? 1) === 2 ? 2 : 1
+                  const senderEmail = senderAcc === 2 ? preview?.senderEmail2 : preview?.senderEmail1
                   return (
                     <li key={c.id}>
                       {t ? tenantDisplayName(t) : ''} — {formatAmount(Number(c.rent_amount))}
+                      {senderEmail && (
+                        <span className="text-xs ml-1 opacity-60">({senderEmail})</span>
+                      )}
                     </li>
                   )
                 })}

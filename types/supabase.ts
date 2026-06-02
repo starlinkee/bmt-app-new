@@ -125,7 +125,7 @@ export type Database = {
           id: number
           media_settlement_id: number | null
           month: number
-          number: string
+          number: string | null
           tenant_id: number
           type: string
           year: number
@@ -136,7 +136,7 @@ export type Database = {
           id?: never
           media_settlement_id?: number | null
           month: number
-          number: string
+          number?: string | null
           tenant_id: number
           type: string
           year: number
@@ -147,7 +147,7 @@ export type Database = {
           id?: never
           media_settlement_id?: number | null
           month?: number
-          number?: string
+          number?: string | null
           tenant_id?: number
           type?: string
           year?: number
@@ -248,33 +248,6 @@ export type Database = {
           },
         ]
       }
-      monthly_tasks: {
-        Row: {
-          completed_at: string | null
-          id: number
-          month: number
-          status: string
-          type: string
-          year: number
-        }
-        Insert: {
-          completed_at?: string | null
-          id?: never
-          month: number
-          status?: string
-          type: string
-          year: number
-        }
-        Update: {
-          completed_at?: string | null
-          id?: never
-          month?: number
-          status?: string
-          type?: string
-          year?: number
-        }
-        Relationships: []
-      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -365,6 +338,8 @@ export type Database = {
       settlement_groups: {
         Row: {
           id: number
+          email_body_template: string | null
+          email_subject_template: string | null
           input_mapping_json: Json
           media_invoice_input_mapping_json: Json
           media_invoice_spreadsheet_id: string
@@ -375,6 +350,8 @@ export type Database = {
         }
         Insert: {
           id?: never
+          email_body_template?: string | null
+          email_subject_template?: string | null
           input_mapping_json?: Json
           media_invoice_input_mapping_json?: Json
           media_invoice_spreadsheet_id?: string
@@ -385,6 +362,8 @@ export type Database = {
         }
         Update: {
           id?: never
+          email_body_template?: string | null
+          email_subject_template?: string | null
           input_mapping_json?: Json
           media_invoice_input_mapping_json?: Json
           media_invoice_spreadsheet_id?: string

@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Button } from '@/components/ui/button'
 import { TableFilterBar } from '@/components/ui/table-filter-bar'
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 
@@ -32,8 +33,13 @@ const TYPE_LABELS: Record<string, string> = {
   OTHER: 'Inny',
 }
 
+const TENANT_TYPE_LABELS: Record<string, string> = {
+  PRIVATE: 'Prywatny',
+  BUSINESS: 'Firma',
+}
+
 type Entry = Awaited<ReturnType<typeof getAllFlows>>[number]
-type SortKey = 'date' | 'type' | 'tenant' | 'description' | 'amount'
+type SortKey = 'date' | 'type' | 'tenant' | 'tenantType' | 'description' | 'amount'
 type SortDir = 'asc' | 'desc'
 
 const FILTER_COLUMNS = [
@@ -65,6 +71,9 @@ function sortEntries(entries: Entry[], key: SortKey, dir: SortDir): Entry[] {
     } else if (key === 'tenant') {
       va = (a.tenantName ?? '').toLowerCase()
       vb = (b.tenantName ?? '').toLowerCase()
+    } else if (key === 'tenantType') {
+      va = (a.tenantType ?? '').toLowerCase()
+      vb = (b.tenantType ?? '').toLowerCase()
     } else if (key === 'description') {
       va = (a.description ?? '').toLowerCase()
       vb = (b.description ?? '').toLowerCase()
@@ -90,9 +99,23 @@ function matchesEntryFilter(entry: Entry, text: string, col: string): boolean {
   return false
 }
 
+const CATEGORY_OPTIONS = [
+  { value: 'all', label: 'Wszystko' },
+  { value: 'RENT', label: 'Czynsz' },
+  { value: 'MEDIA', label: 'Media' },
+  { value: 'transaction', label: 'Wpłaty' },
+] as const
+
+const TENANT_TYPE_OPTIONS = [
+  { value: 'all', label: 'Wszyscy' },
+  { value: 'PRIVATE', label: 'Prywatni' },
+  { value: 'BUSINESS', label: 'Firmy' },
+] as const
+
 export default function PrzeplywyPage() {
   const [year, setYear] = useState(CURRENT_YEAR)
-  const [typeFilter, setTypeFilter] = useState<'all' | 'invoice' | 'transaction'>('all')
+  const [typeFilter, setTypeFilter] = useState<'all' | 'RENT' | 'MEDIA' | 'transaction'>('all')
+  const [tenantTypeFilter, setTenantTypeFilter] = useState<'all' | 'PRIVATE' | 'BUSINESS'>('all')
   const [sortKey, setSortKey] = useState<SortKey>('date')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [filterText, setFilterText] = useState('')
@@ -126,14 +149,23 @@ export default function PrzeplywyPage() {
       : <ChevronDown className="ml-1 h-3 w-3 inline" />
   }
 
-  const typeFiltered = typeFilter === 'all' ? entries : entries.filter((e) => e.type === typeFilter)
+  const categoryFiltered = entries.filter((e) => {
+    if (typeFilter === 'all') return true
+    if (typeFilter === 'transaction') return e.type === 'transaction'
+    if (typeFilter === 'RENT') return e.type === 'invoice' && e.invoiceType === 'RENT'
+    if (typeFilter === 'MEDIA') return e.type === 'invoice' && e.invoiceType === 'MEDIA'
+    return true
+  })
+  const tenantFiltered = tenantTypeFilter === 'all'
+    ? categoryFiltered
+    : categoryFiltered.filter((e) => e.tenantType === tenantTypeFilter)
   const textFiltered = filterText
-    ? typeFiltered.filter((e) => matchesEntryFilter(e, filterText, filterCol))
-    : typeFiltered
+    ? tenantFiltered.filter((e) => matchesEntryFilter(e, filterText, filterCol))
+    : tenantFiltered
   const visible = sortEntries(textFiltered, sortKey, sortDir)
 
-  const totalIn = entries.filter((e) => e.amount > 0).reduce((s, e) => s + e.amount, 0)
-  const totalOut = entries.filter((e) => e.amount < 0).reduce((s, e) => s + Math.abs(e.amount), 0)
+  const totalIn = tenantFiltered.filter((e) => e.amount > 0).reduce((s, e) => s + e.amount, 0)
+  const totalOut = tenantFiltered.filter((e) => e.amount < 0).reduce((s, e) => s + Math.abs(e.amount), 0)
   const net = totalIn - totalOut
 
   return (
@@ -141,21 +173,18 @@ export default function PrzeplywyPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Przepływy</h1>
 
-        <div className="flex items-center gap-3">
-          <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
-            <SelectTrigger className="w-28">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {YEARS.map((y) => (
-                <SelectItem key={y} value={String(y)}>
-                  {y}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-        </div>
+        <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
+          <SelectTrigger className="w-28">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {YEARS.map((y) => (
+              <SelectItem key={y} value={String(y)}>
+                {y}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="grid grid-cols-4 gap-4">
@@ -166,7 +195,7 @@ export default function PrzeplywyPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-green-600">{formatAmount(totalIn)}</p>
+            <p className="text-2xl font-bold">{formatAmount(totalIn)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -176,7 +205,7 @@ export default function PrzeplywyPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-destructive">{formatAmount(totalOut)}</p>
+            <p className="text-2xl font-bold">{formatAmount(totalOut)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -213,19 +242,37 @@ export default function PrzeplywyPage() {
         columns={FILTER_COLUMNS}
       />
 
-      <div className="flex items-center gap-2">
-        <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as typeof typeFilter)}>
-          <SelectTrigger className="w-36">
-            <SelectValue>
-              {typeFilter === 'all' ? 'Wszystko' : typeFilter === 'invoice' ? 'Rachunki' : 'Wpłaty'}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Wszystko</SelectItem>
-            <SelectItem value="invoice">Rachunki</SelectItem>
-            <SelectItem value="transaction">Wpłaty</SelectItem>
-          </SelectContent>
-        </Select>
+      <div className="flex flex-wrap gap-6">
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Kategoria</p>
+          <div className="flex gap-1">
+            {CATEGORY_OPTIONS.map((opt) => (
+              <Button
+                key={opt.value}
+                size="sm"
+                variant={typeFilter === opt.value ? 'default' : 'outline'}
+                onClick={() => setTypeFilter(opt.value)}
+              >
+                {opt.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Typ najemcy</p>
+          <div className="flex gap-1">
+            {TENANT_TYPE_OPTIONS.map((opt) => (
+              <Button
+                key={opt.value}
+                size="sm"
+                variant={tenantTypeFilter === opt.value ? 'default' : 'outline'}
+                onClick={() => setTenantTypeFilter(opt.value)}
+              >
+                {opt.label}
+              </Button>
+            ))}
+          </div>
+        </div>
       </div>
 
       <Table>
@@ -240,6 +287,9 @@ export default function PrzeplywyPage() {
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('tenant')}>
               Najemca<SortIcon col="tenant" />
             </TableHead>
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('tenantType')}>
+              Typ najemcy<SortIcon col="tenantType" />
+            </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('description')}>
               Opis<SortIcon col="description" />
             </TableHead>
@@ -251,14 +301,14 @@ export default function PrzeplywyPage() {
         <TableBody>
           {isLoading && (
             <TableRow>
-              <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                 Ładowanie…
               </TableCell>
             </TableRow>
           )}
           {!isLoading && visible.length === 0 && (
             <TableRow>
-              <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                 {filterText ? 'Brak wyników dla podanego filtra' : `Brak operacji dla ${year}`}
               </TableCell>
             </TableRow>
@@ -270,7 +320,7 @@ export default function PrzeplywyPage() {
               </TableCell>
               <TableCell>
                 {entry.type === 'invoice' ? (
-                  <span className="inline-flex items-center rounded-md bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+                  <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${entry.invoiceType === 'RENT' ? 'bg-gray-100 text-gray-600' : 'bg-blue-100 text-blue-700'}`}>
                     {entry.invoiceType ? (TYPE_LABELS[entry.invoiceType] ?? entry.invoiceType) : 'Rachunek'}
                   </span>
                 ) : (
@@ -280,6 +330,15 @@ export default function PrzeplywyPage() {
                 )}
               </TableCell>
               <TableCell className="text-sm">{entry.tenantName}</TableCell>
+              <TableCell>
+                {entry.tenantType ? (
+                  <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${entry.tenantType === 'BUSINESS' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
+                    {TENANT_TYPE_LABELS[entry.tenantType] ?? entry.tenantType}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground text-xs">—</span>
+                )}
+              </TableCell>
               <TableCell className="text-sm text-muted-foreground">{entry.description}</TableCell>
               <TableCell
                 className={`text-right text-sm font-medium ${
