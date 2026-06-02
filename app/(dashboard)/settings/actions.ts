@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/service'
 import { logAudit } from '@/lib/audit'
+import type { Json } from '@/types/supabase'
 
 export async function getAppConfig() {
   const supabase = createServiceClient()
@@ -16,7 +17,7 @@ export async function getAppConfig() {
 
 export async function upsertAppConfig(data: {
   rent_invoice_spreadsheet_id?: string
-  rent_invoice_input_mapping_json?: Record<string, string>
+  rent_invoice_input_mapping_json?: Json
   rent_invoice_pdf_gid?: string
   drive_invoices_folder_id?: string
   reminder_subject?: string

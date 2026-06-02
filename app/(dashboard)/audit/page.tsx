@@ -83,9 +83,7 @@ const FIELD_LABELS: Record<string, string> = {
   start_date:               'Data rozpoczęcia',
   end_date:                 'Data zakończenia',
   is_active:                'Aktywna',
-  invoice_seq_number:       'Nr sekwencyjny faktury',
   has_media_invoice:        'Faktura za media',
-  media_invoice_seq_number: 'Nr sekwencyjny faktury (media)',
   opis_rachunku:            'Opis rachunku',
   opis_rachunku_media:      'Opis rachunku (media)',
   tenant_id:                'ID najemcy',
@@ -274,7 +272,11 @@ function DetailPanel({ log }: { log: AuditLog }) {
 
   let mainContent: React.ReactNode = null
   if (op === 'UPDATE' || op === 'UPSERT') {
-    mainContent = <DiffTable rows={computeDiff(log.before_data, log.after_data)} />
+    if (op === 'UPSERT' && !isObj(log.before_data)) {
+      mainContent = <FieldTable rows={getFields(log.after_data)} />
+    } else {
+      mainContent = <DiffTable rows={computeDiff(log.before_data, log.after_data)} />
+    }
   } else if (op === 'CREATE') {
     mainContent = <FieldTable rows={getFields(log.after_data)} />
   } else if (op === 'DELETE') {
@@ -356,6 +358,7 @@ export default function AuditPage() {
       const label = (ACTION_LABELS[l.action_name] ?? l.action_name).toLowerCase()
       if (!label.includes(q) && !l.action_name.toLowerCase().includes(q) && !(l.record_id ?? '').includes(q)) return false
     }
+    if (l.operation === 'UPDATE' && !l.error_data && computeDiff(l.before_data, l.after_data).length === 0) return false
     return true
   })
 

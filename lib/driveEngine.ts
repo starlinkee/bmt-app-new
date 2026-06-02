@@ -1,15 +1,18 @@
 import { google } from 'googleapis'
 import { Readable } from 'stream'
 
+let _oauthClient: InstanceType<typeof google.auth.OAuth2> | null = null
 function getOAuthClient() {
-  const oauth2 = new google.auth.OAuth2(
-    process.env.GOOGLE_OAUTH_CLIENT_ID,
-    process.env.GOOGLE_OAUTH_CLIENT_SECRET,
-  )
-  oauth2.setCredentials({
-    refresh_token: process.env.GOOGLE_OAUTH_REFRESH_TOKEN,
-  })
-  return oauth2
+  if (!_oauthClient) {
+    _oauthClient = new google.auth.OAuth2(
+      process.env.GOOGLE_OAUTH_CLIENT_ID,
+      process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+    )
+    _oauthClient.setCredentials({
+      refresh_token: process.env.GOOGLE_OAUTH_REFRESH_TOKEN,
+    })
+  }
+  return _oauthClient
 }
 
 export async function getOrCreateFolder(

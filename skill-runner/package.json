@@ -1,0 +1,13 @@
+{
+  "name": "bmt-skill-runner",
+  "version": "1.0.0",
+  "description": "VPS server that runs Claude Code skills on demand",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "node-pty": "^1.0.0"
+  }
+}

@@ -41,7 +41,7 @@ import { formatAmount, formatDate } from '@/lib/utils'
 
 type Contract = Awaited<ReturnType<typeof getContracts>>[number]
 type Tenant = Awaited<ReturnType<typeof getTenants>>[number]
-type SortKey = 'tenant' | 'property' | 'type' | 'amount' | 'number' | 'from' | 'to' | 'active' | 'media'
+type SortKey = 'tenant' | 'property' | 'type' | 'amount' | 'from' | 'to' | 'active' | 'media'
 type SortDir = 'asc' | 'desc'
 
 const FILTER_COLUMNS = [
@@ -77,9 +77,6 @@ function sortContracts(contracts: Contract[], key: SortKey, dir: SortDir): Contr
     } else if (key === 'amount') {
       va = Number(a.rent_amount)
       vb = Number(b.rent_amount)
-    } else if (key === 'number') {
-      va = a.invoice_seq_number
-      vb = b.invoice_seq_number
     } else if (key === 'from') {
       va = a.start_date
       vb = b.start_date
@@ -118,9 +115,7 @@ function emptyForm() {
   return {
     contract_type: 'PRIVATE',
     rent_amount: '',
-    invoice_seq_number: '1',
     has_media_invoice: false,
-    media_invoice_seq_number: '',
     opis_rachunku: '',
     opis_rachunku_media: '',
     start_date: '',
@@ -185,11 +180,7 @@ export default function ContractsPage() {
     setForm({
       contract_type: c.contract_type,
       rent_amount: String(c.rent_amount),
-      invoice_seq_number: String(c.invoice_seq_number),
       has_media_invoice: (c as Record<string, unknown>).has_media_invoice as boolean ?? false,
-      media_invoice_seq_number: (c as Record<string, unknown>).media_invoice_seq_number != null
-        ? String((c as Record<string, unknown>).media_invoice_seq_number)
-        : '',
       opis_rachunku: (c as Record<string, unknown>).opis_rachunku as string ?? '',
       opis_rachunku_media: (c as Record<string, unknown>).opis_rachunku_media as string ?? '',
       start_date: c.start_date,
@@ -209,12 +200,7 @@ export default function ContractsPage() {
     const payload = {
       contract_type: form.contract_type,
       rent_amount: parseFloat(form.rent_amount),
-      invoice_seq_number: parseInt(form.invoice_seq_number),
       has_media_invoice: form.contract_type === 'BUSINESS' ? form.has_media_invoice : false,
-      media_invoice_seq_number:
-        form.contract_type === 'BUSINESS' && form.has_media_invoice && form.media_invoice_seq_number
-          ? parseInt(form.media_invoice_seq_number)
-          : null,
       opis_rachunku: form.opis_rachunku,
       opis_rachunku_media: form.opis_rachunku_media,
       start_date: form.start_date,
@@ -311,13 +297,9 @@ export default function ContractsPage() {
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('amount')}>
               Kwota<SortIcon col="amount" />
             </TableHead>
-            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('number')}>
-              Nr<SortIcon col="number" />
-            </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('media')}>
               Media<SortIcon col="media" />
             </TableHead>
-            <TableHead>Nr media</TableHead>
             <TableHead>Opis rachunku</TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('from')}>
               Od<SortIcon col="from" />
@@ -346,18 +328,12 @@ export default function ContractsPage() {
                   </Badge>
                 </TableCell>
                 <TableCell>{formatAmount(Number(c.rent_amount))}</TableCell>
-                <TableCell>{c.contract_type === 'BUSINESS' ? c.invoice_seq_number : null}</TableCell>
                 <TableCell>
                   {c.contract_type === 'BUSINESS' && (
                     <Badge variant={(c as Record<string, unknown>).has_media_invoice ? 'default' : 'outline'}>
                       {(c as Record<string, unknown>).has_media_invoice ? 'Tak' : 'Nie'}
                     </Badge>
                   )}
-                </TableCell>
-                <TableCell>
-                  {(c as Record<string, unknown>).has_media_invoice
-                    ? String((c as Record<string, unknown>).media_invoice_seq_number ?? '—')
-                    : null}
                 </TableCell>
                 <TableCell>{(c as Record<string, unknown>).opis_rachunku as string || null}</TableCell>
                 <TableCell>{formatDate(c.start_date)}</TableCell>
@@ -386,7 +362,7 @@ export default function ContractsPage() {
           })}
           {sorted.length === 0 && (
             <TableRow>
-              <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                 {filterText ? 'Brak wyników dla podanego filtra' : 'Brak umów'}
               </TableCell>
             </TableRow>
@@ -517,32 +493,12 @@ export default function ContractsPage() {
               />
             </div>
             {form.contract_type === 'BUSINESS' && (
-              <div className="space-y-1">
-                <Label>Nr porządkowy faktury (czynsz)</Label>
-                <Input
-                  type="number"
-                  value={form.invoice_seq_number}
-                  onChange={(e) => setForm({ ...form, invoice_seq_number: e.target.value })}
-                />
-              </div>
-            )}
-            {form.contract_type === 'BUSINESS' && (
               <div className="flex items-center gap-2">
                 <Switch
                   checked={form.has_media_invoice}
-                  onCheckedChange={(v) => setForm({ ...form, has_media_invoice: v, media_invoice_seq_number: v ? form.media_invoice_seq_number : '' })}
+                  onCheckedChange={(v) => setForm({ ...form, has_media_invoice: v })}
                 />
                 <Label>Umowa z rachunkiem za media</Label>
-              </div>
-            )}
-            {form.contract_type === 'BUSINESS' && form.has_media_invoice && (
-              <div className="space-y-1">
-                <Label>Nr porządkowy faktury (media)</Label>
-                <Input
-                  type="number"
-                  value={form.media_invoice_seq_number}
-                  onChange={(e) => setForm({ ...form, media_invoice_seq_number: e.target.value })}
-                />
               </div>
             )}
             {form.contract_type === 'BUSINESS' && (

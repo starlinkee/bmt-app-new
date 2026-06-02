@@ -1,0 +1,16 @@
+[Unit]
+Description=BMT Skill Runner
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/bmt-app/skill-runner
+ExecStart=/usr/bin/node /opt/bmt-app/skill-runner/server.js
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+EnvironmentFile=/opt/bmt-app/skill-runner/.env
+
+[Install]
+WantedBy=multi-user.target

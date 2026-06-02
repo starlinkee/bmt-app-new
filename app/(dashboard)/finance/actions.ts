@@ -5,9 +5,8 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { logAudit } from '@/lib/audit'
 import { buildInvoiceNumber, tenantDisplayName } from '@/lib/utils'
 import { exportSheetAsPdf, writeInputValues, stripSpreadsheetColors, getServiceAccountEmail } from '@/lib/sheetsEngine'
-import { ensureYearMonthFolder, uploadPdfToDrive, copySpreadsheet, deleteFile } from '@/lib/driveEngine'
+import { ensureYearMonthFolder, uploadPdfToDrive, copySpreadsheet } from '@/lib/driveEngine'
 import { sendRentEmail } from '@/lib/email'
-import { markMonthlyTaskDone } from '@/lib/tasks'
 import { amountToWordsPLN } from '@/lib/numberWords'
 
 type InvoiceMappingEntry = { range: string; value: string }
@@ -38,13 +37,21 @@ export async function getRentPreview(month: number, year: number) {
 
   const existingContractIds = (existingInvoices ?? []).map((i) => i.contract_id).filter(Boolean)
 
-  const { data: contracts } = await supabase
-    .from('contracts')
-    .select('*, tenants(id, first_name, last_name, tenant_type, company_name, email, email2, nip, address1, address2, property_id, sender_account)')
-    .eq('is_active', true)
-    .eq('contract_type', 'BUSINESS')
-    .not('id', 'in', existingContractIds.length ? `(${existingContractIds.join(',')})` : '(-1)')
+  const [contractsResult, appConfigResult] = await Promise.all([
+    supabase
+      .from('contracts')
+      .select('*, tenants(id, first_name, last_name, tenant_type, company_name, email, email2, nip, address1, address2, property_id, sender_account)')
+      .eq('is_active', true)
+      .eq('contract_type', 'BUSINESS')
+      .not('id', 'in', existingContractIds.length ? `(${existingContractIds.join(',')})` : '(-1)'),
+    supabase
+      .from('app_config')
+      .select('gmail_user, gmail_user_2')
+      .eq('id', 1)
+      .single(),
+  ])
 
+  const contracts = contractsResult.data
   const withEmail: typeof contracts = []
   const withoutEmail: typeof contracts = []
 
@@ -54,15 +61,18 @@ export async function getRentPreview(month: number, year: number) {
     else withoutEmail.push(contract)
   }
 
-  return { withEmail, withoutEmail }
+  return {
+    withEmail,
+    withoutEmail,
+    senderEmail1: appConfigResult.data?.gmail_user ?? null,
+    senderEmail2: appConfigResult.data?.gmail_user_2 ?? null,
+  }
 }
 
 export async function generateRents(month: number, year: number) {
   const supabase = createServiceClient()
   const { withEmail, withoutEmail } = await getRentPreview(month, year)
-  const allContracts = [...(withEmail ?? []), ...(withoutEmail ?? [])].sort(
-    (a, b) => a.invoice_seq_number - b.invoice_seq_number,
-  )
+  const allContracts = [...(withEmail ?? []), ...(withoutEmail ?? [])]
 
   const { data: config } = await supabase
     .from('app_config')
@@ -70,13 +80,7 @@ export async function generateRents(month: number, year: number) {
     .eq('id', 1)
     .single()
 
-  const results: { invoiceNumber: string; tenantName: string }[] = []
-
-  // Przygotuj folder miesiąca i tymczasową B&W kopię szablonu faktury (shared across loop)
   let monthFolder: string | undefined
-  let tempSheetId: string | undefined
-  let renderSheetId: string | undefined = config?.rent_invoice_spreadsheet_id ?? undefined
-
   if (config?.drive_invoices_folder_id) {
     try {
       monthFolder = await ensureYearMonthFolder(year, month, config.drive_invoices_folder_id)
@@ -85,24 +89,16 @@ export async function generateRents(month: number, year: number) {
     }
   }
 
-  if (config?.rent_invoice_spreadsheet_id && monthFolder) {
-    try {
-      tempSheetId = await copySpreadsheet(
-        config.rent_invoice_spreadsheet_id,
-        `_bw_${String(month).padStart(2, '0')}_${year}`,
-        monthFolder,
-        getServiceAccountEmail(),
-      )
-      await stripSpreadsheetColors(tempSheetId)
-      renderSheetId = tempSheetId
-    } catch {
-      // fallback: oryginał bez B&W
-    }
-  }
+  // Pre-przydziel numery faktur przed wejściem w równoległość
+  const assignedContracts = allContracts.map((contract, ci) => ({
+    contract,
+    invoiceNumber: buildInvoiceNumber(month, year, ci + 1),
+  }))
 
-  try {
-    for (let ci = 0; ci < allContracts.length; ci++) {
-      const contract = allContracts[ci]
+  type RentResult = { invoiceNumber: string; tenantName: string }
+
+  const settled = await Promise.allSettled(
+    assignedContracts.map(async ({ contract, invoiceNumber }) => {
       const tenant = contract.tenants as {
         id: number
         first_name: string
@@ -115,9 +111,7 @@ export async function generateRents(month: number, year: number) {
         address2?: string | null
         sender_account?: number | null
       } | null
-      if (!tenant) continue
-
-      const invoiceNumber = buildInvoiceNumber(month, year, ci + 1)
+      if (!tenant) return null
 
       const { error } = await supabase.from('invoices').upsert(
         {
@@ -131,17 +125,16 @@ export async function generateRents(month: number, year: number) {
         },
         { ignoreDuplicates: true },
       )
-      if (error) continue
+      if (error) return null
 
       let pdfBuffer: Buffer | undefined
 
-      if (renderSheetId) {
+      if (config?.rent_invoice_spreadsheet_id && monthFolder) {
         try {
-          const dueDate = new Date(Date.UTC(year, month, 10))
+          const dueDate = new Date(Date.UTC(year, month - 1, 10))
           const vars: Record<string, string> = {
             numer_rachunku: invoiceNumber,
-            data_wystawienia: new Date(Date.UTC(year, month - 1, 1))
-              .toLocaleDateString('pl-PL'),
+            data_wystawienia: new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString('pl-PL'),
             termin_platnosci: dueDate.toLocaleDateString('pl-PL'),
             najemca: tenantDisplayName(tenant),
             adres_1: tenant.address1 ?? '',
@@ -154,28 +147,30 @@ export async function generateRents(month: number, year: number) {
             opis_rachunku: (contract as Record<string, unknown>).opis_rachunku as string ?? '',
           }
 
+          const invoiceName = `Rachunek ${invoiceNumber.replace(/\//g, '-')} – ${tenantDisplayName(tenant)}`
+          const invoiceSheetId = await copySpreadsheet(
+            config.rent_invoice_spreadsheet_id,
+            invoiceName,
+            monthFolder,
+            getServiceAccountEmail(),
+          )
+          await stripSpreadsheetColors(invoiceSheetId)
+
           const rawMapping = config?.rent_invoice_input_mapping_json as InvoiceMappingEntry[] | null
           if (rawMapping?.length) {
             const resolved = resolveInvoiceMapping(rawMapping, vars)
             const inputMapping = Object.fromEntries(Object.keys(resolved).map((k) => [k, k]))
-            await writeInputValues(renderSheetId, inputMapping, resolved)
+            await writeInputValues(invoiceSheetId, inputMapping, resolved)
           }
 
-          pdfBuffer = await exportSheetAsPdf(
-            renderSheetId,
-            config?.rent_invoice_pdf_gid || undefined,
-          )
+          pdfBuffer = await exportSheetAsPdf(invoiceSheetId, config?.rent_invoice_pdf_gid || undefined)
 
-          if (monthFolder && pdfBuffer) {
+          if (pdfBuffer) {
             await uploadPdfToDrive(
               `${invoiceNumber.replace(/\//g, '-')}.pdf`,
               pdfBuffer,
               monthFolder,
             )
-          }
-
-          if (ci < allContracts.length - 1) {
-            await new Promise((r) => setTimeout(r, 4000))
           }
         } catch {
           // PDF generowanie opcjonalne — kontynuuj bez niego
@@ -184,7 +179,7 @@ export async function generateRents(month: number, year: number) {
 
       if (tenant.email) {
         const recipients = [tenant.email, (tenant as unknown as { email2?: string | null }).email2].filter(Boolean) as string[]
-        const senderAccount = ((tenant as unknown as { sender_account?: number | null }).sender_account ?? 1) === 2 ? 2 : 1
+        const senderAccount = (tenant.sender_account ?? 1) === 2 ? 2 : 1
         await sendRentEmail(
           recipients,
           tenantDisplayName(tenant),
@@ -197,16 +192,14 @@ export async function generateRents(month: number, year: number) {
         )
       }
 
-      results.push({
-        invoiceNumber,
-        tenantName: tenantDisplayName(tenant),
-      })
-    }
-  } finally {
-    if (tempSheetId) {
-      try { await deleteFile(tempSheetId) } catch {}
-    }
-  }
+      return { invoiceNumber, tenantName: tenantDisplayName(tenant) } satisfies RentResult
+    }),
+  )
+
+  const results = settled.reduce<RentResult[]>((acc, r) => {
+    if (r.status === 'fulfilled' && r.value !== null) acc.push(r.value)
+    return acc
+  }, [])
 
   await logAudit({
     actionName: 'generateRents',
@@ -214,7 +207,6 @@ export async function generateRents(month: number, year: number) {
     operation: 'UPSERT',
     afterData: { month, year, count: results.length, results },
   })
-  await markMonthlyTaskDone('RENT', month, year)
   revalidatePath('/finance')
 
   return results

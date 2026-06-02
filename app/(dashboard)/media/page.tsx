@@ -85,6 +85,8 @@ function matchesGroupFilter(g: Group, text: string, col: string): boolean {
   return false
 }
 
+const DEFAULT_EMAIL_BODY = `Szanowny/a {imie},\nW załączeniu rozliczenie mediów nr {numer_rachunku} za {miesiac}/{rok} na kwotę {kwota}.\n\nPozdrawiamy,\nBMT`
+
 function emptyForm() {
   return {
     name: '',
@@ -92,8 +94,8 @@ function emptyForm() {
     input_mapping_json: '{}',
     output_mapping_json: '[]',
     pdf_sheets_json: '[]',
-    email_subject_template: '',
-    email_body_template: '',
+    email_subject_template: 'Rozliczenie mediów {miesiac}/{rok}',
+    email_body_template: DEFAULT_EMAIL_BODY,
     property_ids: [] as number[],
   }
 }
@@ -162,8 +164,8 @@ export default function MediaPage() {
       input_mapping_json: JSON.stringify(g.input_mapping_json, null, 2),
       output_mapping_json: JSON.stringify(g.output_mapping_json, null, 2),
       pdf_sheets_json: JSON.stringify(raw.pdf_sheets_json ?? [], null, 2),
-      email_subject_template: (raw.email_subject_template as string) ?? '',
-      email_body_template: (raw.email_body_template as string) ?? '',
+      email_subject_template: (raw.email_subject_template as string) || 'Rozliczenie mediów {miesiac}/{rok}',
+      email_body_template: (raw.email_body_template as string) || DEFAULT_EMAIL_BODY,
       property_ids: propIds,
     })
     setJsonError('')
@@ -191,8 +193,8 @@ export default function MediaPage() {
         input_mapping_json: inputMap,
         output_mapping_json: outputMap as Record<string, string>,
         pdf_sheets_json: pdfSheets as Record<string, string>[],
-        email_subject_template: form.email_subject_template || undefined,
-        email_body_template: form.email_body_template || undefined,
+        email_subject_template: form.email_subject_template,
+        email_body_template: form.email_body_template,
         property_ids: form.property_ids,
       }
       if (editing) {
@@ -355,7 +357,7 @@ export default function MediaPage() {
                 options={tenants.map((t) => ({
                   value: String(t.id),
                   label: `${t.first_name} ${t.last_name}`,
-                  description: (t.properties as { name?: string } | null)?.name,
+                  description: `ID: ${t.id}${(t.properties as { name?: string } | null)?.name ? ` · ${(t.properties as { name: string }).name}` : ''}`,
                 }))}
                 value={tenantSearch}
                 onValueChange={setTenantSearch}
@@ -366,14 +368,14 @@ export default function MediaPage() {
                 if (!t) return null
                 return (
                   <div className="flex items-center justify-between pt-1 text-sm">
+                    <span className="font-mono text-xs font-semibold bg-background border px-2 py-0.5 rounded select-all">
+                      ID: {t.id}
+                    </span>
                     <span className="text-muted-foreground">
                       {t.first_name} {t.last_name}
                       {(t.properties as { name?: string } | null)?.name && (
                         <> · {(t.properties as { name: string }).name}</>
                       )}
-                    </span>
-                    <span className="font-mono text-xs font-semibold bg-background border px-2 py-0.5 rounded select-all">
-                      ID: {t.id}
                     </span>
                   </div>
                 )

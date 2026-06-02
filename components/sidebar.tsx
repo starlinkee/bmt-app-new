@@ -15,6 +15,7 @@ import {
   ClipboardList,
   ArrowLeftRight,
   History,
+  Bot,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { logoutAction } from '@/app/login/actions'
@@ -30,6 +31,7 @@ const navItems = [
   { href: '/kontrola-platnosci', label: 'Kontrola płatności', icon: ClipboardList },
   { href: '/przeplywy', label: 'Przepływy', icon: ArrowLeftRight },
   { href: '/audit', label: 'Historia operacji', icon: History },
+  { href: '/automatyzacje', label: 'Automatyzacje', icon: Bot },
 ]
 
 export function Sidebar() {

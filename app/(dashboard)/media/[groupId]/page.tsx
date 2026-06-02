@@ -3,15 +3,22 @@
 import { useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import { use } from 'react'
-import { getSettlementGroup, getPreviousMeterReadings, processSettlement } from '../actions'
+import { getSettlementGroup, getPreviousMeterReadings, processSettlement, getMediaEmailPreview, getSettlementForMonth } from '../actions'
 import { MonthYearPicker } from '@/components/month-year-picker'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatAmount } from '@/lib/utils'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 
 type Group = Awaited<ReturnType<typeof getSettlementGroup>>
-type FieldDef = string | { range: string; source: 'user' | 'db' | 'auto'; save_key?: string; db_key?: string; auto_type?: 'billing_period' | 'current_date' | 'previous_date' }
+type FieldDef = string | { range: string; source: 'user' | 'db' | 'auto'; save_key?: string; db_key?: string; auto_type?: 'billing_period' | 'current_date' | 'previous_date' | 'property_address' }
 
 function lastDayOfMonth(year: number, month: number): string {
   // JS Date(y, m, 0) = last day of month (m-1) in 1-indexed terms; handles negative/overflow months correctly
@@ -70,9 +77,13 @@ export default function MediaGroupPage({
   const [inputValues, setInputValues] = useState<Record<string, string>>({})
   const [previousReadings, setPreviousReadings] = useState<Record<string, number>>({})
   const [editedPreviousReadings, setEditedPreviousReadings] = useState<Record<string, string>>({})
-  const [results, setResults] = useState<{ tenantName: string; amount: number; invoiceNumber: string }[]>([])
+  const [settlementExists, setSettlementExists] = useState(false)
+  const [readingsLoaded, setReadingsLoaded] = useState(false)
+  const [results, setResults] = useState<{ tenantName: string; amount: number; invoiceNumber: string; invoiceError?: string }[]>([])
   const [progress, setProgress] = useState(0)
   const [pending, startTransition] = useTransition()
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [emailPreview, setEmailPreview] = useState<Awaited<ReturnType<typeof getMediaEmailPreview>> | null>(null)
 
   useEffect(() => {
     startTransition(async () => {
@@ -83,10 +94,16 @@ export default function MediaGroupPage({
 
   useEffect(() => {
     if (!group) return
+    setReadingsLoaded(false)
     startTransition(async () => {
-      const prev = await getPreviousMeterReadings(Number(groupId), month, year)
+      const [prev, exists] = await Promise.all([
+        getPreviousMeterReadings(Number(groupId), month, year),
+        getSettlementForMonth(Number(groupId), month, year),
+      ])
       setPreviousReadings(prev)
       setEditedPreviousReadings({})
+      setSettlementExists(exists)
+      setReadingsLoaded(true)
     })
   }, [groupId, group, month, year])
 
@@ -100,6 +117,11 @@ export default function MediaGroupPage({
 
   const inputMapping = (group?.input_mapping_json as Record<string, Record<string, FieldDef>>) ?? {}
 
+  const hasMeterFields = Object.values(inputMapping).some(fields =>
+    Object.values(fields).some(f => typeof f !== 'string' && (f as { source: string }).source === 'user' && !!(f as { save_key?: string }).save_key)
+  )
+  const noPreviousReadings = readingsLoaded && hasMeterFields && Object.keys(previousReadings).length === 0
+
   function getReadingError(range: string, saveKey: string | undefined): boolean {
     if (saveKey === undefined) return false
     const currentRaw = inputValues[range]
@@ -110,15 +132,7 @@ export default function MediaGroupPage({
     return !isNaN(current) && !isNaN(prev) && current < prev
   }
 
-  function handleProcess() {
-    setProgress(0)
-    const interval = setInterval(() => {
-      setProgress((p) => {
-        const delta = (95 - p) * 0.05
-        return Math.min(p + delta, 94)
-      })
-    }, 200)
-
+  function handleOpenConfirm() {
     const hasReadingErrors = Object.entries(inputMapping).some(([, fields]) =>
       Object.entries(fields).some(([, fieldDef]) => {
         const range = typeof fieldDef === 'string' ? fieldDef : fieldDef.range
@@ -127,11 +141,26 @@ export default function MediaGroupPage({
       })
     )
     if (hasReadingErrors) {
-      clearInterval(interval)
-      setProgress(0)
       toast.error('Aktualny odczyt nie może być mniejszy od poprzedniego.')
       return
     }
+
+    startTransition(async () => {
+      const preview = await getMediaEmailPreview(Number(groupId))
+      setEmailPreview(preview)
+      setConfirmOpen(true)
+    })
+  }
+
+  function handleProcess() {
+    setConfirmOpen(false)
+    setProgress(0)
+    const interval = setInterval(() => {
+      setProgress((p) => {
+        const delta = (95 - p) * 0.05
+        return Math.min(p + delta, 94)
+      })
+    }, 200)
 
     startTransition(async () => {
       try {
@@ -164,6 +193,18 @@ export default function MediaGroupPage({
         <h1 className="text-2xl font-semibold">Media — {group.name}</h1>
       </div>
 
+      {noPreviousReadings && (
+        <div className="flex items-start gap-2 rounded-md border border-destructive bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
+          Brak poprzednich odczytów w bazie danych — wprowadź poprzedni stan licznika ręcznie.
+        </div>
+      )}
+
+      {settlementExists && (
+        <div className="flex items-start gap-2 rounded-md border border-amber-400 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700 dark:bg-amber-950/20 dark:text-amber-400">
+          Media za {month}/{year} zostały już wystawione dla tej grupy.
+        </div>
+      )}
+
       <div className="flex items-center gap-4">
         <MonthYearPicker
           month={month}
@@ -183,10 +224,20 @@ export default function MediaGroupPage({
               const range = typeof fieldDef === 'string' ? fieldDef : fieldDef.range
               const source = typeof fieldDef === 'string' ? 'user' : fieldDef.source
               if (source === 'db') return null
+              if (source === 'auto' && typeof fieldDef !== 'string' && fieldDef.auto_type === 'property_address') {
+                const firstProp = (group.settlement_group_properties as { property_id: number; properties: { name: string; address1?: string | null; address2?: string | null } | null }[])[0]?.properties
+                const addr = firstProp ? [firstProp.address2, firstProp.address1].filter(Boolean).join(', ') : '—'
+                return (
+                  <div key={range} className="space-y-1">
+                    <Label>{fieldLabel}</Label>
+                    <Input value={addr} readOnly className="bg-muted text-muted-foreground cursor-default" />
+                  </div>
+                )
+              }
               const isAuto = source === 'auto' || detectAutoType(fieldLabel) !== null
               const saveKey = typeof fieldDef !== 'string' && fieldDef.source === 'user' ? fieldDef.save_key : undefined
               const lastReading = saveKey !== undefined
-                ? (saveKey in editedPreviousReadings ? editedPreviousReadings[saveKey] : previousReadings[saveKey] !== undefined ? String(previousReadings[saveKey]) : undefined)
+                ? (saveKey in editedPreviousReadings ? editedPreviousReadings[saveKey] : previousReadings[saveKey] !== undefined ? String(previousReadings[saveKey]) : '')
                 : undefined
               const hasError = getReadingError(range, saveKey)
               return (
@@ -228,34 +279,82 @@ export default function MediaGroupPage({
         ))}
       </div>
 
-      <Button onClick={handleProcess} disabled={pending}>
+      <Button onClick={handleOpenConfirm} disabled={pending}>
         Przelicz i wystaw
       </Button>
 
-      {pending && progress > 0 && (
-        <div className="space-y-1 max-w-sm">
-          <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-            <div
-              className="h-full bg-primary transition-all duration-200"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <p className="text-xs text-muted-foreground">{Math.round(progress)}%</p>
-        </div>
-      )}
 
       {results.length > 0 && (
         <div className="space-y-2">
           <h2 className="font-semibold">Wystawione rachunki</h2>
           <ul className="space-y-1 text-sm">
-            {results.map((r) => (
-              <li key={r.invoiceNumber ?? r.tenantName}>
-                {r.invoiceNumber && <span className="font-mono">{r.invoiceNumber}</span>}
-                {r.invoiceNumber && ' — '}
-                {r.tenantName} — {formatAmount(r.amount)}
+            {results.map((r, i) => (
+              <li key={i} className="space-y-0.5">
+                <div>
+                  {r.invoiceNumber && <span className="font-mono">{r.invoiceNumber}</span>}
+                  {r.invoiceNumber && ' — '}
+                  {r.tenantName} — {formatAmount(r.amount)}
+                </div>
+                {r.invoiceError && (
+                  <div className="text-xs text-destructive pl-1">
+                    Błąd rachunku: {r.invoiceError}
+                  </div>
+                )}
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Potwierdzenie — {month}/{year}</DialogTitle>
+          </DialogHeader>
+          <div className="text-sm space-y-2">
+            {(emailPreview?.total ?? 0) === 0 ? (
+              <p className="text-muted-foreground">Brak najemców z adresem e-mail — rachunki zostaną wystawione bez wysyłki.</p>
+            ) : (
+              <>
+                <p>Zostaną wysłane <strong>{emailPreview?.total}</strong> wiadomości e-mail:</p>
+                <ul className="space-y-2 text-muted-foreground">
+                  {(emailPreview?.entries ?? []).map((e, i) => (
+                    <li key={i} className="space-y-0.5">
+                      <div>{e.count} {e.count === 1 ? 'mail' : 'maile'} z: <span className="font-mono">{e.email ?? '—'}</span></div>
+                      <div className="pl-3 text-xs">
+                        Do: {e.recipients.map((r, j) => (
+                          <span key={j}><span className="font-mono">{r}</span>{j < e.recipients.length - 1 ? ', ' : ''}</span>
+                        ))}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
+              Anuluj
+            </Button>
+            <Button onClick={handleProcess} disabled={pending}>
+              Przelicz i wystaw
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {pending && progress > 0 && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/90 backdrop-blur-sm">
+          <div className="w-full max-w-sm space-y-3 px-8">
+            <p className="text-center text-sm font-medium">Przetwarzanie...</p>
+            <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full bg-primary transition-all duration-200"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <p className="text-xs text-center text-muted-foreground">{Math.round(progress)}%</p>
+          </div>
         </div>
       )}
     </div>
