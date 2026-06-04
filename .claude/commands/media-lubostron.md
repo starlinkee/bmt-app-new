@@ -14,8 +14,24 @@ Dane logowania pobieraj ze zmiennych środowiskowych (NIE hardcoduj w skrypcie):
 
 ## WAŻNE: Logowanie na mmsoft.com.pl
 
-Formularz logowania używa JavaScript do hashowania hasła MD5 przez funkcję `zamieniaj()`.
-Standardowe `fill()` + `click()` NIE DZIAŁA — pola są czyszczone przez JS przed submitem.
+### Metoda podstawowa — zapisana sesja (używaj tej)
+
+Plik `/opt/bmt-app/session-mmsoft.json` zawiera zapisane cookies z ręcznego logowania.
+Używaj go tworząc kontekst przeglądarki:
+
+```javascript
+const context = await browser.newContext({
+  storageState: '/opt/bmt-app/session-mmsoft.json'
+});
+```
+
+Dzięki temu nie musisz logować się przy każdym uruchomieniu.
+
+### Metoda awaryjna — gdy sesja wygasła
+
+Jeśli po wejściu na stronę URL wskazuje na stronę logowania, sesja wygasła.
+Formularz używa JavaScript do hashowania hasła MD5 przez funkcję `zamieniaj()`.
+Standardowe `fill()` + `click()` NIE DZIAŁA.
 
 **Jedyna działająca metoda logowania:**
 
@@ -36,13 +52,17 @@ await Promise.all([
 wykonania zanim `evaluate()` zwróci wynik. Bez `Promise.all` skrypt rzuci błąd
 "Execution context was destroyed".
 
-Po logowaniu sprawdź czy URL się zmienił (nie wrócił na stronę logowania).
+Po zalogowaniu zapisz nową sesję:
+```javascript
+await context.storageState({ path: '/opt/bmt-app/session-mmsoft.json' });
+```
 
 ## Kroki
 
-1. Przejdź na https://mmsoft.com.pl/lokale.php?Adm=1
-2. Zaloguj się używając **wyłącznie** metody opisanej powyżej (Promise.all + zamieniaj()).
-3. Sprawdź czy logowanie się udało (URL powinien się zmienić lub zniknąć formularz logowania).
+1. Utwórz kontekst z `storageState: '/opt/bmt-app/session-mmsoft.json'` (jeśli plik istnieje).
+2. Przejdź na https://mmsoft.com.pl/lokale.php?Adm=1
+3. Sprawdź czy jesteś zalogowany (URL nie powinien wskazywać na stronę logowania).
+   Jeśli sesja wygasła — zaloguj się metodą awaryjną opisaną powyżej i zapisz nową sesję.
 4. Jeśli pojawi się popup/modal — zamknij go:
    ```javascript
    try {
