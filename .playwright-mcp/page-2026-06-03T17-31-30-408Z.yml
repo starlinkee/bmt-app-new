@@ -1,0 +1,544 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - heading "ADNIER S.C." [level=1] [ref=e7]:
+            - link "ADNIER S.C." [ref=e8] [cursor=pointer]:
+              - /url: http://www.adnier.pl/
+              - img "ADNIER S.C." [ref=e9]
+          - generic [ref=e11]:
+            - text: Zarządzanie Nieruchomościami
+            - text: "tel.: 12 412 53 72"
+        - link "Adres e-mail biuro@adnier.pl" [ref=e13] [cursor=pointer]:
+          - /url: mailto:biuro@adnier.pl
+          - img "Adres e-mail" [ref=e14]
+          - text: biuro@adnier.pl
+      - generic [ref=e17]:
+        - navigation [ref=e18]:
+          - list [ref=e19]:
+            - listitem [ref=e20]:
+              - link "Informacje" [ref=e21] [cursor=pointer]:
+                - /url: javascript:akcja('Informacje',0)
+            - listitem [ref=e22]:
+              - link "Saldo" [ref=e23] [cursor=pointer]:
+                - /url: javascript:akcja('Saldo',100)
+            - listitem [ref=e24]:
+              - link "Naliczenie" [ref=e25] [cursor=pointer]:
+                - /url: javascript:akcja('Naliczenie',0)
+            - listitem [ref=e26]:
+              - link "Odczyty" [ref=e27] [cursor=pointer]:
+                - /url: javascript:akcja('Odczyty',0)
+            - listitem [ref=e28]:
+              - link "Głosowania" [ref=e29] [cursor=pointer]:
+                - /url: javascript:akcja('Uchwaly',0)
+            - listitem [ref=e30]:
+              - link "Moje dane" [ref=e31] [cursor=pointer]:
+                - /url: javascript:akcja('Mojedane',0)
+            - listitem [ref=e32]:
+              - link "Zmiana hasła" [ref=e33] [cursor=pointer]:
+                - /url: javascript:akcja('Zmianahasla',0)
+          - generic [ref=e34]:
+            - link [ref=e35] [cursor=pointer]:
+              - /url: javascript:akcja('Koszyk',0)
+              - img [ref=e36]
+            - link "WYLOGOWANIE" [ref=e41] [cursor=pointer]:
+              - /url: javascript:akcja('Wylogowanie',0)
+              - img [ref=e42]
+              - text: WYLOGOWANIE
+        - navigation [ref=e46]:
+          - list
+    - paragraph [ref=e48]: Lubostroń 15 A/ 38, kom.33, mp 21
+    - main [ref=e50]:
+      - complementary [ref=e51]:
+        - heading "Szczegółowość" [level=3] [ref=e52]:
+          - generic [ref=e53]: Szczegółowość
+        - list [ref=e54]:
+          - listitem [ref=e55]:
+            - link "sumarycznie" [ref=e56] [cursor=pointer]:
+              - /url: javascript:dane(-1,0)
+          - listitem [ref=e57]:
+            - link "tabela" [ref=e58] [cursor=pointer]:
+              - /url: javascript:dane(5,0)
+          - listitem [ref=e59]:
+            - link "szczegóły" [ref=e60] [cursor=pointer]:
+              - /url: javascript:dane(3,0)
+          - listitem [ref=e61]:
+            - link "szczegóły z opisem" [ref=e62] [cursor=pointer]:
+              - /url: javascript:dane(4,0)
+          - listitem [ref=e63]:
+            - link "z podziałem" [ref=e64] [cursor=pointer]:
+              - /url: javascript:dane(1,0)
+          - listitem [ref=e65]:
+            - link "z podziałem i opisem" [ref=e66] [cursor=pointer]:
+              - /url: javascript:dane(2,0)
+        - heading "Lata" [level=3] [ref=e67]:
+          - generic [ref=e68]: Lata
+        - list [ref=e69]:
+          - listitem [ref=e70]:
+            - link "Rok bieżący" [ref=e71] [cursor=pointer]:
+              - /url: javascript:dane(0,1)
+      - article [ref=e72]:
+        - heading "Saldo | Rok bieżący" [level=1] [ref=e73]
+        - 'heading "Data ostatniego wprowadzonego wyciągu bankowego: 2026-05-29" [level=3] [ref=e74]'
+        - strong [ref=e77]: Razem
+        - generic [ref=e78]:
+          - table [ref=e79]:
+            - rowgroup [ref=e80]:
+              - row "Miesiąc Zaliczki Inne Razem Wn Wpłaty Saldo" [ref=e81]:
+                - columnheader "Miesiąc" [ref=e82]
+                - columnheader "Zaliczki" [ref=e83]
+                - columnheader "Inne" [ref=e84]
+                - columnheader "Razem Wn" [ref=e85]
+                - columnheader "Wpłaty" [ref=e86]
+                - columnheader "Saldo" [ref=e87]
+            - rowgroup [ref=e88]:
+              - row "Bilans otwarcia 0,00 0,00 0,00 0,00 383,25" [ref=e89]:
+                - rowheader "Bilans otwarcia" [ref=e90]
+                - cell "0,00" [ref=e91]
+                - cell "0,00" [ref=e92]
+                - cell "0,00" [ref=e93]
+                - cell "0,00" [ref=e94]
+                - cell "383,25" [ref=e95]:
+                  - strong [ref=e96]: 383,25
+              - row "I 2026 828,79 0,00 828,79 0,00 -445,54" [ref=e97]:
+                - rowheader "I 2026" [ref=e98]
+                - cell "828,79" [ref=e99]
+                - cell "0,00" [ref=e100]
+                - cell "828,79" [ref=e101]
+                - cell "0,00" [ref=e102]
+                - cell "-445,54" [ref=e103]:
+                  - strong [ref=e104]: "-445,54"
+              - row "II 2026 828,79 0,00 828,79 828,09 -446,24" [ref=e105]:
+                - rowheader "II 2026" [ref=e106]
+                - cell "828,79" [ref=e107]
+                - cell "0,00" [ref=e108]
+                - cell "828,79" [ref=e109]
+                - cell "828,09" [ref=e110]
+                - cell "-446,24" [ref=e111]:
+                  - strong [ref=e112]: "-446,24"
+              - row "III 2026 846,46 0,00 846,46 1292,70 0,00" [ref=e113]:
+                - rowheader "III 2026" [ref=e114]
+                - cell "846,46" [ref=e115]
+                - cell "0,00" [ref=e116]
+                - cell "846,46" [ref=e117]
+                - cell "1292,70" [ref=e118]
+                - cell "0,00" [ref=e119]:
+                  - strong [ref=e120]: 0,00
+              - row "IV 2026 846,46 0,00 846,46 0,00 -846,46" [ref=e121]:
+                - rowheader "IV 2026" [ref=e122]
+                - cell "846,46" [ref=e123]
+                - cell "0,00" [ref=e124]
+                - cell "846,46" [ref=e125]
+                - cell "0,00" [ref=e126]
+                - cell "-846,46" [ref=e127]:
+                  - strong [ref=e128]: "-846,46"
+              - row "V 2026 846,46 0,00 846,46 1692,92 0,00" [ref=e129]:
+                - rowheader "V 2026" [ref=e130]
+                - cell "846,46" [ref=e131]
+                - cell "0,00" [ref=e132]
+                - cell "846,46" [ref=e133]
+                - cell "1692,92" [ref=e134]
+                - cell "0,00" [ref=e135]:
+                  - strong [ref=e136]: 0,00
+              - row "VI 2026 846,46 0,00 846,46 0,00 -846,46" [ref=e137]:
+                - rowheader "VI 2026" [ref=e138]
+                - cell "846,46" [ref=e139]
+                - cell "0,00" [ref=e140]
+                - cell "846,46" [ref=e141]
+                - cell "0,00" [ref=e142]
+                - cell "-846,46" [ref=e143]:
+                  - strong [ref=e144]: "-846,46"
+            - rowgroup [ref=e145]:
+              - row "Razem 5043,42 0,00 5043,42 3813,71 -846,46" [ref=e146]:
+                - rowheader "Razem" [ref=e147]
+                - cell "5043,42" [ref=e148]
+                - cell "0,00" [ref=e149]
+                - cell "5043,42" [ref=e150]
+                - cell "3813,71" [ref=e151]
+                - cell "-846,46" [ref=e152]:
+                  - strong [ref=e153]: "-846,46"
+          - table [ref=e154]:
+            - rowgroup [ref=e155]:
+              - row "Miesiąc" [ref=e156]:
+                - columnheader "Miesiąc" [ref=e157]
+            - rowgroup [ref=e158]:
+              - row "Bilans otwarcia" [ref=e159]:
+                - columnheader "Bilans otwarcia" [ref=e160]
+              - row "I 2026" [ref=e161]:
+                - columnheader "I 2026" [ref=e162]
+              - row "II 2026" [ref=e163]:
+                - columnheader "II 2026" [ref=e164]
+              - row "III 2026" [ref=e165]:
+                - columnheader "III 2026" [ref=e166]
+              - row "IV 2026" [ref=e167]:
+                - columnheader "IV 2026" [ref=e168]
+              - row "V 2026" [ref=e169]:
+                - columnheader "V 2026" [ref=e170]
+              - row "VI 2026" [ref=e171]:
+                - columnheader "VI 2026" [ref=e172]
+            - rowgroup [ref=e173]:
+              - row "Razem" [ref=e174]:
+                - columnheader "Razem" [ref=e175]
+          - table [ref=e176]:
+            - rowgroup [ref=e177]:
+              - row "Miesiąc" [ref=e178]:
+                - generic [ref=e179]: Miesiąc
+          - table [ref=e180]:
+            - rowgroup [ref=e181]:
+              - row "Miesiąc Zaliczki Inne Razem Wn Wpłaty Saldo" [ref=e182]:
+                - columnheader "Miesiąc" [ref=e183]
+                - columnheader "Zaliczki" [ref=e184]
+                - columnheader "Inne" [ref=e185]
+                - columnheader "Razem Wn" [ref=e186]
+                - columnheader "Wpłaty" [ref=e187]
+                - columnheader "Saldo" [ref=e188]
+        - generic [ref=e189]:
+          - link "Zapisz do PDF" [ref=e190] [cursor=pointer]:
+            - /url: lokalepdf.php?a=Saldo&r=749&k=-1&s=5&t=0
+            - img [ref=e191]
+            - text: Zapisz do PDF
+          - link "Zapłać on-line" [ref=e193] [cursor=pointer]:
+            - /url: javascript:akcja('DoKoszyka','846.46|-|Saldo|5|d7293dc79d1bbcfe74e0734709d34d7cf23798d9a5b33370bd8476606d22e86d|1')
+            - img [ref=e194]
+            - text: Zapłać on-line
+        - strong [ref=e201]: Rozrachunki z właścicielami
+        - generic [ref=e202]:
+          - table [ref=e203]:
+            - rowgroup [ref=e204]:
+              - row "Miesiąc Zaliczki Inne Razem Wn Wpłaty Saldo" [ref=e205]:
+                - columnheader "Miesiąc" [ref=e206]
+                - columnheader "Zaliczki" [ref=e207]
+                - columnheader "Inne" [ref=e208]
+                - columnheader "Razem Wn" [ref=e209]
+                - columnheader "Wpłaty" [ref=e210]
+                - columnheader "Saldo" [ref=e211]
+            - rowgroup [ref=e212]:
+              - row "Bilans otwarcia 0,00 0,00 0,00 0,00 428,55" [ref=e213]:
+                - rowheader "Bilans otwarcia" [ref=e214]
+                - cell "0,00" [ref=e215]
+                - cell "0,00" [ref=e216]
+                - cell "0,00" [ref=e217]
+                - cell "0,00" [ref=e218]
+                - cell "428,55" [ref=e219]
+              - row "I 2026 775,31 0,00 775,31 0,00 -346,76" [ref=e220]:
+                - rowheader "I 2026" [ref=e221]
+                - cell "775,31" [ref=e222]
+                - cell "0,00" [ref=e223]
+                - cell "775,31" [ref=e224]
+                - cell "0,00" [ref=e225]
+                - cell "-346,76" [ref=e226]
+              - row "II 2026 775,31 0,00 775,31 729,31 -392,76" [ref=e227]:
+                - rowheader "II 2026" [ref=e228]
+                - cell "775,31" [ref=e229]
+                - cell "0,00" [ref=e230]
+                - cell "775,31" [ref=e231]
+                - cell "729,31" [ref=e232]
+                - cell "-392,76" [ref=e233]
+              - row "III 2026 792,98 0,00 792,98 1231,74 46,00" [ref=e234]:
+                - rowheader "III 2026" [ref=e235]
+                - cell "792,98" [ref=e236]
+                - cell "0,00" [ref=e237]
+                - cell "792,98" [ref=e238]
+                - cell "1231,74" [ref=e239]
+                - cell "46,00" [ref=e240]
+              - row "IV 2026 792,98 0,00 792,98 0,00 -746,98" [ref=e241]:
+                - rowheader "IV 2026" [ref=e242]
+                - cell "792,98" [ref=e243]
+                - cell "0,00" [ref=e244]
+                - cell "792,98" [ref=e245]
+                - cell "0,00" [ref=e246]
+                - cell "-746,98" [ref=e247]
+              - row "V 2026 792,98 0,00 792,98 1585,96 46,00" [ref=e248]:
+                - rowheader "V 2026" [ref=e249]
+                - cell "792,98" [ref=e250]
+                - cell "0,00" [ref=e251]
+                - cell "792,98" [ref=e252]
+                - cell "1585,96" [ref=e253]
+                - cell "46,00" [ref=e254]
+              - row "VI 2026 792,98 0,00 792,98 0,00 -746,98" [ref=e255]:
+                - rowheader "VI 2026" [ref=e256]
+                - cell "792,98" [ref=e257]
+                - cell "0,00" [ref=e258]
+                - cell "792,98" [ref=e259]
+                - cell "0,00" [ref=e260]
+                - cell "-746,98" [ref=e261]
+            - rowgroup [ref=e262]:
+              - row "Razem 4722,54 0,00 4722,54 3547,01 -746,98" [ref=e263]:
+                - rowheader "Razem" [ref=e264]
+                - cell "4722,54" [ref=e265]
+                - cell "0,00" [ref=e266]
+                - cell "4722,54" [ref=e267]
+                - cell "3547,01" [ref=e268]
+                - cell "-746,98" [ref=e269]:
+                  - strong [ref=e270]: "-746,98"
+          - table [ref=e271]:
+            - rowgroup [ref=e272]:
+              - row "Miesiąc" [ref=e273]:
+                - columnheader "Miesiąc" [ref=e274]
+            - rowgroup [ref=e275]:
+              - row "Bilans otwarcia" [ref=e276]:
+                - columnheader "Bilans otwarcia" [ref=e277]
+              - row "I 2026" [ref=e278]:
+                - columnheader "I 2026" [ref=e279]
+              - row "II 2026" [ref=e280]:
+                - columnheader "II 2026" [ref=e281]
+              - row "III 2026" [ref=e282]:
+                - columnheader "III 2026" [ref=e283]
+              - row "IV 2026" [ref=e284]:
+                - columnheader "IV 2026" [ref=e285]
+              - row "V 2026" [ref=e286]:
+                - columnheader "V 2026" [ref=e287]
+              - row "VI 2026" [ref=e288]:
+                - columnheader "VI 2026" [ref=e289]
+            - rowgroup [ref=e290]:
+              - row "Razem" [ref=e291]:
+                - columnheader "Razem" [ref=e292]
+          - table [ref=e293]:
+            - rowgroup [ref=e294]:
+              - row "Miesiąc" [ref=e295]:
+                - generic [ref=e296]: Miesiąc
+          - table [ref=e297]:
+            - rowgroup [ref=e298]:
+              - row "Miesiąc Zaliczki Inne Razem Wn Wpłaty Saldo" [ref=e299]:
+                - columnheader "Miesiąc" [ref=e300]
+                - columnheader "Zaliczki" [ref=e301]
+                - columnheader "Inne" [ref=e302]
+                - columnheader "Razem Wn" [ref=e303]
+                - columnheader "Wpłaty" [ref=e304]
+                - columnheader "Saldo" [ref=e305]
+        - link "Zapłać on-line" [ref=e307] [cursor=pointer]:
+          - /url: javascript:akcja('DoKoszyka','746.98|Rozrachunki z właścicielami|Saldo|5|420d94000e34e321c865d84b031835f15056bcf88428c76889508b32f763bedf|1')
+          - img [ref=e308]
+          - text: Zapłać on-line
+        - strong [ref=e315]: Rozrachunki z właścicielami - fund.remon
+        - generic [ref=e316]:
+          - table [ref=e317]:
+            - rowgroup [ref=e318]:
+              - row "Miesiąc Zaliczki Inne Razem Wn Wpłaty Saldo" [ref=e319]:
+                - columnheader "Miesiąc" [ref=e320]
+                - columnheader "Zaliczki" [ref=e321]
+                - columnheader "Inne" [ref=e322]
+                - columnheader "Razem Wn" [ref=e323]
+                - columnheader "Wpłaty" [ref=e324]
+                - columnheader "Saldo" [ref=e325]
+            - rowgroup [ref=e326]:
+              - row "Bilans otwarcia 0,00 0,00 0,00 0,00 -20,30" [ref=e327]:
+                - rowheader "Bilans otwarcia" [ref=e328]
+                - cell "0,00" [ref=e329]
+                - cell "0,00" [ref=e330]
+                - cell "0,00" [ref=e331]
+                - cell "0,00" [ref=e332]
+                - cell "-20,30" [ref=e333]
+              - row "I 2026 28,48 0,00 28,48 0,00 -48,78" [ref=e334]:
+                - rowheader "I 2026" [ref=e335]
+                - cell "28,48" [ref=e336]
+                - cell "0,00" [ref=e337]
+                - cell "28,48" [ref=e338]
+                - cell "0,00" [ref=e339]
+                - cell "-48,78" [ref=e340]
+              - row "II 2026 28,48 0,00 28,48 48,78 -28,48" [ref=e341]:
+                - rowheader "II 2026" [ref=e342]
+                - cell "28,48" [ref=e343]
+                - cell "0,00" [ref=e344]
+                - cell "28,48" [ref=e345]
+                - cell "48,78" [ref=e346]
+                - cell "-28,48" [ref=e347]
+              - row "III 2026 28,48 0,00 28,48 35,96 -21,00" [ref=e348]:
+                - rowheader "III 2026" [ref=e349]
+                - cell "28,48" [ref=e350]
+                - cell "0,00" [ref=e351]
+                - cell "28,48" [ref=e352]
+                - cell "35,96" [ref=e353]
+                - cell "-21,00" [ref=e354]
+              - row "IV 2026 28,48 0,00 28,48 0,00 -49,48" [ref=e355]:
+                - rowheader "IV 2026" [ref=e356]
+                - cell "28,48" [ref=e357]
+                - cell "0,00" [ref=e358]
+                - cell "28,48" [ref=e359]
+                - cell "0,00" [ref=e360]
+                - cell "-49,48" [ref=e361]
+              - row "V 2026 28,48 0,00 28,48 56,96 -21,00" [ref=e362]:
+                - rowheader "V 2026" [ref=e363]
+                - cell "28,48" [ref=e364]
+                - cell "0,00" [ref=e365]
+                - cell "28,48" [ref=e366]
+                - cell "56,96" [ref=e367]
+                - cell "-21,00" [ref=e368]
+              - row "VI 2026 28,48 0,00 28,48 0,00 -49,48" [ref=e369]:
+                - rowheader "VI 2026" [ref=e370]
+                - cell "28,48" [ref=e371]
+                - cell "0,00" [ref=e372]
+                - cell "28,48" [ref=e373]
+                - cell "0,00" [ref=e374]
+                - cell "-49,48" [ref=e375]
+            - rowgroup [ref=e376]:
+              - row "Razem 170,88 0,00 170,88 141,70 -49,48" [ref=e377]:
+                - rowheader "Razem" [ref=e378]
+                - cell "170,88" [ref=e379]
+                - cell "0,00" [ref=e380]
+                - cell "170,88" [ref=e381]
+                - cell "141,70" [ref=e382]
+                - cell "-49,48" [ref=e383]:
+                  - strong [ref=e384]: "-49,48"
+          - table [ref=e385]:
+            - rowgroup [ref=e386]:
+              - row "Miesiąc" [ref=e387]:
+                - columnheader "Miesiąc" [ref=e388]
+            - rowgroup [ref=e389]:
+              - row "Bilans otwarcia" [ref=e390]:
+                - columnheader "Bilans otwarcia" [ref=e391]
+              - row "I 2026" [ref=e392]:
+                - columnheader "I 2026" [ref=e393]
+              - row "II 2026" [ref=e394]:
+                - columnheader "II 2026" [ref=e395]
+              - row "III 2026" [ref=e396]:
+                - columnheader "III 2026" [ref=e397]
+              - row "IV 2026" [ref=e398]:
+                - columnheader "IV 2026" [ref=e399]
+              - row "V 2026" [ref=e400]:
+                - columnheader "V 2026" [ref=e401]
+              - row "VI 2026" [ref=e402]:
+                - columnheader "VI 2026" [ref=e403]
+            - rowgroup [ref=e404]:
+              - row "Razem" [ref=e405]:
+                - columnheader "Razem" [ref=e406]
+          - table [ref=e407]:
+            - rowgroup [ref=e408]:
+              - row "Miesiąc" [ref=e409]:
+                - generic [ref=e410]: Miesiąc
+          - table [ref=e411]:
+            - rowgroup [ref=e412]:
+              - row "Miesiąc Zaliczki Inne Razem Wn Wpłaty Saldo" [ref=e413]:
+                - columnheader "Miesiąc" [ref=e414]
+                - columnheader "Zaliczki" [ref=e415]
+                - columnheader "Inne" [ref=e416]
+                - columnheader "Razem Wn" [ref=e417]
+                - columnheader "Wpłaty" [ref=e418]
+                - columnheader "Saldo" [ref=e419]
+        - link "Zapłać on-line" [ref=e421] [cursor=pointer]:
+          - /url: javascript:akcja('DoKoszyka','49.48|Rozrachunki z właścicielami - fund.remon|Saldo|5|fbb5c3c0f5309fa02a6b1d7fb63e5d1c684c53c64ef71f2d4f3f419955475faf|1')
+          - img [ref=e422]
+          - text: Zapłać on-line
+        - strong [ref=e429]: Rozrachunki z właścicielami - LICZNIKI
+        - generic [ref=e430]:
+          - table [ref=e431]:
+            - rowgroup [ref=e432]:
+              - row "Miesiąc Zaliczki Inne Razem Wn Wpłaty Saldo" [ref=e433]:
+                - columnheader "Miesiąc" [ref=e434]
+                - columnheader "Zaliczki" [ref=e435]
+                - columnheader "Inne" [ref=e436]
+                - columnheader "Razem Wn" [ref=e437]
+                - columnheader "Wpłaty" [ref=e438]
+                - columnheader "Saldo" [ref=e439]
+            - rowgroup [ref=e440]:
+              - row "Bilans otwarcia 0,00 0,00 0,00 0,00 -25,00" [ref=e441]:
+                - rowheader "Bilans otwarcia" [ref=e442]
+                - cell "0,00" [ref=e443]
+                - cell "0,00" [ref=e444]
+                - cell "0,00" [ref=e445]
+                - cell "0,00" [ref=e446]
+                - cell "-25,00" [ref=e447]
+              - row "I 2026 25,00 0,00 25,00 0,00 -50,00" [ref=e448]:
+                - rowheader "I 2026" [ref=e449]
+                - cell "25,00" [ref=e450]
+                - cell "0,00" [ref=e451]
+                - cell "25,00" [ref=e452]
+                - cell "0,00" [ref=e453]
+                - cell "-50,00" [ref=e454]
+              - row "II 2026 25,00 0,00 25,00 50,00 -25,00" [ref=e455]:
+                - rowheader "II 2026" [ref=e456]
+                - cell "25,00" [ref=e457]
+                - cell "0,00" [ref=e458]
+                - cell "25,00" [ref=e459]
+                - cell "50,00" [ref=e460]
+                - cell "-25,00" [ref=e461]
+              - row "III 2026 25,00 0,00 25,00 25,00 -25,00" [ref=e462]:
+                - rowheader "III 2026" [ref=e463]
+                - cell "25,00" [ref=e464]
+                - cell "0,00" [ref=e465]
+                - cell "25,00" [ref=e466]
+                - cell "25,00" [ref=e467]
+                - cell "-25,00" [ref=e468]
+              - row "IV 2026 25,00 0,00 25,00 0,00 -50,00" [ref=e469]:
+                - rowheader "IV 2026" [ref=e470]
+                - cell "25,00" [ref=e471]
+                - cell "0,00" [ref=e472]
+                - cell "25,00" [ref=e473]
+                - cell "0,00" [ref=e474]
+                - cell "-50,00" [ref=e475]
+              - row "V 2026 25,00 0,00 25,00 50,00 -25,00" [ref=e476]:
+                - rowheader "V 2026" [ref=e477]
+                - cell "25,00" [ref=e478]
+                - cell "0,00" [ref=e479]
+                - cell "25,00" [ref=e480]
+                - cell "50,00" [ref=e481]
+                - cell "-25,00" [ref=e482]
+              - row "VI 2026 25,00 0,00 25,00 0,00 -50,00" [ref=e483]:
+                - rowheader "VI 2026" [ref=e484]
+                - cell "25,00" [ref=e485]
+                - cell "0,00" [ref=e486]
+                - cell "25,00" [ref=e487]
+                - cell "0,00" [ref=e488]
+                - cell "-50,00" [ref=e489]
+            - rowgroup [ref=e490]:
+              - row "Razem 150,00 0,00 150,00 125,00 -50,00" [ref=e491]:
+                - rowheader "Razem" [ref=e492]
+                - cell "150,00" [ref=e493]
+                - cell "0,00" [ref=e494]
+                - cell "150,00" [ref=e495]
+                - cell "125,00" [ref=e496]
+                - cell "-50,00" [ref=e497]:
+                  - strong [ref=e498]: "-50,00"
+          - table [ref=e499]:
+            - rowgroup [ref=e500]:
+              - row "Miesiąc" [ref=e501]:
+                - columnheader "Miesiąc" [ref=e502]
+            - rowgroup [ref=e503]:
+              - row "Bilans otwarcia" [ref=e504]:
+                - columnheader "Bilans otwarcia" [ref=e505]
+              - row "I 2026" [ref=e506]:
+                - columnheader "I 2026" [ref=e507]
+              - row "II 2026" [ref=e508]:
+                - columnheader "II 2026" [ref=e509]
+              - row "III 2026" [ref=e510]:
+                - columnheader "III 2026" [ref=e511]
+              - row "IV 2026" [ref=e512]:
+                - columnheader "IV 2026" [ref=e513]
+              - row "V 2026" [ref=e514]:
+                - columnheader "V 2026" [ref=e515]
+              - row "VI 2026" [ref=e516]:
+                - columnheader "VI 2026" [ref=e517]
+            - rowgroup [ref=e518]:
+              - row "Razem" [ref=e519]:
+                - columnheader "Razem" [ref=e520]
+          - table [ref=e521]:
+            - rowgroup [ref=e522]:
+              - row "Miesiąc" [ref=e523]:
+                - generic [ref=e524]: Miesiąc
+          - table [ref=e525]:
+            - rowgroup [ref=e526]:
+              - row "Miesiąc Zaliczki Inne Razem Wn Wpłaty Saldo" [ref=e527]:
+                - columnheader "Miesiąc" [ref=e528]
+                - columnheader "Zaliczki" [ref=e529]
+                - columnheader "Inne" [ref=e530]
+                - columnheader "Razem Wn" [ref=e531]
+                - columnheader "Wpłaty" [ref=e532]
+                - columnheader "Saldo" [ref=e533]
+        - link "Zapłać on-line" [ref=e535] [cursor=pointer]:
+          - /url: javascript:akcja('DoKoszyka','50|Rozrachunki z właścicielami - LICZNIKI|Saldo|5|445d2a26d106e7d153d85c149943e22c23b067c31d8bdb278f2fa864dde4b8ff|1')
+          - img [ref=e536]
+          - text: Zapłać on-line
+        - generic [ref=e541]:
+          - strong [ref=e543]: "Konto bankowe:"
+          - generic [ref=e544]: 80 1020 2892 2482 0000 0000 0038 - PKO BP indywidualne (indywidualne)
+  - contentinfo [ref=e545]:
+    - generic [ref=e546]:
+      - iframe [ref=e547]:
+        
+      - paragraph [ref=e548]: "Ostatnia synchronizacja: 2026-06-03 14:55:09"
+      - paragraph [ref=e549]:
+        - text: "Serwis wykonany przez:"
+        - link "MMSOFT sp. z o.o." [ref=e550] [cursor=pointer]:
+          - /url: http://mmsoft.com.pl
+      - paragraph [ref=e551]: (c) All rights reserved 2024

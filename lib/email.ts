@@ -60,6 +60,10 @@ async function sendEmail({ to, subject, html, attachments = [], cfg }: SendParam
   }
 }
 
+const DEFAULT_RENT_EMAIL_SUBJECT = 'Faktura czynszu {numer_rachunku}'
+const DEFAULT_RENT_EMAIL_BODY =
+  'Szanowny/a {najemca},\n\nW załączeniu faktura za czynsz nr {numer_rachunku} za {miesiac}/{rok} na kwotę {kwota}.\n\nPozdrawiamy,\nBMT'
+
 export async function sendRentEmail(
   to: string | string[],
   tenantName: string,
@@ -69,15 +73,21 @@ export async function sendRentEmail(
   year: number,
   pdfBuffer?: Buffer,
   senderAccount: 1 | 2 = 1,
+  subjectTemplate?: string | null,
+  bodyTemplate?: string | null,
 ) {
   const cfg = await getProviderConfig(senderAccount)
-  const subject = `Faktura czynszu ${invoiceNumber}`
-  const html = `
-    <p>Szanowny/a ${tenantName},</p>
-    <p>W załączeniu faktura za czynsz nr <strong>${invoiceNumber}</strong>
-       za ${month}/${year} na kwotę <strong>${formatAmount(amount)}</strong>.</p>
-    <p>Pozdrawiamy,<br>BMT</p>
-  `
+  const vars: Record<string, string> = {
+    najemca: tenantName,
+    numer_rachunku: invoiceNumber,
+    kwota: formatAmount(amount),
+    miesiac: String(month),
+    rok: String(year),
+  }
+  const applyVars = (tpl: string) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '')
+  const subject = applyVars(subjectTemplate || DEFAULT_RENT_EMAIL_SUBJECT)
+  const bodyText = applyVars(bodyTemplate || DEFAULT_RENT_EMAIL_BODY)
+  const html = bodyText.split('\n').map(l => `<p>${l}</p>`).join('')
   const attachments = pdfBuffer
     ? [{ filename: `${invoiceNumber.replace(/\//g, '-')}.pdf`, content: pdfBuffer }]
     : []

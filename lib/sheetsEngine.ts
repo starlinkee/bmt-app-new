@@ -187,7 +187,7 @@ function parseRange(range: string): { r1: number; c1: number; r2: number; c2: nu
 export async function exportSheetAsPdf(
   spreadsheetId: string,
   gid?: string,
-  opts?: { printRange?: string; portrait?: boolean },
+  opts?: { printRange?: string; portrait?: boolean; fitToPage?: boolean },
 ): Promise<Buffer> {
   const auth = getServiceAccountAuth()
   const accessToken = await (await auth.getClient()).getAccessToken()
@@ -200,10 +200,13 @@ export async function exportSheetAsPdf(
   }
 
   const portrait = opts?.portrait !== false
+  // scale=4 = "Fit to page" (fit both width and height on 1 page)
+  // scale=2 = "Fit to width" only (may still span multiple pages vertically)
+  const scaleParam = opts?.fitToPage ? 'scale=4' : 'fitw=true&fith=true'
 
   const url =
     `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export` +
-    `?format=pdf&portrait=${portrait}&fitw=true&fith=true${gid ? `&gid=${gid}` : ''}${rangeParams}`
+    `?format=pdf&portrait=${portrait}&${scaleParam}${gid ? `&gid=${gid}` : ''}${rangeParams}`
 
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },

@@ -12,6 +12,12 @@ const SKILLS = [
     description: 'Pobierz odczyty mediów z portalu i wpisz do systemu',
     timeoutMs: 5 * 60 * 1000,
   },
+  {
+    id: 'kurs-walut',
+    label: 'Kurs Walut',
+    description: 'Pobierz aktualne kursy USD/EUR/GBP/CHF z NBP i zapisz do pliku',
+    timeoutMs: 2 * 60 * 1000,
+  },
 ] as const
 
 type SkillId = (typeof SKILLS)[number]['id']
@@ -151,6 +157,7 @@ export function SkillRunner() {
   const [jobFiles, setJobFiles] = useState<Partial<Record<SkillId, JobFiles | null>>>({})
   const intervals = useRef<Partial<Record<SkillId, ReturnType<typeof setInterval>>>>({})
   const fetchedJobIds = useRef<Set<string>>(new Set())
+  const hasMounted = useRef(false)
 
   const stopPolling = useCallback((skillId: SkillId) => {
     if (intervals.current[skillId]) {
@@ -191,7 +198,10 @@ export function SkillRunner() {
     }, 2000)
   }, [stopPolling, markInterrupted])
 
-  useEffect(() => { saveToStorage(jobs) }, [jobs])
+  useEffect(() => {
+    if (!hasMounted.current) return
+    saveToStorage(jobs)
+  }, [jobs])
 
   // Fetch files when a job completes
   useEffect(() => {
@@ -200,15 +210,18 @@ export function SkillRunner() {
         fetchedJobIds.current.add(job.jobId)
         fetch(`/api/skill-files?jobId=${job.jobId}`)
           .then(r => r.json())
-          .then((data: JobFiles) => setJobFiles(prev => ({ ...prev, [skillId]: data })))
+          .then((data: unknown) => {
+            const valid = data && typeof data === 'object' && 'files' in data && Array.isArray((data as JobFiles).files)
+            setJobFiles(prev => ({ ...prev, [skillId]: valid ? (data as JobFiles) : null }))
+          })
           .catch(() => {})
       }
     }
   }, [jobs])
 
   useEffect(() => {
+    hasMounted.current = true
     const saved = loadFromStorage()
-    if (Object.keys(saved).length === 0) return
     setJobs(saved)
     for (const [skillId, job] of Object.entries(saved) as [SkillId, Job][]) {
       if (job.status !== 'running' || !job.jobId) continue
@@ -219,6 +232,7 @@ export function SkillRunner() {
         })
         .catch(() => markInterrupted(skillId, 'Przerwano — brak połączenia ze skill-runnerem.'))
     }
+    return () => { hasMounted.current = false }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -340,7 +354,7 @@ export function SkillRunner() {
                 </Button>
               </div>
 
-              {status === 'done' && job?.jobId && files && files.files.length > 0 && (
+              {status === 'done' && job?.jobId && files && files.files?.length > 0 && (
                 <FileBrowser jobId={job.jobId} data={files} />
               )}
             </div>

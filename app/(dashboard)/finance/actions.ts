@@ -95,7 +95,7 @@ export async function generateRents(month: number, year: number) {
     invoiceNumber: buildInvoiceNumber(month, year, ci + 1),
   }))
 
-  type RentResult = { invoiceNumber: string; tenantName: string }
+  type RentResult = { invoiceNumber: string; tenantName: string; emailError?: string }
 
   const settled = await Promise.allSettled(
     assignedContracts.map(async ({ contract, invoiceNumber }) => {
@@ -142,7 +142,7 @@ export async function generateRents(month: number, year: number) {
             nip: tenant.nip ?? '',
             miesiac: String(month),
             rok: String(year),
-            kwota: String(contract.rent_amount),
+            kwota: Number(contract.rent_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
             kwota_slownie: amountToWordsPLN(Number(contract.rent_amount)),
             opis_rachunku: (contract as Record<string, unknown>).opis_rachunku as string ?? '',
           }
@@ -177,22 +177,30 @@ export async function generateRents(month: number, year: number) {
         }
       }
 
+      let emailError: string | undefined
       if (tenant.email) {
         const recipients = [tenant.email, (tenant as unknown as { email2?: string | null }).email2].filter(Boolean) as string[]
         const senderAccount = (tenant.sender_account ?? 1) === 2 ? 2 : 1
-        await sendRentEmail(
-          recipients,
-          tenantDisplayName(tenant),
-          invoiceNumber,
-          contract.rent_amount,
-          month,
-          year,
-          pdfBuffer,
-          senderAccount,
-        )
+        try {
+          await sendRentEmail(
+            recipients,
+            tenantDisplayName(tenant),
+            invoiceNumber,
+            contract.rent_amount,
+            month,
+            year,
+            pdfBuffer,
+            senderAccount,
+            (config as Record<string, unknown>).rent_email_subject as string | null,
+            (config as Record<string, unknown>).rent_email_body as string | null,
+          )
+        } catch (e) {
+          emailError = e instanceof Error ? e.message : String(e)
+          console.error('[finance] Błąd wysyłania emaila do najemcy', tenant.id, ':', emailError)
+        }
       }
 
-      return { invoiceNumber, tenantName: tenantDisplayName(tenant) } satisfies RentResult
+      return { invoiceNumber, tenantName: tenantDisplayName(tenant), emailError } satisfies RentResult
     }),
   )
 
