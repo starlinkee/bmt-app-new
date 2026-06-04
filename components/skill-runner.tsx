@@ -3,24 +3,15 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Play, X, CheckCircle2, AlertCircle, Clock, FileText, ImageIcon, File, Download, ExternalLink, FolderOpen, Pencil, Check, Loader2 } from 'lucide-react'
+import { Play, X, CheckCircle2, AlertCircle, Clock, FileText, ImageIcon, File, Download, ExternalLink, FolderOpen, Pencil, Check, Loader2, Plus, Trash2 } from 'lucide-react'
 
-const SKILLS = [
-  {
-    id: 'media-lubostron',
-    label: 'Media Lubostron',
-    description: 'Pobierz odczyty mediów z portalu i wpisz do systemu',
-    timeoutMs: 5 * 60 * 1000,
-  },
-  {
-    id: 'kurs-walut',
-    label: 'Kurs Walut',
-    description: 'Pobierz aktualne kursy USD/EUR/GBP/CHF z NBP i zapisz do pliku',
-    timeoutMs: 2 * 60 * 1000,
-  },
-] as const
+interface Skill {
+  id: string
+  label: string
+  description: string
+  timeoutMs: number
+}
 
-type SkillId = (typeof SKILLS)[number]['id']
 type JobStatus = 'idle' | 'running' | 'done' | 'error'
 
 interface Job {
@@ -91,7 +82,6 @@ function FileBrowser({ jobId, data }: { jobId: string; data: JobFiles }) {
         </div>
       )}
 
-      {/* Image thumbnails */}
       {images.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {images.map(f => (
@@ -114,7 +104,6 @@ function FileBrowser({ jobId, data }: { jobId: string; data: JobFiles }) {
         </div>
       )}
 
-      {/* File list */}
       <div className="space-y-1">
         {files.map(f => (
           <div key={f.name} className="flex items-center gap-2 rounded-md hover:bg-muted/40 px-1 py-0.5 group">
@@ -142,41 +131,62 @@ function FileBrowser({ jobId, data }: { jobId: string; data: JobFiles }) {
 
 const LS_KEY = 'skill-runner-jobs'
 
-function loadFromStorage(): Partial<Record<SkillId, Job>> {
+function loadFromStorage(): Record<string, Job> {
   try {
     return JSON.parse(localStorage.getItem(LS_KEY) ?? '{}')
   } catch { return {} }
 }
 
-function saveToStorage(jobs: Partial<Record<SkillId, Job>>) {
+function saveToStorage(jobs: Record<string, Job>) {
   localStorage.setItem(LS_KEY, JSON.stringify(jobs))
 }
 
+const EMPTY_NEW_SKILL = { id: '', label: '', description: '', timeoutMinutes: '5', prompt: '' }
+
 export function SkillRunner() {
-  const [jobs, setJobs] = useState<Partial<Record<SkillId, Job>>>({})
-  const [jobFiles, setJobFiles] = useState<Partial<Record<SkillId, JobFiles | null>>>({})
-  const intervals = useRef<Partial<Record<SkillId, ReturnType<typeof setInterval>>>>({})
+  const [skills, setSkills] = useState<Skill[]>([])
+  const [skillsLoading, setSkillsLoading] = useState(true)
+  const [jobs, setJobs] = useState<Record<string, Job>>({})
+  const [jobFiles, setJobFiles] = useState<Record<string, JobFiles | null>>({})
+  const intervals = useRef<Record<string, ReturnType<typeof setInterval>>>({})
   const fetchedJobIds = useRef<Set<string>>(new Set())
   const hasMounted = useRef(false)
-  const [editingSkill, setEditingSkill] = useState<SkillId | null>(null)
+
+  const [editingSkill, setEditingSkill] = useState<string | null>(null)
   const [promptDraft, setPromptDraft] = useState('')
   const [promptLoading, setPromptLoading] = useState(false)
   const [promptSaving, setPromptSaving] = useState(false)
 
-  const stopPolling = useCallback((skillId: SkillId) => {
+  const [creating, setCreating] = useState(false)
+  const [newSkill, setNewSkill] = useState(EMPTY_NEW_SKILL)
+  const [createSaving, setCreateSaving] = useState(false)
+
+  async function fetchSkills() {
+    try {
+      const res = await fetch('/api/skills')
+      const data = await res.json()
+      setSkills(data.skills ?? [])
+    } catch {
+      // skill runner unavailable
+    } finally {
+      setSkillsLoading(false)
+    }
+  }
+
+  const stopPolling = useCallback((skillId: string) => {
     if (intervals.current[skillId]) {
       clearInterval(intervals.current[skillId])
       delete intervals.current[skillId]
     }
   }, [])
 
-  const markInterrupted = useCallback((skillId: SkillId, reason: string) => {
+  const markInterrupted = useCallback((skillId: string, reason: string) => {
     stopPolling(skillId)
     setJobs(prev => ({ ...prev, [skillId]: { ...prev[skillId]!, status: 'error' } }))
     toast.error(reason)
   }, [stopPolling])
 
-  const startPolling = useCallback((skillId: SkillId, jobId: string) => {
+  const startPolling = useCallback((skillId: string, jobId: string) => {
     stopPolling(skillId)
     let networkErrors = 0
     intervals.current[skillId] = setInterval(async () => {
@@ -207,16 +217,15 @@ export function SkillRunner() {
     saveToStorage(jobs)
   }, [jobs])
 
-  // Fetch files when a job completes
   useEffect(() => {
-    for (const [skillId, job] of Object.entries(jobs) as [SkillId, Job][]) {
+    for (const [skillId, job] of Object.entries(jobs)) {
       if (job?.status === 'done' && job.jobId && !fetchedJobIds.current.has(job.jobId)) {
         fetchedJobIds.current.add(job.jobId)
         fetch(`/api/skill-files?jobId=${job.jobId}`)
           .then(r => r.json())
           .then((data: unknown) => {
             const valid = data && typeof data === 'object' && 'files' in data && Array.isArray((data as JobFiles).files)
-            setJobFiles(prev => ({ ...prev, [skillId]: valid ? (data as JobFiles) : null }))
+            setJobFiles(prev => ({ ...prev, [skillId]: valid ? (data as JobFiles) : null }) as Record<string, JobFiles | null>)
           })
           .catch(() => {})
       }
@@ -225,9 +234,10 @@ export function SkillRunner() {
 
   useEffect(() => {
     hasMounted.current = true
+    fetchSkills()
     const saved = loadFromStorage()
     setJobs(saved)
-    for (const [skillId, job] of Object.entries(saved) as [SkillId, Job][]) {
+    for (const [skillId, job] of Object.entries(saved)) {
       if (job.status !== 'running' || !job.jobId) continue
       fetch(`/api/run-skill?jobId=${job.jobId}`)
         .then(res => {
@@ -242,7 +252,7 @@ export function SkillRunner() {
 
   useEffect(() => () => { Object.values(intervals.current).forEach(v => v && clearInterval(v)) }, [])
 
-  async function openEdit(skillId: SkillId) {
+  async function openEdit(skillId: string) {
     setEditingSkill(skillId)
     setPromptDraft('')
     setPromptLoading(true)
@@ -276,11 +286,47 @@ export function SkillRunner() {
     }
   }
 
-  async function runSkill(skill: (typeof SKILLS)[number]) {
-    // Clear previous files for this skill
+  async function createSkill() {
+    setCreateSaving(true)
+    try {
+      const res = await fetch('/api/skill-prompts', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          skillId: newSkill.id,
+          content: newSkill.prompt,
+          label: newSkill.label || newSkill.id,
+          description: newSkill.description,
+          timeoutMs: Math.max(1, parseFloat(newSkill.timeoutMinutes) || 5) * 60 * 1000,
+        }),
+      })
+      if (!res.ok) throw new Error()
+      toast.success('Skill utworzony.')
+      setCreating(false)
+      setNewSkill(EMPTY_NEW_SKILL)
+      await fetchSkills()
+    } catch {
+      toast.error('Błąd tworzenia skilla.')
+    } finally {
+      setCreateSaving(false)
+    }
+  }
+
+  async function deleteSkill(skillId: string) {
+    try {
+      const res = await fetch(`/api/skill-prompts?skillId=${skillId}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
+      toast.success('Skill usunięty.')
+      setSkills(prev => prev.filter(s => s.id !== skillId))
+    } catch {
+      toast.error('Błąd usuwania skilla.')
+    }
+  }
+
+  async function runSkill(skill: Skill) {
     const prevJob = jobs[skill.id]
     if (prevJob?.jobId) fetchedJobIds.current.delete(prevJob.jobId)
-    setJobFiles(prev => ({ ...prev, [skill.id]: undefined }))
+    setJobFiles(prev => { const n = { ...prev }; delete n[skill.id]; return n })
 
     setJobs(prev => ({
       ...prev,
@@ -306,7 +352,7 @@ export function SkillRunner() {
     }
   }
 
-  async function cancelSkill(skill: (typeof SKILLS)[number]) {
+  async function cancelSkill(skill: Skill) {
     const job = jobs[skill.id]
     const jobId = job?.jobId
     markInterrupted(skill.id, 'Anulowano ręcznie.')
@@ -316,6 +362,7 @@ export function SkillRunner() {
   }
 
   const runningCount = Object.values(jobs).filter(j => j?.status === 'running').length
+  const newSkillIdError = newSkill.id && !/^[a-z0-9-]+$/.test(newSkill.id)
 
   return (
     <div className="space-y-4">
@@ -325,133 +372,236 @@ export function SkillRunner() {
         </p>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {SKILLS.map(skill => {
-          const job = jobs[skill.id]
-          const status = job?.status ?? 'idle'
-          const isRunning = status === 'running'
-          const files = jobFiles[skill.id]
+      {skillsLoading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Ładowanie skillów...
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {skills.map(skill => {
+            const job = jobs[skill.id]
+            const status = job?.status ?? 'idle'
+            const isRunning = status === 'running'
+            const files = jobFiles[skill.id]
 
-          return (
-            <div
-              key={skill.id}
-              className={[
-                'flex flex-col gap-4 rounded-xl border p-5 transition-colors',
-                isRunning ? 'border-primary/40 bg-primary/5' : 'bg-card',
-                status === 'done' ? 'border-green-500/30 bg-green-50/30 dark:bg-green-950/20' : '',
-                status === 'error' ? 'border-destructive/30 bg-destructive/5' : '',
-              ].join(' ')}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-base">{skill.label}</p>
-                  {editingSkill !== skill.id && (
-                    <p className="text-sm text-muted-foreground mt-0.5">{skill.description}</p>
+            return (
+              <div
+                key={skill.id}
+                className={[
+                  'flex flex-col gap-4 rounded-xl border p-5 transition-colors',
+                  isRunning ? 'border-primary/40 bg-primary/5' : 'bg-card',
+                  status === 'done' ? 'border-green-500/30 bg-green-50/30 dark:bg-green-950/20' : '',
+                  status === 'error' ? 'border-destructive/30 bg-destructive/5' : '',
+                ].join(' ')}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-base">{skill.label}</p>
+                    {editingSkill !== skill.id && (
+                      <p className="text-sm text-muted-foreground mt-0.5">{skill.description}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                    {!isRunning && editingSkill !== skill.id && (
+                      <button
+                        onClick={() => openEdit(skill.id)}
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                        title="Edytuj prompt"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    {!isRunning && editingSkill !== skill.id && (
+                      <button
+                        onClick={() => deleteSkill(skill.id)}
+                        className="text-muted-foreground hover:text-destructive transition-colors"
+                        title="Usuń skill"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    {isRunning && (
+                      <button
+                        onClick={() => cancelSkill(skill)}
+                        className="text-muted-foreground hover:text-destructive transition-colors"
+                        title="Anuluj"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {editingSkill === skill.id && (
+                  <div className="flex flex-col gap-2">
+                    {promptLoading ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Ładowanie...
+                      </div>
+                    ) : (
+                      <textarea
+                        value={promptDraft}
+                        onChange={e => setPromptDraft(e.target.value)}
+                        className="w-full text-xs font-mono rounded-md border bg-muted/30 p-2 resize-y min-h-[140px] focus:outline-none focus:ring-1 focus:ring-ring"
+                        spellCheck={false}
+                      />
+                    )}
+                    <div className="flex gap-2 justify-end">
+                      <Button size="sm" variant="ghost" onClick={() => setEditingSkill(null)} disabled={promptSaving}>
+                        Anuluj
+                      </Button>
+                      <Button size="sm" onClick={savePrompt} disabled={promptLoading || promptSaving}>
+                        {promptSaving
+                          ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                          : <Check className="h-3.5 w-3.5 mr-1.5" />}
+                        Zapisz
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {editingSkill !== skill.id && (
+                  <div className="flex items-center justify-between gap-3 mt-auto">
+                    <div className="flex items-center gap-2">
+                      {isRunning && job && (
+                        <>
+                          <Clock className="h-4 w-4 text-primary animate-pulse" />
+                          <Countdown startedAt={job.startedAt} timeoutMs={job.timeoutMs} />
+                        </>
+                      )}
+                      {status === 'done' && (
+                        <span className="flex items-center gap-1.5 text-sm text-green-600 font-medium">
+                          <CheckCircle2 className="h-4 w-4" />
+                          Zakończono
+                        </span>
+                      )}
+                      {status === 'error' && (
+                        <span className="flex items-center gap-1.5 text-sm text-destructive font-medium">
+                          <AlertCircle className="h-4 w-4" />
+                          Przerwano
+                        </span>
+                      )}
+                    </div>
+                    <Button size="sm" disabled={isRunning} onClick={() => runSkill(skill)}>
+                      {isRunning ? (
+                        'Działa...'
+                      ) : (
+                        <>
+                          <Play className="h-3.5 w-3.5 mr-1.5" />
+                          Uruchom
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
+
+                {status === 'done' && job?.jobId && files && files.files?.length > 0 && (
+                  <FileBrowser jobId={job.jobId} data={files} />
+                )}
+              </div>
+            )
+          })}
+
+          {/* Karta tworzenia nowego skilla */}
+          {creating ? (
+            <div className="flex flex-col gap-3 rounded-xl border border-dashed p-5 bg-card">
+              <p className="font-semibold text-base">Nowy skill</p>
+
+              <div className="space-y-2">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">ID skilla <span className="text-destructive">*</span></label>
+                  <input
+                    value={newSkill.id}
+                    onChange={e => setNewSkill(p => ({ ...p, id: e.target.value.toLowerCase() }))}
+                    placeholder="np. moj-skill"
+                    className={[
+                      'w-full text-sm rounded-md border bg-muted/30 px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring font-mono',
+                      newSkillIdError ? 'border-destructive' : '',
+                    ].join(' ')}
+                    spellCheck={false}
+                  />
+                  {newSkillIdError && (
+                    <p className="text-xs text-destructive mt-0.5">Tylko małe litery, cyfry i myślniki</p>
                   )}
                 </div>
-                <div className="flex items-center gap-1 shrink-0 mt-0.5">
-                  {!isRunning && editingSkill !== skill.id && (
-                    <button
-                      onClick={() => openEdit(skill.id)}
-                      className="text-muted-foreground hover:text-foreground transition-colors"
-                      title="Edytuj prompt"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                  {isRunning && (
-                    <button
-                      onClick={() => cancelSkill(skill)}
-                      className="text-muted-foreground hover:text-destructive transition-colors"
-                      title="Anuluj"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
+
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Nazwa wyświetlana</label>
+                  <input
+                    value={newSkill.label}
+                    onChange={e => setNewSkill(p => ({ ...p, label: e.target.value }))}
+                    placeholder="np. Mój Skill"
+                    className="w-full text-sm rounded-md border bg-muted/30 px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Opis (opcjonalny)</label>
+                  <input
+                    value={newSkill.description}
+                    onChange={e => setNewSkill(p => ({ ...p, description: e.target.value }))}
+                    placeholder="Krótki opis co robi ten skill"
+                    className="w-full text-sm rounded-md border bg-muted/30 px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Timeout (minuty)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={newSkill.timeoutMinutes}
+                    onChange={e => setNewSkill(p => ({ ...p, timeoutMinutes: e.target.value }))}
+                    className="w-24 text-sm rounded-md border bg-muted/30 px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Prompt <span className="text-destructive">*</span></label>
+                  <textarea
+                    value={newSkill.prompt}
+                    onChange={e => setNewSkill(p => ({ ...p, prompt: e.target.value }))}
+                    placeholder="Instrukcja dla Claude..."
+                    className="w-full text-xs font-mono rounded-md border bg-muted/30 p-2 resize-y min-h-[100px] focus:outline-none focus:ring-1 focus:ring-ring"
+                    spellCheck={false}
+                  />
                 </div>
               </div>
 
-              {editingSkill === skill.id && (
-                <div className="flex flex-col gap-2">
-                  {promptLoading ? (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Ładowanie...
-                    </div>
-                  ) : (
-                    <textarea
-                      value={promptDraft}
-                      onChange={e => setPromptDraft(e.target.value)}
-                      className="w-full text-xs font-mono rounded-md border bg-muted/30 p-2 resize-y min-h-[140px] focus:outline-none focus:ring-1 focus:ring-ring"
-                      spellCheck={false}
-                    />
-                  )}
-                  <div className="flex gap-2 justify-end">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setEditingSkill(null)}
-                      disabled={promptSaving}
-                    >
-                      Anuluj
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={savePrompt}
-                      disabled={promptLoading || promptSaving}
-                    >
-                      {promptSaving
-                        ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                        : <Check className="h-3.5 w-3.5 mr-1.5" />}
-                      Zapisz
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {editingSkill !== skill.id && (
-                <div className="flex items-center justify-between gap-3 mt-auto">
-                  <div className="flex items-center gap-2">
-                    {isRunning && job && (
-                      <>
-                        <Clock className="h-4 w-4 text-primary animate-pulse" />
-                        <Countdown startedAt={job.startedAt} timeoutMs={job.timeoutMs} />
-                      </>
-                    )}
-                    {status === 'done' && (
-                      <span className="flex items-center gap-1.5 text-sm text-green-600 font-medium">
-                        <CheckCircle2 className="h-4 w-4" />
-                        Zakończono
-                      </span>
-                    )}
-                    {status === 'error' && (
-                      <span className="flex items-center gap-1.5 text-sm text-destructive font-medium">
-                        <AlertCircle className="h-4 w-4" />
-                        Przerwano
-                      </span>
-                    )}
-                  </div>
-
-                  <Button size="sm" disabled={isRunning} onClick={() => runSkill(skill)}>
-                    {isRunning ? (
-                      'Działa...'
-                    ) : (
-                      <>
-                        <Play className="h-3.5 w-3.5 mr-1.5" />
-                        Uruchom
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )}
-
-              {status === 'done' && job?.jobId && files && files.files?.length > 0 && (
-                <FileBrowser jobId={job.jobId} data={files} />
-              )}
+              <div className="flex gap-2 justify-end">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => { setCreating(false); setNewSkill(EMPTY_NEW_SKILL) }}
+                  disabled={createSaving}
+                >
+                  Anuluj
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={createSkill}
+                  disabled={createSaving || !newSkill.id || !newSkill.prompt || !!newSkillIdError}
+                >
+                  {createSaving
+                    ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                    : <Check className="h-3.5 w-3.5 mr-1.5" />}
+                  Utwórz
+                </Button>
+              </div>
             </div>
-          )
-        })}
-      </div>
+          ) : (
+            <button
+              onClick={() => setCreating(true)}
+              className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed p-5 text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors min-h-[120px]"
+            >
+              <Plus className="h-6 w-6" />
+              <span className="text-sm font-medium">Nowy skill</span>
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

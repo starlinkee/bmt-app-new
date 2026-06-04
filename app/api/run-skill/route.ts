@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getVpsUrl, invalidatePortCache, vpsHeaders } from '@/lib/skill-runner-client'
 
-const ALLOWED_SKILLS = ['media-lubostron', 'kurs-walut'] as const
-type AllowedSkill = (typeof ALLOWED_SKILLS)[number]
+function isValidSkillId(id: unknown): id is string {
+  return typeof id === 'string' && /^[a-z0-9-]+$/.test(id) && id.length <= 60
+}
 
 export async function POST(req: NextRequest) {
   const vpsUrl = await getVpsUrl()
@@ -16,8 +17,8 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({})) as { skill?: string }
   const skill = body.skill
 
-  if (!skill || !ALLOWED_SKILLS.includes(skill as AllowedSkill)) {
-    return NextResponse.json({ error: `Skill not allowed: ${skill}` }, { status: 400 })
+  if (!isValidSkillId(skill)) {
+    return NextResponse.json({ error: `Invalid skill id: ${skill}` }, { status: 400 })
   }
 
   try {
