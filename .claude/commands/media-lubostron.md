@@ -3,22 +3,52 @@ oszczędność zasobów):
 
 ## Środowisko
 
-Playwright jest dostępny jako moduł Python: `from playwright.sync_api import sync_playwright`
-Uruchamiaj skrypty przez: `python3 /tmp/nazwa_skryptu.py`
+Playwright jest dostępny jako moduł **Node.js** (NIE Python).
+Wymagaj go przez: `require('/home/apprunner/.npm/_npx/e41f203b7505f1fb/node_modules/playwright')`
+Uruchamiaj skrypty przez: `node nazwa_skryptu.js`
+Zmienne środowiskowe ładuj przez: `source skill-runner/secrets.env && node nazwa_skryptu.js`
 
 Dane logowania pobieraj ze zmiennych środowiskowych (NIE hardcoduj w skrypcie):
-- login: `os.environ["MMSOFT_LOGIN"]`
-- hasło: `os.environ["MMSOFT_PASSWORD"]`
+- login: `process.env.MMSOFT_LOGIN`
+- hasło: `process.env.MMSOFT_PASSWORD`
+
+## WAŻNE: Logowanie na mmsoft.com.pl
+
+Formularz logowania używa JavaScript do hashowania hasła MD5 przez funkcję `zamieniaj()`.
+Standardowe `fill()` + `click()` NIE DZIAŁA — pola są czyszczone przez JS przed submitem.
+
+**Jedyna działająca metoda logowania:**
+
+```javascript
+await Promise.all([
+  page.waitForNavigation({ waitUntil: 'networkidle' }),
+  page.evaluate(([l, p]) => {
+    const f = document.forms['FmLog'];
+    f.Adm.value = l;
+    f.Pas.value = p;
+    zamieniaj(); // hashuje hasło MD5 i ustawia ukryte pola
+    f.submit();
+  }, [login, password])
+]);
+```
+
+`Promise.all` jest konieczny — `f.submit()` wywołuje nawigację która niszczy kontekst
+wykonania zanim `evaluate()` zwróci wynik. Bez `Promise.all` skrypt rzuci błąd
+"Execution context was destroyed".
+
+Po logowaniu sprawdź czy URL się zmienił (nie wrócił na stronę logowania).
 
 ## Kroki
 
 1. Przejdź na https://mmsoft.com.pl/lokale.php?Adm=1
-2. Wypełnij pola formularza danymi z env i kliknij przycisk "Zaloguj".
-3. Zrób screenshot diagnostyczny i odczytaj go żeby sprawdzić czy login się udał
-   (URL powinien się zmienić lub zniknąć formularz logowania).
-4. Jeśli pojawi się popup/modal — zamknij go przez JS:
-   ```js
-   document.querySelector('.fancybox-close, a[title="Close"]')?.click()
+2. Zaloguj się używając **wyłącznie** metody opisanej powyżej (Promise.all + zamieniaj()).
+3. Sprawdź czy logowanie się udało (URL powinien się zmienić lub zniknąć formularz logowania).
+4. Jeśli pojawi się popup/modal — zamknij go:
+   ```javascript
+   try {
+     await page.locator('a:has-text("Close")').waitFor({ timeout: 3000 });
+     await page.locator('a:has-text("Close")').click();
+   } catch {}
    ```
 5. Kliknij "Saldo" w górnym menu nawigacyjnym.
 6. Kliknij "tabela" w lewym panelu bocznym (lista SZCZEGÓŁOWOŚĆ).
