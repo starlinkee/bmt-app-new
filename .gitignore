@@ -44,3 +44,6 @@ next-env.d.ts
 
 # supabase
 supabase/.temp/
+
+# skill-runner runtime state — lives only on VPS, edited via web UI
+skill-runner/prompts.json
