@@ -82,6 +82,26 @@ const WORK_DIR = process.env.WORK_DIR || 'C:\\Users\\Jerzy\\Desktop\\bmt-app-new
 const OUTPUT_BASE_DIR = process.env.OUTPUT_BASE_DIR || path.join(WORK_DIR, 'claude_code_results')
 const ALLOWED_SKILLS = ['media-lubostron', 'kurs-walut']
 
+const PROMPTS_FILE = path.join(__dirname, 'prompts.json')
+
+function loadPrompts() {
+  try { return JSON.parse(fs.readFileSync(PROMPTS_FILE, 'utf8')) } catch { return {} }
+}
+
+function savePrompts(prompts) {
+  fs.writeFileSync(PROMPTS_FILE, JSON.stringify(prompts, null, 2))
+}
+
+function skillCommandPath(skillId) {
+  return path.join(WORK_DIR, '.claude', 'commands', `${skillId}.md`)
+}
+
+function applyPrompt(skillId, content) {
+  const cmdPath = skillCommandPath(skillId)
+  fs.mkdirSync(path.dirname(cmdPath), { recursive: true })
+  fs.writeFileSync(cmdPath, content, 'utf8')
+}
+
 // Dla każdego skilla sprawdza env var OUTPUT_DIR_<SKILL_ID_UPPERCASE> (myślniki → podkreślniki).
 // Np. media-lubostron → OUTPUT_DIR_MEDIA_LUBOSTRON. Jeśli brak, subfolder = skill id.
 function skillOutputDir(skillId) {
@@ -153,6 +173,15 @@ function spawnClaude(workDir) {
       rows: 30,
     })
   }
+  const runAsUser = process.env.CLAUDE_RUN_AS
+  if (runAsUser) {
+    return pty.spawn('su', ['-s', '/bin/bash', '-c', `cd ${workDir} && claude --dangerously-skip-permissions`, runAsUser], {
+      cwd: workDir,
+      env: { ...process.env },
+      cols: 120,
+      rows: 30,
+    })
+  }
   return pty.spawn('claude', ['--dangerously-skip-permissions'], {
     cwd: workDir,
     env: { ...process.env },
@@ -172,6 +201,10 @@ app.post('/run-skill', (req, res) => {
   const jobId = crypto.randomUUID()
   jobs.set(jobId, { status: 'running', startedAt: new Date().toISOString(), skill, output: '', proc: null })
   res.json({ jobId, status: 'started', skill })
+
+  // Nadpisz .md aktualnym promptem z prompts.json (jeśli istnieje)
+  const prompts = loadPrompts()
+  if (typeof prompts[skill] === 'string') applyPrompt(skill, prompts[skill])
 
   console.log(`[${jobId}] Uruchamiam Claude PTY dla /${skill} w ${WORK_DIR}`)
 
@@ -382,6 +415,33 @@ app.get('/file', (req, res) => {
   res.setHeader('Content-Type', contentType)
   res.setHeader('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(fileName)}`)
   fs.createReadStream(fullPath).pipe(res)
+})
+
+app.get('/skill/:id/prompt', (req, res) => {
+  if (!requireToken(req, res)) return
+  const { id } = req.params
+  if (!ALLOWED_SKILLS.includes(id)) return res.status(400).json({ error: 'Unknown skill' })
+  const prompts = loadPrompts()
+  if (typeof prompts[id] === 'string') return res.json({ content: prompts[id] })
+  try {
+    const content = fs.readFileSync(skillCommandPath(id), 'utf8')
+    res.json({ content })
+  } catch {
+    res.json({ content: '' })
+  }
+})
+
+app.put('/skill/:id/prompt', (req, res) => {
+  if (!requireToken(req, res)) return
+  const { id } = req.params
+  if (!ALLOWED_SKILLS.includes(id)) return res.status(400).json({ error: 'Unknown skill' })
+  const { content } = req.body || {}
+  if (typeof content !== 'string') return res.status(400).json({ error: 'content must be a string' })
+  const prompts = loadPrompts()
+  prompts[id] = content
+  savePrompts(prompts)
+  applyPrompt(id, content)
+  res.json({ ok: true })
 })
 
 app.get('/health', (_req, res) => res.json({ ok: true }))

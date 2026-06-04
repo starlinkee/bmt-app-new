@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Play, X, CheckCircle2, AlertCircle, Clock, FileText, ImageIcon, File, Download, ExternalLink, FolderOpen } from 'lucide-react'
+import { Play, X, CheckCircle2, AlertCircle, Clock, FileText, ImageIcon, File, Download, ExternalLink, FolderOpen, Pencil, Check, Loader2 } from 'lucide-react'
 
 const SKILLS = [
   {
@@ -158,6 +158,10 @@ export function SkillRunner() {
   const intervals = useRef<Partial<Record<SkillId, ReturnType<typeof setInterval>>>>({})
   const fetchedJobIds = useRef<Set<string>>(new Set())
   const hasMounted = useRef(false)
+  const [editingSkill, setEditingSkill] = useState<SkillId | null>(null)
+  const [promptDraft, setPromptDraft] = useState('')
+  const [promptLoading, setPromptLoading] = useState(false)
+  const [promptSaving, setPromptSaving] = useState(false)
 
   const stopPolling = useCallback((skillId: SkillId) => {
     if (intervals.current[skillId]) {
@@ -238,6 +242,40 @@ export function SkillRunner() {
 
   useEffect(() => () => { Object.values(intervals.current).forEach(v => v && clearInterval(v)) }, [])
 
+  async function openEdit(skillId: SkillId) {
+    setEditingSkill(skillId)
+    setPromptDraft('')
+    setPromptLoading(true)
+    try {
+      const res = await fetch(`/api/skill-prompts?skillId=${skillId}`)
+      const data = await res.json()
+      setPromptDraft(data.content ?? '')
+    } catch {
+      setPromptDraft('')
+    } finally {
+      setPromptLoading(false)
+    }
+  }
+
+  async function savePrompt() {
+    if (!editingSkill) return
+    setPromptSaving(true)
+    try {
+      const res = await fetch('/api/skill-prompts', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skillId: editingSkill, content: promptDraft }),
+      })
+      if (!res.ok) throw new Error()
+      toast.success('Prompt zapisany.')
+      setEditingSkill(null)
+    } catch {
+      toast.error('Błąd zapisu promptu.')
+    } finally {
+      setPromptSaving(false)
+    }
+  }
+
   async function runSkill(skill: (typeof SKILLS)[number]) {
     // Clear previous files for this skill
     const prevJob = jobs[skill.id]
@@ -305,54 +343,107 @@ export function SkillRunner() {
               ].join(' ')}
             >
               <div className="flex items-start justify-between gap-2">
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="font-semibold text-base">{skill.label}</p>
-                  <p className="text-sm text-muted-foreground mt-0.5">{skill.description}</p>
+                  {editingSkill !== skill.id && (
+                    <p className="text-sm text-muted-foreground mt-0.5">{skill.description}</p>
+                  )}
                 </div>
-                {isRunning && (
-                  <button
-                    onClick={() => cancelSkill(skill)}
-                    className="shrink-0 mt-0.5 text-muted-foreground hover:text-destructive transition-colors"
-                    title="Anuluj"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
+                <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                  {!isRunning && editingSkill !== skill.id && (
+                    <button
+                      onClick={() => openEdit(skill.id)}
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                      title="Edytuj prompt"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  {isRunning && (
+                    <button
+                      onClick={() => cancelSkill(skill)}
+                      className="text-muted-foreground hover:text-destructive transition-colors"
+                      title="Anuluj"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
               </div>
 
-              <div className="flex items-center justify-between gap-3 mt-auto">
-                <div className="flex items-center gap-2">
-                  {isRunning && job && (
-                    <>
-                      <Clock className="h-4 w-4 text-primary animate-pulse" />
-                      <Countdown startedAt={job.startedAt} timeoutMs={job.timeoutMs} />
-                    </>
-                  )}
-                  {status === 'done' && (
-                    <span className="flex items-center gap-1.5 text-sm text-green-600 font-medium">
-                      <CheckCircle2 className="h-4 w-4" />
-                      Zakończono
-                    </span>
-                  )}
-                  {status === 'error' && (
-                    <span className="flex items-center gap-1.5 text-sm text-destructive font-medium">
-                      <AlertCircle className="h-4 w-4" />
-                      Przerwano
-                    </span>
-                  )}
-                </div>
-
-                <Button size="sm" disabled={isRunning} onClick={() => runSkill(skill)}>
-                  {isRunning ? (
-                    'Działa...'
+              {editingSkill === skill.id && (
+                <div className="flex flex-col gap-2">
+                  {promptLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Ładowanie...
+                    </div>
                   ) : (
-                    <>
-                      <Play className="h-3.5 w-3.5 mr-1.5" />
-                      Uruchom
-                    </>
+                    <textarea
+                      value={promptDraft}
+                      onChange={e => setPromptDraft(e.target.value)}
+                      className="w-full text-xs font-mono rounded-md border bg-muted/30 p-2 resize-y min-h-[140px] focus:outline-none focus:ring-1 focus:ring-ring"
+                      spellCheck={false}
+                    />
                   )}
-                </Button>
-              </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setEditingSkill(null)}
+                      disabled={promptSaving}
+                    >
+                      Anuluj
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={savePrompt}
+                      disabled={promptLoading || promptSaving}
+                    >
+                      {promptSaving
+                        ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                        : <Check className="h-3.5 w-3.5 mr-1.5" />}
+                      Zapisz
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {editingSkill !== skill.id && (
+                <div className="flex items-center justify-between gap-3 mt-auto">
+                  <div className="flex items-center gap-2">
+                    {isRunning && job && (
+                      <>
+                        <Clock className="h-4 w-4 text-primary animate-pulse" />
+                        <Countdown startedAt={job.startedAt} timeoutMs={job.timeoutMs} />
+                      </>
+                    )}
+                    {status === 'done' && (
+                      <span className="flex items-center gap-1.5 text-sm text-green-600 font-medium">
+                        <CheckCircle2 className="h-4 w-4" />
+                        Zakończono
+                      </span>
+                    )}
+                    {status === 'error' && (
+                      <span className="flex items-center gap-1.5 text-sm text-destructive font-medium">
+                        <AlertCircle className="h-4 w-4" />
+                        Przerwano
+                      </span>
+                    )}
+                  </div>
+
+                  <Button size="sm" disabled={isRunning} onClick={() => runSkill(skill)}>
+                    {isRunning ? (
+                      'Działa...'
+                    ) : (
+                      <>
+                        <Play className="h-3.5 w-3.5 mr-1.5" />
+                        Uruchom
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
 
               {status === 'done' && job?.jobId && files && files.files?.length > 0 && (
                 <FileBrowser jobId={job.jobId} data={files} />
