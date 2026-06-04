@@ -17,16 +17,25 @@ if (!login || !password) {
   console.log('Przechodzę na stronę logowania...');
   await page.goto('https://mmsoft.com.pl/lokale.php?Adm=1', { waitUntil: 'networkidle' });
 
+  // Pobierz Key z formularza (potrzebny do hashowania hasła)
+  const key = await page.$eval('input[name="Key"]', el => el.value);
+  console.log('Key z formularza:', key);
+
+  // Oblicz hash po stronie Node.js: md5(md5(password + "MM") + Key)
+  const crypto = require('crypto');
+  const md5 = str => crypto.createHash('md5').update(str).digest('hex');
+  const hashedPassword = md5(md5(password + 'MM') + key);
+
   console.log('Loguję się...');
   await Promise.all([
     page.waitForNavigation({ waitUntil: 'networkidle' }),
-    page.evaluate(([l, p]) => {
+    page.evaluate(([login, hashed]) => {
       const f = document.forms['FmLog'];
-      f.Adm.value = l;
-      f.Pas.value = p;
-      zamieniaj();
+      f.Adm.value = login;
+      f.Pas.value = hashed;
+      f.Jaklog.value = 1;
       f.submit();
-    }, [login, password])
+    }, [login, hashedPassword])
   ]);
 
   const url = page.url();
