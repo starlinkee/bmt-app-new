@@ -11,6 +11,7 @@ Restart=always
 RestartSec=5
 Environment=NODE_ENV=production
 EnvironmentFile=/opt/bmt-app/skill-runner/.env
+EnvironmentFile=-/opt/bmt-app/skill-runner/secrets.env
 
 [Install]
 WantedBy=multi-user.target
