@@ -138,7 +138,12 @@ export default function FinancePage() {
         const results = await generateRents(month, year)
         clearInterval(interval)
         setProgress(100)
-        toast.success(`Wystawiono ${results.length} czynszów.`)
+        const emailErrors = results.filter(r => r.emailError)
+        if (emailErrors.length > 0) {
+          toast.warning(`Wystawiono ${results.length} czynszów, ale ${emailErrors.length} mail(e) nie wysłano: ${emailErrors[0].emailError}`)
+        } else {
+          toast.success(`Wystawiono ${results.length} czynszów.`)
+        }
         setConfirmOpen(false)
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.rentInvoices(month, year) })
       } catch {

@@ -3,6 +3,18 @@ const pty = require('node-pty')
 const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
+const os = require('os')
+
+// Always load .env from the script directory (overrides existing env vars)
+const envFile = path.join(__dirname, '.env')
+if (fs.existsSync(envFile)) {
+  fs.readFileSync(envFile, 'utf8').split(/\r?\n/).forEach(line => {
+    const eq = line.indexOf('=')
+    if (eq > 0 && !line.trim().startsWith('#')) {
+      process.env[line.slice(0, eq).trim()] = line.slice(eq + 1).trim()
+    }
+  })
+}
 
 function stripAnsi(raw) {
   return raw
@@ -13,27 +25,47 @@ function stripAnsi(raw) {
 }
 
 function filterOutput(raw) {
-  const lines = stripAnsi(raw)
-    .split('\n')
-    .map(line => line.split('\r').at(-1) ?? line)  // \r = nadpisz linię, weź ostatnią wersję
+  // Split by both \r and \n — terminal uses cursor positioning (\x1b[22;1H) so after
+  // stripAnsi, ● content often ends up concatenated with spinner on the same \n-line.
+  // Splitting by \r too gives us smaller segments where ● is easier to find.
+  const segments = stripAnsi(raw).split(/\r?\n|\r/)
 
-  const filtered = lines.filter(line => {
-    const t = line.trim()
-    if (!t) return true                                   // puste linie (odstępy)
-    if (t.startsWith('●')) return true                    // akcje i wyniki Claude
-    if (t.startsWith('⎿')) return true                    // wyniki narzędzi
-    if (/^\s*⎿/.test(line)) return true                   // wcięte wyniki narzędzi
-    if (/^\s*(called|calling)\s+\w+/i.test(t)) return true // "Called playwright X times"
-    return false
-  })
+  const result = []
+  let prevBullet = false
+  let lastPushed = null
 
-  const out = []
-  let blanks = 0
-  for (const line of filtered) {
-    if (!line.trim()) { if (++blanks <= 1) out.push('') }
-    else { blanks = 0; out.push(line.trimEnd()) }
+  for (const seg of segments) {
+    const bulletIdx = seg.indexOf('●')
+    const toolIdx = seg.indexOf('⎿')
+
+    let line = null
+
+    if (bulletIdx !== -1 && (toolIdx === -1 || bulletIdx < toolIdx)) {
+      line = seg.slice(bulletIdx).trimEnd()
+      prevBullet = true
+    } else if (toolIdx !== -1) {
+      line = seg.slice(toolIdx).trimEnd()
+      prevBullet = true
+    } else if (!seg.trim()) {
+      if (prevBullet && lastPushed !== '') { result.push(''); lastPushed = '' }
+      continue
+    } else if (prevBullet && /^ /.test(seg)) {
+      line = seg.trimEnd()
+    } else if (/^\s*(called|calling)\s+\w+/i.test(seg.trim())) {
+      line = seg.trim()
+      prevBullet = true
+    } else {
+      prevBullet = false
+      continue
+    }
+
+    if (line !== null && line !== lastPushed) {
+      result.push(line)
+      lastPushed = line
+    }
   }
-  return out.join('\n').trim()
+
+  return result.join('\n').trim()
 }
 
 class RawBuffer {
@@ -47,11 +79,15 @@ app.use(express.json())
 
 const SECRET_TOKEN = process.env.SKILL_RUNNER_TOKEN
 const WORK_DIR = process.env.WORK_DIR || 'C:\\Users\\Jerzy\\Desktop\\bmt-app-new'
-const ALLOWED_SKILLS = ['media-lubostron']
+const OUTPUT_BASE_DIR = process.env.OUTPUT_BASE_DIR || path.join(WORK_DIR, 'claude_code_results')
+const ALLOWED_SKILLS = ['media-lubostron', 'kurs-walut']
 
-const SKILL_OUTPUT_DIRS = {
-  'media-lubostron': process.env.MEDIA_LUBOSTRON_OUTPUT_DIR ||
-    'C:\\Users\\Jerzy\\Desktop\\saldo_mmsoft\\Lubostroń 15A_38 Zarządca Nieruchomości Adnier',
+// Dla każdego skilla sprawdza env var OUTPUT_DIR_<SKILL_ID_UPPERCASE> (myślniki → podkreślniki).
+// Np. media-lubostron → OUTPUT_DIR_MEDIA_LUBOSTRON. Jeśli brak, subfolder = skill id.
+function skillOutputDir(skillId) {
+  const envKey = 'OUTPUT_DIR_' + skillId.toUpperCase().replace(/-/g, '_')
+  const sub = process.env[envKey] || skillId
+  return path.join(OUTPUT_BASE_DIR, sub)
 }
 
 const FILE_MIME_TYPES = {
@@ -64,7 +100,7 @@ const FILE_MIME_TYPES = {
 }
 
 function findJobOutputDir(job) {
-  const baseDir = SKILL_OUTPUT_DIRS[job.skill]
+  const baseDir = skillOutputDir(job.skill)
   if (!baseDir) return null
   try {
     if (!fs.existsSync(baseDir)) return null
@@ -163,6 +199,7 @@ app.post('/run-skill', (req, res) => {
     clearTimeout(maxTimer)
     console.log(`[${jobId}] Kończę proces (${reason})`)
     try { proc.kill() } catch {}
+    fs.writeFileSync(path.join(os.tmpdir(), `skill-debug-${jobId}.log`), stripAnsi(buffer.toString()))
     const job = jobs.get(jobId)
     if (job && job.status === 'running') {
       const current = filterOutput(buffer.toString())
@@ -287,7 +324,111 @@ app.get('/job/:id/file', (req, res) => {
   fs.createReadStream(fullPath).pipe(res)
 })
 
+app.get('/browse', (req, res) => {
+  if (!requireToken(req, res)) return
+  if (!fs.existsSync(OUTPUT_BASE_DIR)) return res.json({ skills: [] })
+  try {
+    const skills = fs.readdirSync(OUTPUT_BASE_DIR, { withFileTypes: true })
+      .filter(e => e.isDirectory())
+      .map(skillDir => {
+        const skillPath = path.join(OUTPUT_BASE_DIR, skillDir.name)
+        let runs = []
+        try {
+          runs = fs.readdirSync(skillPath, { withFileTypes: true })
+            .filter(e => e.isDirectory())
+            .map(runDir => {
+              const runPath = path.join(skillPath, runDir.name)
+              const stat = fs.statSync(runPath)
+              let files = []
+              try {
+                files = fs.readdirSync(runPath)
+                  .filter(name => fs.statSync(path.join(runPath, name)).isFile())
+                  .map(name => {
+                    const fileStat = fs.statSync(path.join(runPath, name))
+                    return { name, size: fileStat.size, ext: path.extname(name).toLowerCase() }
+                  })
+              } catch {}
+              return { name: runDir.name, createdMs: stat.birthtimeMs || stat.ctimeMs, files }
+            })
+            .sort((a, b) => b.createdMs - a.createdMs)
+        } catch {}
+        return { name: skillDir.name, runs }
+      })
+    res.json({ skills })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.get('/file', (req, res) => {
+  if (!requireToken(req, res)) return
+  const relPath = req.query.path
+  if (!relPath || typeof relPath !== 'string') return res.status(400).json({ error: 'Missing path' })
+
+  const fullPath = path.resolve(OUTPUT_BASE_DIR, relPath)
+  const base = path.resolve(OUTPUT_BASE_DIR)
+  if (!fullPath.startsWith(base + path.sep) && fullPath !== base) {
+    return res.status(403).json({ error: 'Access denied' })
+  }
+  if (!fs.existsSync(fullPath) || !fs.statSync(fullPath).isFile()) {
+    return res.status(404).json({ error: 'File not found' })
+  }
+
+  const ext = path.extname(fullPath).toLowerCase()
+  const contentType = FILE_MIME_TYPES[ext] || 'application/octet-stream'
+  const inline = Object.values(FILE_MIME_TYPES).includes(contentType)
+  const fileName = path.basename(fullPath)
+
+  res.setHeader('Content-Type', contentType)
+  res.setHeader('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(fileName)}`)
+  fs.createReadStream(fullPath).pipe(res)
+})
+
 app.get('/health', (_req, res) => res.json({ ok: true }))
 
-const PORT = process.env.PORT || 3021
-app.listen(PORT, () => console.log(`Skill runner na porcie ${PORT}`))
+const BASE_PORT = Number(process.env.PORT) || 3021
+const REGISTRY_FILE = path.join(__dirname, '.registry.json')
+
+function readRegistry() {
+  try { return JSON.parse(fs.readFileSync(REGISTRY_FILE, 'utf8')) } catch { return [] }
+}
+
+function registerPort(port) {
+  const reg = readRegistry().filter(e => {
+    try { process.kill(e.pid, 0); return true } catch { return false }
+  })
+  reg.push({ pid: process.pid, port, startedAt: new Date().toISOString() })
+  fs.writeFileSync(REGISTRY_FILE, JSON.stringify(reg, null, 2))
+  // backward compat – last port also in .port
+  fs.writeFileSync(path.join(__dirname, '.port'), String(port))
+
+  process.on('exit', () => {
+    const updated = readRegistry().filter(e => e.pid !== process.pid)
+    fs.writeFileSync(REGISTRY_FILE, JSON.stringify(updated, null, 2))
+  })
+}
+
+app.get('/registry', (_req, res) => {
+  const alive = readRegistry().filter(e => {
+    try { process.kill(e.pid, 0); return true } catch { return false }
+  })
+  res.json(alive)
+})
+
+function listenOnFreePort(port, maxTries = 20) {
+  const server = app.listen(port, () => {
+    const actual = server.address().port
+    registerPort(actual)
+    console.log(`Skill runner na porcie ${actual} (pid ${process.pid})`)
+  })
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE' && maxTries > 0) {
+      console.log(`Port ${port} zajęty, próbuję ${port + 1}...`)
+      listenOnFreePort(port + 1, maxTries - 1)
+    } else {
+      throw err
+    }
+  })
+}
+
+listenOnFreePort(BASE_PORT)

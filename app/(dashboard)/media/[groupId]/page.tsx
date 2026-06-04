@@ -79,7 +79,7 @@ export default function MediaGroupPage({
   const [editedPreviousReadings, setEditedPreviousReadings] = useState<Record<string, string>>({})
   const [settlementExists, setSettlementExists] = useState(false)
   const [readingsLoaded, setReadingsLoaded] = useState(false)
-  const [results, setResults] = useState<{ tenantName: string; amount: number; invoiceNumber: string; invoiceError?: string }[]>([])
+  const [results, setResults] = useState<{ tenantName: string; amount: number; invoiceNumber: string; invoiceError?: string; emailError?: string }[]>([])
   const [progress, setProgress] = useState(0)
   const [pending, startTransition] = useTransition()
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -133,6 +133,22 @@ export default function MediaGroupPage({
   }
 
   function handleOpenConfirm() {
+    const emptyUserFields: string[] = []
+    for (const [, fields] of Object.entries(inputMapping)) {
+      for (const [fieldLabel, fieldDef] of Object.entries(fields)) {
+        const range = typeof fieldDef === 'string' ? fieldDef : fieldDef.range
+        const source = typeof fieldDef === 'string' ? 'user' : fieldDef.source
+        if (source !== 'user') continue
+        if (!inputValues[range] || inputValues[range].trim() === '') {
+          emptyUserFields.push(fieldLabel)
+        }
+      }
+    }
+    if (emptyUserFields.length > 0) {
+      toast.error(`Uzupełnij wszystkie pola przed wystawieniem: ${emptyUserFields.join(', ')}`)
+      return
+    }
+
     const hasReadingErrors = Object.entries(inputMapping).some(([, fields]) =>
       Object.entries(fields).some(([, fieldDef]) => {
         const range = typeof fieldDef === 'string' ? fieldDef : fieldDef.range
@@ -298,6 +314,11 @@ export default function MediaGroupPage({
                 {r.invoiceError && (
                   <div className="text-xs text-destructive pl-1">
                     Błąd rachunku: {r.invoiceError}
+                  </div>
+                )}
+                {r.emailError && (
+                  <div className="text-xs text-amber-600 pl-1">
+                    Błąd wysyłki e-mail: {r.emailError}
                   </div>
                 )}
               </li>

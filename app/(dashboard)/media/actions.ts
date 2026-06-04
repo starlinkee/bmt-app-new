@@ -254,7 +254,7 @@ export async function processSettlement(
 
   const { data: config } = await supabase
     .from('app_config')
-    .select('drive_invoices_folder_id, rent_invoice_spreadsheet_id, rent_invoice_input_mapping_json')
+    .select('drive_invoices_folder_id, rent_invoice_spreadsheet_id, rent_invoice_input_mapping_json, rent_invoice_pdf_gid')
     .eq('id', 1)
     .single()
 
@@ -327,7 +327,7 @@ export async function processSettlement(
 
   // 5. Eksportuj PDF — osobny plik per sheet zdefiniowany w pdf_sheets_json
   // `tab` = tytuł zakładki w arkuszu (do wyszukania GID po skopiowaniu), `name` = etykieta PDF
-  type PdfSheetDef = { gid?: string; tab?: string; name: string; range?: string; portrait?: boolean }
+  type PdfSheetDef = { gid?: string; tab?: string; name: string; range?: string; portrait?: boolean; fitToPage?: boolean }
   const pdfSheets = (group as Record<string, unknown>).pdf_sheets_json as PdfSheetDef[] | undefined
   const baseName = sheetName.replace(/\//g, '-')
 
@@ -342,7 +342,7 @@ export async function processSettlement(
     const pdfResults = await Promise.all(
       pdfSheets.map(async (sheet) => {
         const gid = sheet.tab ? allGids[sheet.tab] : sheet.gid
-        const buffer = await exportSheetAsPdf(workingSheetId, gid, { printRange: sheet.range, portrait: sheet.portrait })
+        const buffer = await exportSheetAsPdf(workingSheetId, gid, { printRange: sheet.range, portrait: sheet.portrait, fitToPage: sheet.fitToPage })
         const fileName = `${baseName} – ${sheet.name}.pdf`
         const driveId = await uploadPdfToDrive(fileName, buffer, monthFolder)
         return { name: sheet.name, driveId, buffer }
@@ -401,12 +401,17 @@ export async function processSettlement(
 
   const pdfMap = Object.fromEntries(exportedPdfs.map((p) => [p.name, p]))
 
+  console.log('[media] outputs:', JSON.stringify(outputs))
+  console.log('[media] outputEntries ranges:', outputEntries.map(e => e.range))
+
   // Pre-filtruj wpisy z pozytywnymi kwotami i pre-przydziel numery faktur (musi być sekwencyjne)
   const validEntries = outputEntries
     .map((entry) => {
-      const amountStr = outputs[entry.range]
-      const amount = parseFloat((amountStr ?? '').replace(',', '.'))
-      if (!amount || amount <= 0) return null
+      const amountStr = outputs[entry.range] ?? ''
+      const isSheetError = amountStr.startsWith('#')
+      const amount = isSheetError ? 0 : parseFloat(amountStr.replace(',', '.'))
+      if (!isSheetError && isNaN(amount)) return null
+      if (amount < 0) throw new Error(`Ujemna kwota (${amount} zł) dla zakresu ${entry.range} — sprawdź odczyty licznika`)
       const tenant = tenantMap[entry.tenant_id]
       if (!tenant) return null
       const activeContract = (tenant.contracts as { is_active: boolean; contract_type: string }[] | undefined)?.find(
@@ -423,7 +428,7 @@ export async function processSettlement(
   }))
 
   // Przetwarzaj wszystkich najemców równolegle
-  type TenantResult = { tenantName: string; amount: number; invoiceNumber: string; invoiceError?: string }
+  type TenantResult = { tenantName: string; amount: number; invoiceNumber: string; invoiceError?: string; emailError?: string }
   const settled = await Promise.allSettled(
     assignedEntries.map(async ({ entry, amount, tenant, activeContract, invoiceNumber }) => {
       let invoicePdfBuffer: Buffer | undefined
@@ -443,7 +448,10 @@ export async function processSettlement(
           },
           { ignoreDuplicates: true },
         )
-        if (error) return null
+        if (error) {
+          console.error('[media] invoice upsert error:', JSON.stringify(error), 'amount:', amount, 'tenant:', tenant.id)
+          return null
+        }
 
         // 9. Wygeneruj rachunek używając tego samego szablonu co czynsz (app_config)
         if (config?.rent_invoice_spreadsheet_id) {
@@ -459,7 +467,7 @@ export async function processSettlement(
               nip: (tenant as Record<string, unknown>).nip as string ?? '',
               miesiac: String(month),
               rok: String(year),
-              kwota: String(amount),
+              kwota: amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
               kwota_slownie: amountToWordsPLN(amount),
               opis_rachunku: (activeContract as Record<string, unknown>).opis_rachunku_media as string
                 || (activeContract as Record<string, unknown>).opis_rachunku as string
@@ -478,7 +486,7 @@ export async function processSettlement(
 
             try { await stripSpreadsheetColors(invoiceSheetId) } catch {}
 
-            invoicePdfBuffer = await exportSheetAsPdf(invoiceSheetId)
+            invoicePdfBuffer = await exportSheetAsPdf(invoiceSheetId, (config as Record<string, unknown>).rent_invoice_pdf_gid as string || undefined)
             await uploadPdfToDrive(`${invoiceNumber.replace(/\//g, '-')}.pdf`, invoicePdfBuffer, monthFolder)
           } catch (e) {
             invoiceError = e instanceof Error ? e.message : String(e)
@@ -502,6 +510,7 @@ export async function processSettlement(
         )
       }
 
+      let emailError: string | undefined
       if (tenant.email) {
         const attachments = (entry.email_pdfs ?? [])
           .map((name: string) => pdfMap[name])
@@ -520,18 +529,23 @@ export async function processSettlement(
 
         const recipients = [tenant.email, tenant.email2].filter(Boolean) as string[]
         const senderAccount = ((tenant as Record<string, unknown>).sender_account as number ?? 1) === 2 ? 2 : 1
-        await sendMediaEmail(
-          recipients,
-          tenantDisplayName(tenant),
-          invoiceNumber ?? `${String(month).padStart(2, '0')}/${year}`,
-          amount,
-          month,
-          year,
-          attachments,
-          (group as Record<string, unknown>).email_subject_template as string | null,
-          (group as Record<string, unknown>).email_body_template as string | null,
-          senderAccount,
-        )
+        try {
+          await sendMediaEmail(
+            recipients,
+            tenantDisplayName(tenant),
+            invoiceNumber ?? `${String(month).padStart(2, '0')}/${year}`,
+            amount,
+            month,
+            year,
+            attachments,
+            (group as Record<string, unknown>).email_subject_template as string | null,
+            (group as Record<string, unknown>).email_body_template as string | null,
+            senderAccount,
+          )
+        } catch (e) {
+          emailError = e instanceof Error ? e.message : String(e)
+          console.error('[media] Błąd wysyłania emaila do najemcy', tenant.id, ':', emailError)
+        }
       }
 
       return {
@@ -539,10 +553,12 @@ export async function processSettlement(
         amount,
         invoiceNumber: invoiceNumber ?? `${String(month).padStart(2, '0')}/${year}`,
         invoiceError,
+        emailError,
       } satisfies TenantResult
     }),
   )
 
+  console.log('[media] settled:', settled.map(r => r.status === 'rejected' ? `REJECTED: ${r.reason}` : `fulfilled: ${JSON.stringify(r.value)}`))
   const results = settled.reduce<TenantResult[]>((acc, r) => {
     if (r.status === 'fulfilled' && r.value !== null) acc.push(r.value)
     return acc

@@ -1,0 +1,170 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - heading "ADNIER S.C." [level=1] [ref=e7]:
+            - link "ADNIER S.C." [ref=e8] [cursor=pointer]:
+              - /url: http://www.adnier.pl/
+              - img "ADNIER S.C." [ref=e9]
+          - generic [ref=e11]:
+            - text: Zarządzanie Nieruchomościami
+            - text: "tel.: 12 412 53 72"
+        - link "Adres e-mail biuro@adnier.pl" [ref=e13] [cursor=pointer]:
+          - /url: mailto:biuro@adnier.pl
+          - img "Adres e-mail" [ref=e14]
+          - text: biuro@adnier.pl
+      - generic [ref=e17]:
+        - navigation [ref=e18]:
+          - list [ref=e19]:
+            - listitem [ref=e20]:
+              - link "Informacje" [ref=e21] [cursor=pointer]:
+                - /url: javascript:akcja('Informacje',0)
+            - listitem [ref=e22]:
+              - link "Saldo" [ref=e23] [cursor=pointer]:
+                - /url: javascript:akcja('Saldo',100)
+            - listitem [ref=e24]:
+              - link "Naliczenie" [ref=e25] [cursor=pointer]:
+                - /url: javascript:akcja('Naliczenie',0)
+            - listitem [ref=e26]:
+              - link "Odczyty" [ref=e27] [cursor=pointer]:
+                - /url: javascript:akcja('Odczyty',0)
+            - listitem [ref=e28]:
+              - link "Głosowania" [ref=e29] [cursor=pointer]:
+                - /url: javascript:akcja('Uchwaly',0)
+            - listitem [ref=e30]:
+              - link "Moje dane" [ref=e31] [cursor=pointer]:
+                - /url: javascript:akcja('Mojedane',0)
+            - listitem [ref=e32]:
+              - link "Zmiana hasła" [ref=e33] [cursor=pointer]:
+                - /url: javascript:akcja('Zmianahasla',0)
+          - generic [ref=e34]:
+            - link [ref=e35] [cursor=pointer]:
+              - /url: javascript:akcja('Koszyk',0)
+              - img [ref=e36]
+            - link "WYLOGOWANIE" [ref=e41] [cursor=pointer]:
+              - /url: javascript:akcja('Wylogowanie',0)
+              - img [ref=e42]
+              - text: WYLOGOWANIE
+        - navigation [ref=e46]:
+          - list
+    - paragraph [ref=e48]: Lubostroń 15 A/ 38, kom.33, mp 21
+    - main [ref=e50]:
+      - complementary [ref=e51]:
+        - heading "Typy" [level=3] [ref=e52]:
+          - generic [ref=e53]: Typy
+        - list [ref=e54]:
+          - listitem [ref=e55]:
+            - link "razem" [ref=e56] [cursor=pointer]:
+              - /url: javascript:dane(-1,0)
+          - listitem [ref=e57]:
+            - link "uchwały" [ref=e58] [cursor=pointer]:
+              - /url: javascript:dane(1,0)
+          - listitem [ref=e59]:
+            - link "ankiety" [ref=e60] [cursor=pointer]:
+              - /url: javascript:dane(2,0)
+        - heading "Do głosowania" [level=3] [ref=e61]:
+          - generic [ref=e62]: Do głosowania
+        - list [ref=e63]:
+          - listitem [ref=e64]:
+            - link "Uchwała 1/2026 z dnia 2026-03-23 (w sprawie przyjęcia sprawozdania finansowego)" [ref=e65] [cursor=pointer]:
+              - /url: javascript:dane(0,1562)
+              - text: Uchwała 1/2026 z dnia 2026-03-23
+              - text: (w sprawie przyjęcia sprawozdania finansowego)
+          - listitem [ref=e66]:
+            - link "Uchwała 2/2026 z dnia 2026-03-23 (w sprawie przyjęcia planu gospodarczego i ustalenia stawki na funduszu eksploatacyjnym)" [ref=e67] [cursor=pointer]:
+              - /url: javascript:dane(0,1563)
+              - text: Uchwała 2/2026 z dnia 2026-03-23
+              - text: (w sprawie przyjęcia planu gospodarczego i ustalenia stawki na funduszu eksploatacyjnym)
+          - listitem [ref=e68]:
+            - link "Uchwała 3/2026 z dnia 2026-03-23 (w sprawie stawki na funduszu remontowym)" [ref=e69] [cursor=pointer]:
+              - /url: javascript:dane(0,1564)
+              - text: Uchwała 3/2026 z dnia 2026-03-23
+              - text: (w sprawie stawki na funduszu remontowym)
+      - article [ref=e70]:
+        - heading "Głosowanie nad" [level=2] [ref=e71]
+        - heading "Uchwała 1/2026 z dnia 2026-03-23 (w sprawie przyjęcia sprawozdania finansowego)" [level=3] [ref=e72]:
+          - text: Uchwała 1/2026 z dnia 2026-03-23
+          - text: (w sprawie przyjęcia sprawozdania finansowego)
+        - generic [ref=e73]:
+          - paragraph
+          - generic [ref=e75]: § 1
+          - generic [ref=e76]: "Wspólnota Mieszkaniowa Lubostroń Park w Krakowie przyjmuje sprawozdanie finansowe zarządcy nieruchomości za rok 2025, stanowiące załącznik do uchwały, sporządzone na dzień 31.12.2025 r. dokonując podziału wyniku finansowego:"
+          - generic [ref=e79]: § 2
+          - generic [ref=e80]: Nadwyżka przychodów nad kosztami na funduszu eksploatacyjnym w wysokości 11 648,06 zł. zwiększa przychody na funduszu eksploatacyjnym w roku 2026 i zostanie przeznaczona na pokrycie kosztów utrzymania nieruchomości wspólnej w tym kosztów konserwacji.
+          - generic [ref=e83]: § 3
+          - generic [ref=e84]: Nadwyżka przychodów nad kosztami na funduszu remontowym w wysokości 98 594,57 zł. zwiększa przychody na funduszu remontowym w roku 2026 i zostanie przeznaczona na pokrycie kosztów przyszłych remontów.
+          - generic [ref=e87]: § 4
+          - generic [ref=e88]: Wspólnota Mieszkaniowa Lubostroń Park w Krakowie udziela absolutorium zarządcy nieruchomości za rok 2025.
+          - generic [ref=e91]: § 5
+          - generic [ref=e92]: Uchwała wchodzi w życie z dniem podjęcia.
+          - paragraph
+        - generic [ref=e93]:
+          - table [ref=e94]:
+            - rowgroup [ref=e95]:
+              - row "Właściciel Udział Za Przeciw" [ref=e96]:
+                - columnheader "Właściciel" [ref=e97]:
+                  - generic [ref=e98]: Właściciel
+                - columnheader "Udział" [ref=e99]
+                - columnheader "Za" [ref=e100]
+                - columnheader "Przeciw" [ref=e101]
+            - rowgroup [ref=e102]:
+              - row "Lubostroń 15 A/ 38, kom.33, mp 21 6385,00 głosuj głosuj" [ref=e103]:
+                - rowheader "Lubostroń 15 A/ 38, kom.33, mp 21" [ref=e104]:
+                  - generic [ref=e105]: Lubostroń 15 A/ 38, kom.33, mp 21
+                - cell "6385,00" [ref=e106]
+                - cell "głosuj" [ref=e107]:
+                  - link "głosuj" [ref=e108] [cursor=pointer]:
+                    - /url: javascript:glosuj(41,'T')
+                - cell "głosuj" [ref=e109]:
+                  - link "głosuj" [ref=e110] [cursor=pointer]:
+                    - /url: javascript:glosuj(41,'N')
+          - table [ref=e111]:
+            - rowgroup [ref=e112]:
+              - row "Właściciel" [ref=e113]:
+                - columnheader "Właściciel" [ref=e114]:
+                  - generic [ref=e115]: Właściciel
+            - rowgroup [ref=e116]:
+              - row "Lubostroń 15 A/ 38, kom.33, mp 21" [ref=e117]:
+                - columnheader "Lubostroń 15 A/ 38, kom.33, mp 21" [ref=e118]:
+                  - generic [ref=e119]: Lubostroń 15 A/ 38, kom.33, mp 21
+          - table [ref=e120]:
+            - rowgroup [ref=e121]:
+              - row "Właściciel" [ref=e122]:
+                - generic [ref=e124]: Właściciel
+          - table [ref=e125]:
+            - rowgroup [ref=e126]:
+              - row "Właściciel Udział Za Przeciw" [ref=e127]:
+                - columnheader "Właściciel" [ref=e128]:
+                  - generic [ref=e129]: Właściciel
+                - columnheader "Udział" [ref=e130]
+                - columnheader "Za" [ref=e131]
+                - columnheader "Przeciw" [ref=e132]
+        - heading "Pliki do pobrania" [level=2] [ref=e133]
+        - paragraph [ref=e135]:
+          - link "Sprawozdanie" [ref=e136] [cursor=pointer]:
+            - /url: pliki.php?id=00084724c3155a424a76d31755e52226a0c6c.pdf
+        - heading [level=2]
+  - contentinfo [ref=e137]:
+    - generic [ref=e138]:
+      - iframe [ref=e139]:
+        
+      - paragraph [ref=e140]:
+        - img [ref=e141]
+        - link "Uwaga" [ref=e142] [cursor=pointer]:
+          - /url: "#oknobledy"
+      - paragraph [ref=e143]: "Ostatnia synchronizacja: 2026-06-02 08:33:26"
+      - paragraph [ref=e144]:
+        - text: "Serwis wykonany przez:"
+        - link "MMSOFT sp. z o.o." [ref=e145] [cursor=pointer]:
+          - /url: http://mmsoft.com.pl
+      - paragraph [ref=e146]: (c) All rights reserved 2024
+  - generic [ref=e149]:
+    - generic [ref=e152]:
+      - heading "Uwaga" [level=3] [ref=e153]
+      - paragraph [ref=e154]:
+        - text: Masz jeszcze niezagłosowane uchwały/ankiety
+        - text: "(ilość niezagłosowanych: 3)"
+        - text: Prosimy o oddanie głosu
+    - link "Close" [ref=e155] [cursor=pointer]:
+      - /url: javascript:;

@@ -1,0 +1,16 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e5]: BMT — logowanie
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - generic [ref=e9]: E-mail
+        - textbox "E-mail" [ref=e10]
+      - generic [ref=e11]:
+        - generic [ref=e12]: Hasło
+        - textbox "Hasło" [ref=e13]
+      - button "Zaloguj się" [ref=e14]
+  - button "Open Next.js Dev Tools" [ref=e20] [cursor=pointer]:
+    - img [ref=e21]
+  - alert [ref=e24]
+  - button "Przełącz motyw" [ref=e25]:
+    - img [ref=e26]

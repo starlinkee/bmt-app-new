@@ -26,6 +26,8 @@ export type Database = {
           id: number
           reminder_body: string
           reminder_subject: string
+          rent_email_subject: string | null
+          rent_email_body: string | null
           rent_invoice_input_mapping_json: Json
           rent_invoice_pdf_gid: string
           rent_invoice_spreadsheet_id: string
@@ -41,6 +43,8 @@ export type Database = {
           id?: number
           reminder_body?: string
           reminder_subject?: string
+          rent_email_subject?: string | null
+          rent_email_body?: string | null
           rent_invoice_input_mapping_json?: Json
           rent_invoice_pdf_gid?: string
           rent_invoice_spreadsheet_id?: string
@@ -56,6 +60,8 @@ export type Database = {
           id?: number
           reminder_body?: string
           reminder_subject?: string
+          rent_email_subject?: string | null
+          rent_email_body?: string | null
           rent_invoice_input_mapping_json?: Json
           rent_invoice_pdf_gid?: string
           rent_invoice_spreadsheet_id?: string

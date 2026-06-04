@@ -30,6 +30,10 @@ const DEFAULT_REMINDER_SUBJECT = 'Przypomnienie o płatności czynszu {miesiac}/
 const DEFAULT_REMINDER_BODY =
   'Szanowny/a {imie},\n\nPrzypominamy o płatności czynszu za {miesiac}/{rok} w kwocie {kwota} zł.\n\nPozdrawiamy,\nBMT'
 
+const DEFAULT_RENT_EMAIL_SUBJECT = 'Faktura czynszu {numer_rachunku}'
+const DEFAULT_RENT_EMAIL_BODY =
+  'Szanowny/a {najemca},\n\nW załączeniu faktura za czynsz nr {numer_rachunku} za {miesiac}/{rok} na kwotę {kwota}.\n\nPozdrawiamy,\nBMT'
+
 export default function SettingsPage() {
   const [form, setForm] = useState({
     rent_invoice_spreadsheet_id: '',
@@ -38,6 +42,8 @@ export default function SettingsPage() {
     drive_invoices_folder_id: '',
     reminder_subject: DEFAULT_REMINDER_SUBJECT,
     reminder_body: DEFAULT_REMINDER_BODY,
+    rent_email_subject: DEFAULT_RENT_EMAIL_SUBJECT,
+    rent_email_body: DEFAULT_RENT_EMAIL_BODY,
     gmail_user: '',
     gmail_app_password: '',
     gmail_user_2: '',
@@ -61,6 +67,8 @@ export default function SettingsPage() {
           drive_invoices_folder_id: config.drive_invoices_folder_id ?? '',
           reminder_subject: config.reminder_subject ?? DEFAULT_REMINDER_SUBJECT,
           reminder_body: config.reminder_body ?? DEFAULT_REMINDER_BODY,
+          rent_email_subject: (config as Record<string, unknown>).rent_email_subject as string ?? DEFAULT_RENT_EMAIL_SUBJECT,
+          rent_email_body: (config as Record<string, unknown>).rent_email_body as string ?? DEFAULT_RENT_EMAIL_BODY,
           gmail_user: config.gmail_user ?? '',
           gmail_app_password: config.gmail_app_password ?? '',
           gmail_user_2: (config as Record<string, unknown>).gmail_user_2 as string ?? '',
@@ -90,6 +98,8 @@ export default function SettingsPage() {
           drive_invoices_folder_id: form.drive_invoices_folder_id,
           reminder_subject: form.reminder_subject,
           reminder_body: form.reminder_body,
+          rent_email_subject: form.rent_email_subject || null,
+          rent_email_body: form.rent_email_body || null,
           email_provider: 'gmail_smtp',
           gmail_user: form.gmail_user || null,
           gmail_app_password: form.gmail_app_password || null,
@@ -302,6 +312,46 @@ export default function SettingsPage() {
           <Textarea
             value={form.reminder_body}
             onChange={(e) => setForm({ ...form, reminder_body: e.target.value })}
+            rows={6}
+          />
+        </div>
+
+        <Button onClick={handleSave} disabled={pending}>
+          Zapisz ustawienia
+        </Button>
+      </div>
+
+      <hr />
+
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold">E-mail z fakturą czynszową</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Treść wiadomości wysyłanej najemcy wraz z fakturą PDF przy generowaniu czynszów.
+          </p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Dostępne zmienne w temacie i treści:{' '}
+            <code className="text-xs bg-muted px-1 py-0.5 rounded">{'{najemca}'}</code>{' '}
+            <code className="text-xs bg-muted px-1 py-0.5 rounded">{'{numer_rachunku}'}</code>{' '}
+            <code className="text-xs bg-muted px-1 py-0.5 rounded">{'{kwota}'}</code>{' '}
+            <code className="text-xs bg-muted px-1 py-0.5 rounded">{'{miesiac}'}</code>{' '}
+            <code className="text-xs bg-muted px-1 py-0.5 rounded">{'{rok}'}</code>
+          </p>
+        </div>
+
+        <div className="space-y-1">
+          <Label>Temat wiadomości</Label>
+          <Input
+            value={form.rent_email_subject}
+            onChange={(e) => setForm({ ...form, rent_email_subject: e.target.value })}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <Label>Treść wiadomości</Label>
+          <Textarea
+            value={form.rent_email_body}
+            onChange={(e) => setForm({ ...form, rent_email_body: e.target.value })}
             rows={6}
           />
         </div>
