@@ -80,8 +80,6 @@ app.use(express.json())
 const SECRET_TOKEN = process.env.SKILL_RUNNER_TOKEN
 const WORK_DIR = process.env.WORK_DIR || 'C:\\Users\\Jerzy\\Desktop\\bmt-app-new'
 const OUTPUT_BASE_DIR = process.env.OUTPUT_BASE_DIR || path.join(WORK_DIR, 'claude_code_results')
-const ALLOWED_SKILLS = ['media-lubostron', 'kurs-walut']
-
 const PROMPTS_FILE = path.join(__dirname, 'prompts.json')
 
 function loadPrompts() {
@@ -90,6 +88,27 @@ function loadPrompts() {
 
 function savePrompts(prompts) {
   fs.writeFileSync(PROMPTS_FILE, JSON.stringify(prompts, null, 2))
+}
+
+// Obsługuje stary format (string) i nowy (obiekt z metadanymi)
+function getPromptContent(entry) {
+  if (typeof entry === 'string') return entry
+  return entry?.prompt ?? ''
+}
+
+function getSkillMeta(id, entry) {
+  const defaults = { id, label: id, description: '', timeoutMs: 5 * 60 * 1000 }
+  if (typeof entry !== 'object' || entry === null) return defaults
+  return {
+    id,
+    label: entry.label || id,
+    description: entry.description || '',
+    timeoutMs: entry.timeoutMs || defaults.timeoutMs,
+  }
+}
+
+function isSkillAllowed(skillId) {
+  return skillId in loadPrompts()
 }
 
 function skillCommandPath(skillId) {
@@ -138,9 +157,9 @@ function findJobOutputDir(job) {
     return dirs[0] || null
   } catch { return null }
 }
-const INIT_DELAY_MS = 8000      // czas na inicjalizację Claude
-const IDLE_TIMEOUT_MS = 10000   // brak outputu przez 10s = gotowe
-const MAX_RUNTIME_MS = 10 * 60 * 1000 // twardy limit 10 minut
+const INIT_DELAY_MS = 8000
+const IDLE_TIMEOUT_MS = 120_000  // brak outputu przez 2 minuty = gotowe
+const MAX_RUNTIME_MS = 15 * 60 * 1000 // twardy limit 15 minut
 
 const jobs = new Map()
 
@@ -173,18 +192,22 @@ function spawnClaude(workDir) {
       rows: 30,
     })
   }
+  const spawnEnv = {
+    ...process.env,
+    NODE_PATH: path.join(workDir, 'node_modules'),
+  }
   const runAsUser = process.env.CLAUDE_RUN_AS
   if (runAsUser) {
     return pty.spawn('su', ['-s', '/bin/bash', '-c', `cd ${workDir} && claude --dangerously-skip-permissions`, runAsUser], {
       cwd: workDir,
-      env: { ...process.env },
+      env: spawnEnv,
       cols: 120,
       rows: 30,
     })
   }
   return pty.spawn('claude', ['--dangerously-skip-permissions'], {
     cwd: workDir,
-    env: { ...process.env },
+    env: spawnEnv,
     cols: 120,
     rows: 30,
   })
@@ -194,17 +217,18 @@ app.post('/run-skill', (req, res) => {
   if (!requireToken(req, res)) return
 
   const { skill } = req.body || {}
-  if (!skill || !ALLOWED_SKILLS.includes(skill)) {
-    return res.status(400).json({ error: `Skill not allowed: ${skill}` })
+  if (!skill || !isSkillAllowed(skill)) {
+    return res.status(400).json({ error: `Skill not found: ${skill}` })
   }
 
   const jobId = crypto.randomUUID()
   jobs.set(jobId, { status: 'running', startedAt: new Date().toISOString(), skill, output: '', proc: null })
   res.json({ jobId, status: 'started', skill })
 
-  // Nadpisz .md aktualnym promptem z prompts.json (jeśli istnieje)
+  // Nadpisz .md aktualnym promptem z prompts.json
   const prompts = loadPrompts()
-  if (typeof prompts[skill] === 'string') applyPrompt(skill, prompts[skill])
+  const content = getPromptContent(prompts[skill])
+  if (content) applyPrompt(skill, content)
 
   console.log(`[${jobId}] Uruchamiam Claude PTY dla /${skill} w ${WORK_DIR}`)
 
@@ -245,7 +269,7 @@ app.post('/run-skill', (req, res) => {
   function resetIdleTimer() {
     if (!skillSent) return
     clearTimeout(idleTimer)
-    idleTimer = setTimeout(() => killProc('idle 60s'), IDLE_TIMEOUT_MS)
+    idleTimer = setTimeout(() => killProc('idle 2min'), IDLE_TIMEOUT_MS)
   }
 
   let lastFlush = 0
@@ -417,30 +441,48 @@ app.get('/file', (req, res) => {
   fs.createReadStream(fullPath).pipe(res)
 })
 
+app.get('/skills', (req, res) => {
+  if (!requireToken(req, res)) return
+  const prompts = loadPrompts()
+  const skills = Object.entries(prompts).map(([id, entry]) => getSkillMeta(id, entry))
+  res.json({ skills })
+})
+
 app.get('/skill/:id/prompt', (req, res) => {
   if (!requireToken(req, res)) return
   const { id } = req.params
-  if (!ALLOWED_SKILLS.includes(id)) return res.status(400).json({ error: 'Unknown skill' })
   const prompts = loadPrompts()
-  if (typeof prompts[id] === 'string') return res.json({ content: prompts[id] })
-  try {
-    const content = fs.readFileSync(skillCommandPath(id), 'utf8')
-    res.json({ content })
-  } catch {
-    res.json({ content: '' })
-  }
+  if (!(id in prompts)) return res.status(404).json({ error: 'Skill not found' })
+  res.json({ content: getPromptContent(prompts[id]) })
 })
 
 app.put('/skill/:id/prompt', (req, res) => {
   if (!requireToken(req, res)) return
   const { id } = req.params
-  if (!ALLOWED_SKILLS.includes(id)) return res.status(400).json({ error: 'Unknown skill' })
-  const { content } = req.body || {}
+  if (!/^[a-z0-9-]+$/.test(id) || id.length > 60) return res.status(400).json({ error: 'Invalid skill id' })
+  const { content, label, description, timeoutMs } = req.body || {}
   if (typeof content !== 'string') return res.status(400).json({ error: 'content must be a string' })
   const prompts = loadPrompts()
-  prompts[id] = content
+  const existing = typeof prompts[id] === 'object' && prompts[id] !== null ? prompts[id] : {}
+  prompts[id] = {
+    ...existing,
+    prompt: content,
+    ...(label !== undefined && { label }),
+    ...(description !== undefined && { description }),
+    ...(timeoutMs !== undefined && { timeoutMs }),
+  }
   savePrompts(prompts)
   applyPrompt(id, content)
+  res.json({ ok: true })
+})
+
+app.delete('/skill/:id', (req, res) => {
+  if (!requireToken(req, res)) return
+  const { id } = req.params
+  const prompts = loadPrompts()
+  if (!(id in prompts)) return res.status(404).json({ error: 'Skill not found' })
+  delete prompts[id]
+  savePrompts(prompts)
   res.json({ ok: true })
 })
 
