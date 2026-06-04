@@ -198,7 +198,7 @@ function spawnClaude(workDir) {
   }
   const runAsUser = process.env.CLAUDE_RUN_AS
   if (runAsUser) {
-    return pty.spawn('su', ['-s', '/bin/bash', '-c', `cd ${workDir} && claude --dangerously-skip-permissions`, runAsUser], {
+    return pty.spawn('sudo', ['-u', runAsUser, '/bin/bash', '-c', `cd ${workDir} && claude --dangerously-skip-permissions`], {
       cwd: workDir,
       env: spawnEnv,
       cols: 120,
