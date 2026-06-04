@@ -2,7 +2,10 @@ Używając Playwright w trybie HEADLESS (przeglądarka niewidoczna, bez GUI, bez
 oszczędność zasobów):
 
 1. Przejdź na https://mmsoft.com.pl/lokale.php?Adm=1
-2. Zaloguj się danymi które są już autouzupełnione w formularzu (kliknij przycisk "Zaloguj").
+2. Zaloguj się wpisując dane z zmiennych środowiskowych:
+   - login: wartość zmiennej MMSOFT_LOGIN
+   - hasło: wartość zmiennej MMSOFT_PASSWORD
+   Wypełnij pola formularza i kliknij przycisk "Zaloguj".
 3. Jeśli pojawi się popup/modal "UWAGA" — zamknij go klikając link "Close".
 4. Kliknij "Saldo" w górnym menu nawigacyjnym.
 5. Kliknij "tabela" w lewym panelu bocznym (lista SZCZEGÓŁOWOŚĆ).

@@ -5,16 +5,18 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 
-// Always load .env from the script directory (overrides existing env vars)
-const envFile = path.join(__dirname, '.env')
-if (fs.existsSync(envFile)) {
-  fs.readFileSync(envFile, 'utf8').split(/\r?\n/).forEach(line => {
+// Load env files from script directory (.env first, then secrets.env overrides)
+function loadEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) return
+  fs.readFileSync(filePath, 'utf8').split(/\r?\n/).forEach(line => {
     const eq = line.indexOf('=')
     if (eq > 0 && !line.trim().startsWith('#')) {
       process.env[line.slice(0, eq).trim()] = line.slice(eq + 1).trim()
     }
   })
 }
+loadEnvFile(path.join(__dirname, '.env'))
+loadEnvFile(path.join(__dirname, 'secrets.env'))
 
 function stripAnsi(raw) {
   return raw
