@@ -12,10 +12,10 @@ Dane logowania:
 - login: `process.env.MMSOFT_LOGIN`
 - hasło: `process.env.MMSOFT_PASSWORD`
 
-## Gotowy skrypt — użyj dokładnie tego kodu
+## Gotowy skrypt — użyj DOKŁADNIE tego kodu, bez żadnych zmian
 
-Skopiuj poniższy skrypt jako plik `.js` i uruchom. Nie wymyślaj własnego podejścia do logowania —
-ten kod jest przetestowany i działa.
+Zapisz poniższy kod do pliku `.js` i uruchom. **NIE modyfikuj logiki logowania, obsługi popupu
+ani sposobu pobierania PDF.** Ten kod jest przetestowany i działa — każda zmiana może go zepsuć.
 
 ```javascript
 const { chromium } = require('/home/apprunner/.npm/_npx/e41f203b7505f1fb/node_modules/playwright');
