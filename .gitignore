@@ -1,5 +1,8 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# Claude commands — generowane przez skill-runner z prompts.json, nie syncować przez git
+.claude/commands/
+
 # dependencies
 /node_modules
 /skill-runner/node_modules
