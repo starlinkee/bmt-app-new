@@ -25,7 +25,7 @@ import { TableFilterBar } from '@/components/ui/table-filter-bar'
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 
 const CURRENT_YEAR = new Date().getFullYear()
-const YEARS = Array.from({ length: 5 }, (_, i) => CURRENT_YEAR - i)
+const YEARS = Array.from({ length: 2030 - (CURRENT_YEAR - 4) + 1 }, (_, i) => 2030 - i)
 
 const TYPE_LABELS: Record<string, string> = {
   RENT: 'Czynsz',

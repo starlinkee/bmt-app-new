@@ -77,7 +77,7 @@ export async function sendReminders(contractType: ContractType): Promise<{ sent:
       .from('contracts')
       .select('id, rent_amount, tenants(first_name, last_name, email, email2, sender_account)')
       .eq('is_active', true)
-      .eq('contract_type', contractType),
+      .eq('contract_type', contractType === 'BMT' ? 'BUSINESS' : contractType),
   ])
 
   if (error) {

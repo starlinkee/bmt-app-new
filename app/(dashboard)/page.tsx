@@ -11,7 +11,7 @@ export default async function DashboardPage() {
 
   const supabase = createServiceClient()
 
-  const [{ count: activeContracts }, { data: rentInvoices }, lastOps, opHistory] =
+  const [{ count: activeContracts }, { data: rentInvoices }, lastOps, opHistory, { data: appConfig }] =
     await Promise.all([
       supabase
         .from('contracts')
@@ -25,6 +25,11 @@ export default async function DashboardPage() {
         .eq('year', year),
       getLastOperationTimes(),
       getOperationHistory(),
+      supabase
+        .from('app_config')
+        .select('gmail_user, gmail_user_2')
+        .eq('id', 1)
+        .single(),
     ])
 
   const rentSum = (rentInvoices ?? []).reduce((acc, i) => acc + Number(i.amount), 0)
@@ -69,7 +74,11 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      <ReminderButtons lastOps={lastOps} />
+      <ReminderButtons
+        lastOps={lastOps}
+        gmailAccount1={appConfig?.gmail_user ?? null}
+        gmailAccount2={appConfig?.gmail_user_2 ?? null}
+      />
 
       <OperationHistory entries={opHistory} />
     </div>
