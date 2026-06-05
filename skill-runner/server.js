@@ -250,6 +250,8 @@ app.post('/run-skill', (req, res) => {
   if (job) job.proc = proc
 
   let skillSent = false
+  let hasProducedOutput = false
+  let promptDetected = false
   let idleTimer = null
   const maxTimer = setTimeout(() => killProc('timeout'), MAX_RUNTIME_MS)
 
@@ -279,6 +281,19 @@ app.post('/run-skill', (req, res) => {
     process.stdout.write(data)
     buffer.write(data)
     resetIdleTimer()
+
+    if (skillSent && !promptDetected) {
+      const stripped = stripAnsi(data)
+      if (!hasProducedOutput && (stripped.includes('●') || stripped.includes('⎿'))) {
+        hasProducedOutput = true
+      }
+      // ❯ prompt after Claude produced output = task complete
+      if (hasProducedOutput && stripped.includes('❯')) {
+        promptDetected = true
+        clearTimeout(idleTimer)
+        setTimeout(() => killProc('prompt-detected'), 3000)
+      }
+    }
 
     const now = Date.now()
     if (now - lastFlush > 2000) {
