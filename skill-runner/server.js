@@ -160,7 +160,7 @@ function findJobOutputDir(job) {
   } catch { return null }
 }
 const INIT_DELAY_MS = 8000
-const IDLE_TIMEOUT_MS = 120_000  // brak outputu przez 2 minuty = gotowe
+const IDLE_TIMEOUT_MS = 15_000  // brak outputu przez 15 sekund = gotowe
 const MAX_RUNTIME_MS = 15 * 60 * 1000 // twardy limit 15 minut
 
 const jobs = new Map()
@@ -250,8 +250,6 @@ app.post('/run-skill', (req, res) => {
   if (job) job.proc = proc
 
   let skillSent = false
-  let hasProducedOutput = false
-  let promptDetected = false
   let idleTimer = null
   const maxTimer = setTimeout(() => killProc('timeout'), MAX_RUNTIME_MS)
 
@@ -281,19 +279,6 @@ app.post('/run-skill', (req, res) => {
     process.stdout.write(data)
     buffer.write(data)
     resetIdleTimer()
-
-    if (skillSent && !promptDetected) {
-      const stripped = stripAnsi(data)
-      if (!hasProducedOutput && (stripped.includes('●') || stripped.includes('⎿'))) {
-        hasProducedOutput = true
-      }
-      // ❯ prompt after Claude produced output = task complete
-      if (hasProducedOutput && stripped.includes('❯')) {
-        promptDetected = true
-        clearTimeout(idleTimer)
-        setTimeout(() => killProc('prompt-detected'), 3000)
-      }
-    }
 
     const now = Date.now()
     if (now - lastFlush > 2000) {
