@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import Link from 'next/link'
@@ -133,10 +133,28 @@ export default function TenantsPage() {
   const [editing, setEditing] = useState<Tenant | null>(null)
   const [form, setForm] = useState(emptyForm())
   const [pending, startTransition] = useTransition()
-  const [sortKey, setSortKey] = useState<SortKey>('name')
+  const [sortKey, setSortKey] = useState<SortKey>('type')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [filterText, setFilterText] = useState('')
   const [filterCol, setFilterCol] = useState('__all__')
+
+  useEffect(() => {
+    const sk = sessionStorage.getItem('tenants_sortKey') as SortKey | null
+    const sd = sessionStorage.getItem('tenants_sortDir') as SortDir | null
+    const ft = sessionStorage.getItem('tenants_filterText')
+    const fc = sessionStorage.getItem('tenants_filterCol')
+    if (sk) setSortKey(sk)
+    if (sd) setSortDir(sd)
+    if (ft !== null) setFilterText(ft)
+    if (fc) setFilterCol(fc)
+  }, [])
+
+  useEffect(() => {
+    sessionStorage.setItem('tenants_sortKey', sortKey)
+    sessionStorage.setItem('tenants_sortDir', sortDir)
+    sessionStorage.setItem('tenants_filterText', filterText)
+    sessionStorage.setItem('tenants_filterCol', filterCol)
+  }, [sortKey, sortDir, filterText, filterCol])
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -448,7 +466,12 @@ export default function TenantsPage() {
                 onValueChange={(v) => setForm({ ...form, sender_account: v ?? '1' })}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue>
+                    {(v: string | null) => {
+                      if (v === '2') return (appConfig as Record<string, unknown>)?.gmail_user_2 ? `Konto 2 (${(appConfig as Record<string, unknown>).gmail_user_2 as string})` : 'Konto 2 (nie skonfigurowano)'
+                      return appConfig?.gmail_user ? `Konto 1 (${appConfig.gmail_user})` : 'Konto 1 (nie skonfigurowano)'
+                    }}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="1">
