@@ -2,10 +2,12 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
 import { useQuery } from '@tanstack/react-query'
-import { getTenantsWithBalances } from './actions'
+import { getTenantsWithBalances, getGlobalPaymentStats, sendStatementToTenant } from './actions'
 import { QUERY_KEYS } from '@/lib/queryKeys'
-import { formatAmount } from '@/lib/utils'
+import { formatAmount, formatDate } from '@/lib/utils'
 import {
   Table,
   TableBody,
@@ -15,7 +17,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { TableFilterBar } from '@/components/ui/table-filter-bar'
-import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronsUpDown, Mail } from 'lucide-react'
 
 type TenantWithBalance = Awaited<ReturnType<typeof getTenantsWithBalances>>[number]
 type SortKey = 'name' | 'property' | 'balance'
@@ -64,6 +66,11 @@ export default function KontrolaPlatnosciPage() {
     queryFn: getTenantsWithBalances,
   })
 
+  const { data: stats } = useQuery({
+    queryKey: ['globalPaymentStats'],
+    queryFn: getGlobalPaymentStats,
+  })
+
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [filterText, setFilterText] = useState('')
@@ -96,11 +103,32 @@ export default function KontrolaPlatnosciPage() {
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Kontrola płatności</h1>
-        <div className="text-sm text-muted-foreground">
-          Łączne saldo:{' '}
-          <span className="font-semibold">
-            {formatAmount(totalBalance)}
-          </span>
+        <div className="flex items-center gap-6 text-sm text-muted-foreground">
+          <div className="flex flex-col items-end">
+            <div>
+              Łączne saldo:{' '}
+              <span className={`font-semibold ${totalBalance >= 0 ? 'text-green-600' : 'text-destructive'}`}>
+                {formatAmount(totalBalance)}
+              </span>
+            </div>
+            {stats && (
+              <div className="text-xs mt-1">
+                Całkowity zarobek: <span className="font-semibold text-foreground">{formatAmount(stats.totalEarnings)}</span>
+              </div>
+            )}
+            {stats?.trackingSince && (
+              <div className="text-xs">
+                Śledzimy od: <span className="font-semibold text-foreground">{formatDate(stats.trackingSince)}</span>
+              </div>
+            )}
+          </div>
+          <Button 
+            size="sm" 
+            variant="outline"
+            onClick={() => router.push('/wiadomosci')}
+          >
+            Dziennik wiadomości
+          </Button>
         </div>
       </div>
 
@@ -124,6 +152,7 @@ export default function KontrolaPlatnosciPage() {
             <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort('balance')}>
               Saldo<SortIcon col="balance" />
             </TableHead>
+            <TableHead className="w-16"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -162,6 +191,23 @@ export default function KontrolaPlatnosciPage() {
                 }`}
               >
                 {formatAmount(t.balance)}
+              </TableCell>
+              <TableCell>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    toast.promise(sendStatementToTenant(t.id), {
+                      loading: 'Wysyłanie wyciągu...',
+                      success: 'Wysłano pomyślnie!',
+                      error: (err) => err.message || 'Błąd wysyłania'
+                    })
+                  }}
+                  title="Wyślij podsumowanie do tego najemcy"
+                >
+                  <Mail className="h-4 w-4" />
+                </Button>
               </TableCell>
             </TableRow>
           ))}

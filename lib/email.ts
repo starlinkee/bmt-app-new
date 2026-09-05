@@ -57,6 +57,18 @@ async function sendEmail({ to, subject, html, attachments = [], cfg }: SendParam
       html,
       attachments: attachments.map((a) => ({ filename: a.filename, content: a.content })),
     })
+
+    try {
+      const supabase = createServiceClient()
+      const recipients = Array.isArray(to) ? to.join(', ') : to
+      await supabase.from('email_logs').insert({
+        to_email: recipients,
+        subject,
+        body: html,
+      })
+    } catch (e) {
+      console.error('Failed to log email', e)
+    }
   }
 }
 
@@ -172,3 +184,20 @@ export async function sendPrivateMonthlyReminder(
     .join('')
   await sendEmail({ to, subject, html, cfg })
 }
+
+export async function sendStatementEmail(
+  to: string | string[],
+  tenantName: string,
+  balance: number,
+  pdfBuffer: Buffer,
+  senderAccount: 1 | 2 = 1,
+) {
+  const cfg = await getProviderConfig(senderAccount)
+  const subject = `Rozliczenie wplat i rachunków - BMT`
+  const html = `<p>Szanowny/a ${tenantName},</p><p>Przesylamy w zalaczeniu aktualne podsumowanie Panstwa konta. Saldo na dzien dzisiejszy wynosi: <strong>${balance}</strong>.</p><p>Prosimy o uregulowanie naleznosci.</p><p>Pozdrawiamy,<br>BMT</p>`
+  
+  const attachments = [{ filename: 'Wyciag_z_konta.pdf', content: pdfBuffer }]
+  
+  await sendEmail({ to, subject, html, attachments, cfg })
+}
+

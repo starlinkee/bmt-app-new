@@ -36,7 +36,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Pencil, Trash2, Plus, ExternalLink, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { Pencil, Trash2, Plus, ExternalLink, ChevronUp, ChevronDown, ChevronsUpDown, Link2 } from 'lucide-react'
 import { TableFilterBar } from '@/components/ui/table-filter-bar'
 
 type Tenant = Awaited<ReturnType<typeof getTenants>>[number]
@@ -337,6 +337,13 @@ export default function TenantsPage() {
                   >
                     <ExternalLink className="h-4 w-4" />
                   </Link>
+                  <Button variant="ghost" size="icon" onClick={() => {
+                    const url = `${window.location.origin}/odczyty/${(t as any).reading_token}`
+                    navigator.clipboard.writeText(url)
+                    toast.success('Link do odczytów skopiowany!')
+                  }} title="Kopiuj link do odczytów">
+                    <Link2 className="h-4 w-4" />
+                  </Button>
                   <Button variant="ghost" size="icon" onClick={() => openEdit(t)}>
                     <Pencil className="h-4 w-4" />
                   </Button>

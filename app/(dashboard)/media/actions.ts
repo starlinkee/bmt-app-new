@@ -60,12 +60,19 @@ export async function createSettlementGroup(data: {
   email_subject_template?: string
   email_body_template?: string
   property_ids: number[]
+  tenant_reading_keys?: string[]
 }) {
   const supabase = createServiceClient()
-  const { property_ids, ...rest } = data
+  const { property_ids, tenant_reading_keys, ...groupData } = data
+  
+  const payload = { ...groupData }
+  if (tenant_reading_keys) {
+    (payload as any).tenant_reading_keys = tenant_reading_keys
+  }
+
   const { data: created, error } = await supabase
     .from('settlement_groups')
-    .insert(rest)
+    .insert(payload)
     .select('id')
     .single()
   if (error) throw error
@@ -84,7 +91,7 @@ export async function createSettlementGroup(data: {
     tableName: 'settlement_groups',
     operation: 'CREATE',
     recordId: created.id,
-    afterData: { ...rest, property_ids },
+    afterData: { ...groupData, property_ids, tenant_reading_keys },
   })
   revalidatePath('/media')
 }
@@ -100,17 +107,23 @@ export async function updateSettlementGroup(
     email_subject_template?: string
     email_body_template?: string
     property_ids?: number[]
+    tenant_reading_keys?: string[]
   },
 ) {
   const supabase = createServiceClient()
-  const { property_ids, ...rest } = data
+  const { property_ids, tenant_reading_keys, ...rest } = data
 
   const { data: before } = await supabase.from('settlement_groups').select('*').eq('id', id).single()
 
-  if (Object.keys(rest).length) {
+  const payload = { ...rest }
+  if (tenant_reading_keys !== undefined) {
+    (payload as any).tenant_reading_keys = tenant_reading_keys
+  }
+
+  if (Object.keys(payload).length) {
     const { error } = await supabase
       .from('settlement_groups')
-      .update(rest)
+      .update(payload)
       .eq('id', id)
     if (error) {
       await logAudit({ actionName: 'updateSettlementGroup', tableName: 'settlement_groups', operation: 'UPDATE', recordId: id, beforeData: before, errorData: error })
@@ -452,47 +465,6 @@ export async function processSettlement(
           console.error('[media] invoice upsert error:', JSON.stringify(error), 'amount:', amount, 'tenant:', tenant.id)
           return null
         }
-
-        // 9. Wygeneruj rachunek używając tego samego szablonu co czynsz (app_config)
-        if (config?.rent_invoice_spreadsheet_id) {
-          try {
-            const dueDate = new Date(Date.UTC(year, month - 1, 10))
-            const vars: Record<string, string> = {
-              numer_rachunku: invoiceNumber,
-              data_wystawienia: new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString('pl-PL'),
-              termin_platnosci: dueDate.toLocaleDateString('pl-PL'),
-              najemca: tenantDisplayName(tenant),
-              adres_1: (tenant as Record<string, unknown>).address1 as string ?? '',
-              adres_2: (tenant as Record<string, unknown>).address2 as string ?? '',
-              nip: (tenant as Record<string, unknown>).nip as string ?? '',
-              miesiac: String(month),
-              rok: String(year),
-              kwota: amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-              kwota_slownie: amountToWordsPLN(amount),
-              opis_rachunku: (activeContract as Record<string, unknown>).opis_rachunku_media as string
-                || (activeContract as Record<string, unknown>).opis_rachunku as string
-                || '',
-            }
-
-            const invoiceName = `Rachunek ${invoiceNumber.replace(/\//g, '-')} – ${tenantDisplayName(tenant)}`
-            const invoiceSheetId = await copySpreadsheet(config.rent_invoice_spreadsheet_id, invoiceName, monthFolder, getServiceAccountEmail())
-
-            const rawMapping = config.rent_invoice_input_mapping_json as InvoiceMappingEntry[] | null
-            if (rawMapping?.length) {
-              const resolved = resolveInvoiceMapping(rawMapping, vars)
-              const inputMapping = Object.fromEntries(Object.keys(resolved).map((k) => [k, k]))
-              await writeInputValues(invoiceSheetId, inputMapping, resolved)
-            }
-
-            try { await stripSpreadsheetColors(invoiceSheetId) } catch {}
-
-            invoicePdfBuffer = await exportSheetAsPdf(invoiceSheetId, (config as Record<string, unknown>).rent_invoice_pdf_gid as string || undefined)
-            await uploadPdfToDrive(`${invoiceNumber.replace(/\//g, '-')}.pdf`, invoicePdfBuffer, monthFolder)
-          } catch (e) {
-            invoiceError = e instanceof Error ? e.message : String(e)
-            console.error('[media] Błąd generowania rachunku dla najemcy', tenant.id, ':', invoiceError)
-          }
-        }
       } else {
         // PRIVATE: zapisz należność bez formalnego numeru rachunku
         await supabase.from('invoices').upsert(
@@ -510,6 +482,19 @@ export async function processSettlement(
         )
       }
 
+      // 9. Wygeneruj Notę Rozliczeniową (Mockup) dla każdego najemcy
+      try {
+        const { generateMockupNotaPdfBuffer } = await import('@/lib/pdf')
+        const tenantName = tenantDisplayName(tenant)
+        invoicePdfBuffer = await generateMockupNotaPdfBuffer(tenantName, amount, month, year)
+        
+        const fileName = `Nota_Rozliczeniowa_${tenantName.replace(/\s+/g, '_')}_${month}_${year}.pdf`
+        await uploadPdfToDrive(fileName, invoicePdfBuffer, monthFolder)
+      } catch (e) {
+        invoiceError = e instanceof Error ? e.message : String(e)
+        console.error('[media] Błąd generowania noty dla najemcy', tenant.id, ':', invoiceError)
+      }
+
       let emailError: string | undefined
       if (tenant.email) {
         const attachments = (entry.email_pdfs ?? [])
@@ -520,9 +505,9 @@ export async function processSettlement(
             buffer: p.buffer,
           }))
 
-        if (invoicePdfBuffer && invoiceNumber) {
+        if (invoicePdfBuffer) {
           attachments.push({
-            filename: `Rachunek_${invoiceNumber.replace(/\//g, '-')}.pdf`,
+            filename: `Nota_Rozliczeniowa_${String(month).padStart(2, '0')}_${year}.pdf`,
             buffer: invoicePdfBuffer,
           })
         }

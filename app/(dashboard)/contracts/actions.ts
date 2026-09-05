@@ -94,3 +94,24 @@ export async function revaluateContract(id: number, inflationPercent: number) {
   revalidatePath('/contracts')
   return newRent
 }
+
+export async function getContractStats(month: number, year: number) {
+  const supabase = createServiceClient()
+  const [{ count: activeContracts }, { data: rentInvoices }] =
+    await Promise.all([
+      supabase
+        .from('contracts')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_active', true),
+      supabase
+        .from('invoices')
+        .select('amount')
+        .eq('type', 'RENT')
+        .eq('month', month)
+        .eq('year', year),
+    ])
+
+  const rentSum = (rentInvoices ?? []).reduce((acc, i) => acc + Number(i.amount), 0)
+  const rentCount = rentInvoices?.length ?? 0
+  return { activeContracts: activeContracts ?? 0, rentSum, rentCount }
+}

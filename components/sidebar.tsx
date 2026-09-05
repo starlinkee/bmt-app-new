@@ -16,22 +16,22 @@ import {
   ArrowLeftRight,
   History,
   Bot,
+  Mail,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { logoutAction } from '@/app/login/actions'
 
 const navItems = [
-  { href: '/', label: 'Strona główna', icon: LayoutDashboard },
+  { href: '/contracts', label: 'Umowy', icon: FileText },
   { href: '/properties', label: 'Nieruchomości', icon: Building2 },
   { href: '/tenants', label: 'Najemcy', icon: Users },
-  { href: '/contracts', label: 'Umowy', icon: FileText },
-  { href: '/finance', label: 'Czynsze', icon: CreditCard },
   { href: '/media', label: 'Media', icon: Gauge },
   { href: '/import', label: 'Import CSV', icon: Upload },
   { href: '/kontrola-platnosci', label: 'Kontrola płatności', icon: ClipboardList },
   { href: '/przeplywy', label: 'Przepływy', icon: ArrowLeftRight },
+  { href: '/wiadomosci', label: 'Dziennik wiad.', icon: Mail },
   { href: '/audit', label: 'Historia operacji', icon: History },
-  { href: '/automatyzacje', label: 'Automatyzacje', icon: Bot },
+  { href: '/automatyzacje', label: 'Ściągnij faktury z AI', icon: Bot },
 ]
 
 export function Sidebar() {
