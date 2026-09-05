@@ -135,29 +135,34 @@ export async function getGlobalPaymentStats() {
 }
 
 export async function sendStatementToTenant(tenantId: number) {
-  const supabase = createServiceClient()
-  const { data: config } = await supabase.from('app_config').select('*').eq('id', 1).single()
-  if (!config) throw new Error('Brak konfiguracji aplikacji')
+  try {
+    const supabase = createServiceClient()
+    const { data: config } = await supabase.from('app_config').select('*').eq('id', 1).single()
+    if (!config) throw new Error('Brak konfiguracji aplikacji')
 
-  const tenant = await getTenantWithBalance(tenantId)
-  if (!tenant) throw new Error('Nie znaleziono najemcy')
+    const tenant = await getTenantWithBalance(tenantId)
+    if (!tenant) throw new Error('Nie znaleziono najemcy')
 
-  const { data: tDb } = await supabase.from('tenants').select('email, email2, sender_account').eq('id', tenant.id).single()
-  if (!tDb || !tDb.email) throw new Error('Najemca nie ma przypisanego adresu email')
+    const { data: tDb } = await supabase.from('tenants').select('email, email2, sender_account').eq('id', tenant.id).single()
+    if (!tDb || !tDb.email) throw new Error('Najemca nie ma przypisanego adresu email')
 
-  const { getStatement } = await import('@/lib/statement')
-  const { generateStatementPdfBuffer } = await import('@/lib/pdf')
-  const { sendStatementEmail } = await import('@/lib/email')
+    const { getStatement } = await import('@/lib/statement')
+    const { generateStatementPdfBuffer } = await import('@/lib/pdf')
+    const { sendStatementEmail } = await import('@/lib/email')
 
-  const statement = await getStatement(tenant.id)
-  const reversedStatement = statement.slice().reverse()
-  
-  const tenantName = `${tenant.first_name} ${tenant.last_name}`
-  const pdfBuffer = await generateStatementPdfBuffer(tenantName, reversedStatement, tenant.balance)
-  
-  const recipients = [tDb.email, tDb.email2].filter(Boolean) as string[]
-  const senderAccount = (tDb.sender_account ?? 1) === 2 ? 2 : 1
-  await sendStatementEmail(recipients, tenantName, tenant.balance, pdfBuffer, senderAccount, config.late_reminder_subject, config.late_reminder_body)
+    const statement = await getStatement(tenant.id)
+    const reversedStatement = statement.slice().reverse()
+    
+    const tenantName = `${tenant.first_name} ${tenant.last_name}`
+    const pdfBuffer = await generateStatementPdfBuffer(tenantName, reversedStatement, tenant.balance)
+    
+    const recipients = [tDb.email, tDb.email2].filter(Boolean) as string[]
+    const senderAccount = (tDb.sender_account ?? 1) === 2 ? 2 : 1
+    await sendStatementEmail(recipients, tenantName, tenant.balance, pdfBuffer, senderAccount, config.late_reminder_subject, config.late_reminder_body)
 
-  return { success: true }
+    return { success: true }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Nieznany błąd podczas wysyłania wyciągu'
+    return { success: false, error: message }
+  }
 }
