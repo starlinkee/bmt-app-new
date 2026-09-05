@@ -12,7 +12,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select,
   SelectContent,
@@ -20,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Button } from '@/components/ui/button'
 import { TableFilterBar } from '@/components/ui/table-filter-bar'
 import { FacetedFilter } from '@/components/ui/faceted-filter'
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
@@ -122,7 +120,7 @@ export default function PrzeplywyPage() {
     staleTime: 2 * 60 * 1000,
   })
 
-  const { data: firstTransactionDate } = useQuery({
+  useQuery({
     queryKey: ['firstTransactionDate'],
     queryFn: getFirstTransactionDate,
     staleTime: Infinity,
