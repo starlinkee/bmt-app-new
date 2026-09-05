@@ -9,19 +9,19 @@ export async function getTenantReadingsContext(token: string) {
   // Znajdź najemcę po tokenie i pobierz jego aktywne umowy z włączonymi mediami
   const { data: tenant, error: tenantErr } = await supabase
     .from('tenants')
-    .select('id, first_name, last_name, contracts(is_active, has_media_invoice, property_id)')
+    .select('id, first_name, last_name, property_id, contracts(is_active, has_media_invoice)')
     // @ts-expect-error type inference is wrong here
     .eq('reading_token', token)
     .single()
     
   if (tenantErr || !tenant) return null
   
-  const activeMediaContracts = (tenant.contracts as { is_active: boolean; has_media_invoice: boolean; property_id: number }[] | undefined)
+  const activeMediaContracts = (tenant.contracts as unknown as { is_active: boolean; has_media_invoice: boolean }[] | undefined)
     ?.filter(c => c.is_active && c.has_media_invoice) || []
     
   if (activeMediaContracts.length === 0) return null
   
-  const propertyIds = [...new Set(activeMediaContracts.map(c => c.property_id).filter(Boolean))]
+  const propertyIds = tenant.property_id ? [tenant.property_id] : []
   if (propertyIds.length === 0) return null
 
   // Znajdź grupy rozliczeniowe, do których należą te nieruchomości

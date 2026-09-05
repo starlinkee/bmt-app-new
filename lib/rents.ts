@@ -3,25 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/service'
 import { logAudit } from '@/lib/audit'
-import { buildInvoiceNumber, tenantDisplayName } from '@/lib/utils'
-import { exportSheetAsPdf, writeInputValues, stripSpreadsheetColors, getServiceAccountEmail } from '@/lib/sheetsEngine'
-import { ensureYearMonthFolder, uploadPdfToDrive, copySpreadsheet } from '@/lib/driveEngine'
-import { sendRentEmail } from '@/lib/email'
-import { amountToWordsPLN } from '@/lib/numberWords'
-
-type InvoiceMappingEntry = { range: string; value: string }
-
-function resolveInvoiceMapping(
-  mapping: InvoiceMappingEntry[],
-  vars: Record<string, string>,
-): Record<string, string> {
-  const result: Record<string, string> = {}
-  for (const entry of mapping) {
-    const resolved = entry.value.replace(/\{(\w+)\}/g, (_, key) => vars[key] ?? '')
-    result[entry.range] = resolved
-  }
-  return result
-}
+import { tenantDisplayName } from '@/lib/utils'
 
 export async function getRentPreview(month: number, year: number) {
   const supabase = createServiceClient()
@@ -72,12 +54,6 @@ export async function generateRents(month: number, year: number) {
   const supabase = createServiceClient()
   const { withEmail, withoutEmail } = await getRentPreview(month, year)
   const allContracts = [...(withEmail ?? []), ...(withoutEmail ?? [])]
-
-  const { data: config } = await supabase
-    .from('app_config')
-    .select('*')
-    .eq('id', 1)
-    .single()
 
 
 

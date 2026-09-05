@@ -25,8 +25,8 @@ export default function TestowaniePage() {
       } else {
         setResult({ error: data.error || 'Wystąpił nieznany błąd' })
       }
-    } catch (err: any) {
-      setResult({ error: err.message })
+    } catch (err: unknown) {
+      setResult({ error: err instanceof Error ? err.message : 'Wystąpił błąd' })
     } finally {
       setLoading(false)
     }
@@ -116,7 +116,7 @@ export default function TestowaniePage() {
             Zmień datę dla linków najemców (Media)
           </CardTitle>
           <CardDescription>
-            Pozwala "oszukać" serwer i przetestować, co zobaczy najemca wchodzący w link do mediów o danej dacie.
+            Pozwala &quot;oszukać&quot; serwer i przetestować, co zobaczy najemca wchodzący w link do mediów o danej dacie.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-6 space-y-4">
