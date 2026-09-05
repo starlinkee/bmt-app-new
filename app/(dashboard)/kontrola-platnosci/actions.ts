@@ -101,7 +101,7 @@ export async function sendBulkStatements() {
     const recipients = [tDb.email, tDb.email2].filter(Boolean) as string[]
     const senderAccount = (tDb.sender_account ?? 1) === 2 ? 2 : 1
     
-    await sendStatementEmail(recipients, tenantName, tenant.balance, pdfBuffer, senderAccount)
+    await sendStatementEmail(recipients, tenantName, tenant.balance, pdfBuffer, senderAccount, config.late_reminder_subject, config.late_reminder_body)
     sentCount++
   }
 
@@ -157,8 +157,7 @@ export async function sendStatementToTenant(tenantId: number) {
   
   const recipients = [tDb.email, tDb.email2].filter(Boolean) as string[]
   const senderAccount = (tDb.sender_account ?? 1) === 2 ? 2 : 1
-  
-  await sendStatementEmail(recipients, tenantName, tenant.balance, pdfBuffer, senderAccount)
+  await sendStatementEmail(recipients, tenantName, tenant.balance, pdfBuffer, senderAccount, config.late_reminder_subject, config.late_reminder_body)
 
   return { success: true }
 }

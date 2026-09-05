@@ -25,7 +25,6 @@ type SortDir = 'asc' | 'desc'
 type EntryTypeFilter = 'all' | 'transaction' | 'invoice'
 type CategoryFilter = 'all' | 'RENT' | 'MEDIA'
 
-const FILTER_COLUMNS = [{ key: 'description', label: 'Opis' }]
 
 const CATEGORY_LABELS: Record<string, string> = {
   RENT: 'Czynsz',
@@ -93,11 +92,10 @@ function fmtDatePL(iso: string): string {
   return `${d}.${m}.${y}`
 }
 
-function matchesTextFilter(entry: StatementEntry, text: string, col: string): boolean {
+function matchesTextFilter(entry: StatementEntry, text: string): boolean {
   const q = text.toLowerCase()
   const description = (entry.description ?? '').toLowerCase()
-  if (col === '__all__' || col === 'description') return description.includes(q)
-  return false
+  return description.includes(q)
 }
 
 function SortIcon({ col, sortKey, sortDir }: { col: SortKey, sortKey: SortKey, sortDir: SortDir }) {
@@ -115,7 +113,6 @@ export default function TenantStatementPage() {
   const [sortKey, setSortKey] = useState<SortKey>('date')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [filterText, setFilterText] = useState('')
-  const [filterCol, setFilterCol] = useState('__all__')
   const [entryTypeFilter, setEntryTypeFilter] = useState<EntryTypeFilter>('all')
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
   const [dateFrom, setDateFrom] = useState('')
@@ -146,7 +143,7 @@ export default function TenantStatementPage() {
   const filtered = statement
     .filter((e) => matchesFilters(e, entryTypeFilter, categoryFilter))
     .filter((e) => matchesDateRange(e, dateFrom, dateTo))
-    .filter((e) => !filterText || matchesTextFilter(e, filterText, filterCol))
+    .filter((e) => !filterText || matchesTextFilter(e, filterText))
   const sorted = sortStatement(filtered, sortKey, sortDir)
 
   const hasDates = !!(dateFrom || dateTo)
@@ -362,9 +359,7 @@ export default function TenantStatementPage() {
           <TableFilterBar
             value={filterText}
             onChange={setFilterText}
-            column={filterCol}
-            onColumnChange={setFilterCol}
-            columns={FILTER_COLUMNS}
+            hideColumns={true}
           />
         </div>
 

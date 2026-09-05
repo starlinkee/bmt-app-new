@@ -39,34 +39,21 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Pencil, Trash2, Plus, ExternalLink, ChevronUp, ChevronDown, ChevronsUpDown, Link2 } from 'lucide-react'
 import { TableFilterBar } from '@/components/ui/table-filter-bar'
+import { FacetedFilter } from '@/components/ui/faceted-filter'
 
 type Tenant = Awaited<ReturnType<typeof getTenants>>[number]
 type Property = Awaited<ReturnType<typeof getProperties>>[number]
 type SortKey = 'name' | 'property' | 'type' | 'email' | 'phone' | 'contracts'
 type SortDir = 'asc' | 'desc'
 
-const FILTER_COLUMNS = [
-  { key: 'name', label: 'Imię i nazwisko' },
-  { key: 'property', label: 'Nieruchomość' },
-  { key: 'type', label: 'Typ' },
-  { key: 'email', label: 'E-mail' },
-  { key: 'phone', label: 'Telefon' },
-]
-
-function matchesTenantFilter(t: Tenant, text: string, col: string): boolean {
+function matchesTenantFilter(t: Tenant, text: string): boolean {
   const q = text.toLowerCase()
   const name = `${t.first_name} ${t.last_name}`.toLowerCase()
   const property = ((t.properties as unknown as { name: string } | null)?.name ?? '').toLowerCase()
   const type = t.tenant_type.toLowerCase()
   const email = (t.email ?? '').toLowerCase()
   const phone = (t.phone ?? '').toLowerCase()
-  if (col === '__all__') return name.includes(q) || property.includes(q) || type.includes(q) || email.includes(q) || phone.includes(q)
-  if (col === 'name') return name.includes(q)
-  if (col === 'property') return property.includes(q)
-  if (col === 'type') return type.includes(q)
-  if (col === 'email') return email.includes(q)
-  if (col === 'phone') return phone.includes(q)
-  return false
+  return name.includes(q) || property.includes(q) || type.includes(q) || email.includes(q) || phone.includes(q)
 }
 
 function sortTenants(tenants: Tenant[], key: SortKey, dir: SortDir): Tenant[] {
@@ -144,25 +131,24 @@ export default function TenantsPage() {
   const [sortKey, setSortKey] = useState<SortKey>('type')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [filterText, setFilterText] = useState('')
-  const [filterCol, setFilterCol] = useState('__all__')
+
+  const [propertyNames, setPropertyNames] = useState<Set<string>>(new Set())
+  const [tenantTypes, setTenantTypes] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const sk = sessionStorage.getItem('tenants_sortKey') as SortKey | null
     const sd = sessionStorage.getItem('tenants_sortDir') as SortDir | null
     const ft = sessionStorage.getItem('tenants_filterText')
-    const fc = sessionStorage.getItem('tenants_filterCol')
     if (sk) setSortKey(sk)
     if (sd) setSortDir(sd)
     if (ft !== null) setFilterText(ft)
-    if (fc) setFilterCol(fc)
   }, [])
 
   useEffect(() => {
     sessionStorage.setItem('tenants_sortKey', sortKey)
     sessionStorage.setItem('tenants_sortDir', sortDir)
     sessionStorage.setItem('tenants_filterText', filterText)
-    sessionStorage.setItem('tenants_filterCol', filterCol)
-  }, [sortKey, sortDir, filterText, filterCol])
+  }, [sortKey, sortDir, filterText])
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -173,10 +159,21 @@ export default function TenantsPage() {
     }
   }
 
+  const facetedTenants = tenants.filter(t => {
+    const pName = (t.properties as unknown as { name: string } | null)?.name ?? ''
+    const tType = t.tenant_type
+
+    if (propertyNames.size > 0 && !propertyNames.has(pName)) return false
+    if (tenantTypes.size > 0 && !tenantTypes.has(tType)) return false
+    return true
+  })
+
   const filteredTenants = filterText
-    ? tenants.filter((t) => matchesTenantFilter(t, filterText, filterCol))
-    : tenants
+    ? facetedTenants.filter((t) => matchesTenantFilter(t, filterText))
+    : facetedTenants
   const sortedTenants = sortTenants(filteredTenants, sortKey, sortDir)
+
+  const uniqueProperties = Array.from(new Set(tenants.map(t => (t.properties as unknown as { name: string } | null)?.name ?? '').filter(Boolean))).sort()
 
   function openCreate() {
     setEditing(null)
@@ -272,10 +269,23 @@ export default function TenantsPage() {
       <TableFilterBar
         value={filterText}
         onChange={setFilterText}
-        column={filterCol}
-        onColumnChange={setFilterCol}
-        columns={FILTER_COLUMNS}
+        hideColumns={true}
       />
+
+      <div className="flex flex-wrap gap-2 items-center pb-2">
+        <FacetedFilter
+          title="Nieruchomość"
+          options={uniqueProperties.map(p => ({ label: p, value: p }))}
+          selectedValues={propertyNames}
+          onSelectedChange={setPropertyNames}
+        />
+        <FacetedFilter
+          title="Typ"
+          options={[{ label: 'PRIVATE', value: 'PRIVATE' }, { label: 'BUSINESS', value: 'BUSINESS' }]}
+          selectedValues={tenantTypes}
+          onSelectedChange={setTenantTypes}
+        />
+      </div>
 
       <Table>
         <TableHeader>

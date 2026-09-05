@@ -191,10 +191,21 @@ export async function sendStatementEmail(
   balance: number,
   pdfBuffer: Buffer,
   senderAccount: 1 | 2 = 1,
+  subjectTemplate?: string,
+  bodyTemplate?: string,
 ) {
   const cfg = await getProviderConfig(senderAccount)
-  const subject = `Rozliczenie wplat i rachunków - BMT`
-  const html = `<p>Szanowny/a ${tenantName},</p><p>Przesylamy w zalaczeniu aktualne podsumowanie Panstwa konta. Saldo na dzien dzisiejszy wynosi: <strong>${balance}</strong>.</p><p>Prosimy o uregulowanie naleznosci.</p><p>Pozdrawiamy,<br>BMT</p>`
+  const vars: Record<string, string> = {
+    imie: tenantName,
+    saldo: formatAmount(balance),
+  }
+  const applyVars = (tpl: string) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '')
+  
+  const subjectText = subjectTemplate || 'Rozliczenie wpłat i rachunków - BMT'
+  const bodyText = bodyTemplate || 'Szanowny/a {imie},\n\nPrzesyłamy w załączeniu aktualne podsumowanie Państwa konta. Saldo na dzień dzisiejszy wynosi: {saldo}.\n\nProsimy o uregulowanie należności.\n\nPozdrawiamy,\nBMT'
+
+  const subject = applyVars(subjectText)
+  const html = applyVars(bodyText).split('\n').map(l => l ? `<p>${l}</p>` : '<br>').join('')
   
   const attachments = [{ filename: 'Wyciag_z_konta.pdf', content: pdfBuffer }]
   

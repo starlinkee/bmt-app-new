@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { TableFilterBar } from '@/components/ui/table-filter-bar'
+import { FacetedFilter } from '@/components/ui/faceted-filter'
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 
 const CURRENT_YEAR = new Date().getFullYear()
@@ -41,12 +42,6 @@ const TENANT_TYPE_LABELS: Record<string, string> = {
 type Entry = Awaited<ReturnType<typeof getAllFlows>>[number]
 type SortKey = 'date' | 'type' | 'tenant' | 'tenantType' | 'description' | 'amount'
 type SortDir = 'asc' | 'desc'
-
-const FILTER_COLUMNS = [
-  { key: 'tenant', label: 'Najemca' },
-  { key: 'description', label: 'Opis' },
-  { key: 'type', label: 'Typ' },
-]
 
 function getTypeLabel(entry: Entry): string {
   if (entry.type === 'invoice') {
@@ -87,16 +82,12 @@ function sortEntries(entries: Entry[], key: SortKey, dir: SortDir): Entry[] {
   })
 }
 
-function matchesEntryFilter(entry: Entry, text: string, col: string): boolean {
+function matchesEntryFilter(entry: Entry, text: string): boolean {
   const q = text.toLowerCase()
   const tenant = (entry.tenantName ?? '').toLowerCase()
   const description = (entry.description ?? '').toLowerCase()
   const type = getTypeLabel(entry).toLowerCase()
-  if (col === '__all__') return tenant.includes(q) || description.includes(q) || type.includes(q)
-  if (col === 'tenant') return tenant.includes(q)
-  if (col === 'description') return description.includes(q)
-  if (col === 'type') return type.includes(q)
-  return false
+  return tenant.includes(q) || description.includes(q) || type.includes(q)
 }
 
 const CATEGORY_OPTIONS = [
@@ -121,12 +112,9 @@ function SortIcon({ col, sortKey, sortDir }: { col: SortKey, sortKey: SortKey, s
 
 export default function PrzeplywyPage() {
   const [year, setYear] = useState(CURRENT_YEAR)
-  const [typeFilter, setTypeFilter] = useState<'all' | 'RENT' | 'MEDIA' | 'transaction'>('all')
-  const [tenantTypeFilter, setTenantTypeFilter] = useState<'all' | 'PRIVATE' | 'BUSINESS'>('all')
   const [sortKey, setSortKey] = useState<SortKey>('date')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [filterText, setFilterText] = useState('')
-  const [filterCol, setFilterCol] = useState('__all__')
 
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ['przeplywy', year],
@@ -149,27 +137,41 @@ export default function PrzeplywyPage() {
     }
   }
 
+  const [tenantTypes, setTenantTypes] = useState<Set<string>>(new Set())
+  const [categories, setCategories] = useState<Set<string>>(new Set())
+  const [selectedTenants, setSelectedTenants] = useState<Set<string>>(new Set())
+
   const categoryFiltered = entries.filter((e) => {
-    if (typeFilter === 'all') return true
-    if (typeFilter === 'transaction') return e.type === 'transaction'
-    if (typeFilter === 'RENT') return e.type === 'invoice' && e.invoiceType === 'RENT'
-    if (typeFilter === 'MEDIA') return e.type === 'invoice' && e.invoiceType === 'MEDIA'
-    return true
+    if (categories.size === 0) return true
+    const cat = e.type === 'transaction' ? 'transaction' : (e.invoiceType ?? 'OTHER')
+    return categories.has(cat)
   })
-  const tenantFiltered = tenantTypeFilter === 'all'
-    ? categoryFiltered
-    : categoryFiltered.filter((e) => e.tenantType === tenantTypeFilter)
+  
+  const tenantFiltered = categoryFiltered.filter((e) => {
+    if (tenantTypes.size === 0) return true
+    return e.tenantType && tenantTypes.has(e.tenantType)
+  })
+
+  const selectedTenantsFiltered = tenantFiltered.filter((e) => {
+    if (selectedTenants.size === 0) return true
+    return e.tenantName && selectedTenants.has(e.tenantName)
+  })
+
   const textFiltered = filterText
-    ? tenantFiltered.filter((e) => matchesEntryFilter(e, filterText, filterCol))
-    : tenantFiltered
+    ? selectedTenantsFiltered.filter((e) => matchesEntryFilter(e, filterText))
+    : selectedTenantsFiltered
+    
   const visible = sortEntries(textFiltered, sortKey, sortDir)
 
-  const totalIn = tenantFiltered.filter((e) => e.amount > 0).reduce((s, e) => s + e.amount, 0)
-  const totalOut = tenantFiltered.filter((e) => e.amount < 0).reduce((s, e) => s + Math.abs(e.amount), 0)
+  const totalIn = selectedTenantsFiltered.filter((e) => e.amount > 0).reduce((s, e) => s + e.amount, 0)
+  const totalOut = selectedTenantsFiltered.filter((e) => e.amount < 0).reduce((s, e) => s + Math.abs(e.amount), 0)
   const net = totalIn - totalOut
 
+  // Compute unique tenants for filter
+  const uniqueTenants = Array.from(new Set(entries.map(e => e.tenantName).filter(Boolean) as string[])).sort()
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Przepływy</h1>
 
@@ -187,92 +189,36 @@ export default function PrzeplywyPage() {
         </Select>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground font-normal">
-              Wpłaty (wchodzące)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{formatAmount(totalIn)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground font-normal">
-              Rachunki (wychodzące)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{formatAmount(totalOut)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground font-normal">
-              Bilans netto
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className={`text-2xl font-bold ${net >= 0 ? 'text-green-600' : 'text-destructive'}`}>
-              {formatAmount(net)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground font-normal">
-              Kontrolujemy od
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">
-              {firstTransactionDate ? formatDate(firstTransactionDate) : '—'}
-            </p>
-          </CardContent>
-        </Card>
+      <div className="flex items-center justify-between">
+        <TableFilterBar
+          value={filterText}
+          onChange={setFilterText}
+          hideColumns={true}
+        />
+        <div className="text-sm">
+          Suma (widoczne): <span className={`font-bold ${net >= 0 ? 'text-green-600' : 'text-destructive'}`}>{formatAmount(net)}</span>
+        </div>
       </div>
 
-      <TableFilterBar
-        value={filterText}
-        onChange={setFilterText}
-        column={filterCol}
-        onColumnChange={setFilterCol}
-        columns={FILTER_COLUMNS}
-      />
-
-      <div className="flex flex-wrap gap-6">
-        <div className="space-y-1.5">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Kategoria</p>
-          <div className="flex gap-1">
-            {CATEGORY_OPTIONS.map((opt) => (
-              <Button
-                key={opt.value}
-                size="sm"
-                variant={typeFilter === opt.value ? 'default' : 'outline'}
-                onClick={() => setTypeFilter(opt.value)}
-              >
-                {opt.label}
-              </Button>
-            ))}
-          </div>
-        </div>
-        <div className="space-y-1.5">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Typ najemcy</p>
-          <div className="flex gap-1">
-            {TENANT_TYPE_OPTIONS.map((opt) => (
-              <Button
-                key={opt.value}
-                size="sm"
-                variant={tenantTypeFilter === opt.value ? 'default' : 'outline'}
-                onClick={() => setTenantTypeFilter(opt.value)}
-              >
-                {opt.label}
-              </Button>
-            ))}
-          </div>
-        </div>
+      <div className="flex flex-wrap gap-2 items-center pb-2">
+        <FacetedFilter
+          title="Kategoria"
+          options={CATEGORY_OPTIONS.filter(o => o.value !== 'all')}
+          selectedValues={categories}
+          onSelectedChange={setCategories}
+        />
+        <FacetedFilter
+          title="Typ najemcy"
+          options={TENANT_TYPE_OPTIONS.filter(o => o.value !== 'all')}
+          selectedValues={tenantTypes}
+          onSelectedChange={setTenantTypes}
+        />
+        <FacetedFilter
+          title="Najemca"
+          options={uniqueTenants.map(t => ({ label: t, value: t }))}
+          selectedValues={selectedTenants}
+          onSelectedChange={setSelectedTenants}
+        />
       </div>
 
       <Table>

@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -24,6 +24,8 @@ export type Database = {
           gmail_user: string | null
           gmail_user_2: string | null
           id: number
+          late_reminder_subject: string
+          late_reminder_body: string
           reminder_body: string
           reminder_subject: string
           rent_email_subject: string | null
@@ -42,6 +44,8 @@ export type Database = {
           gmail_user?: string | null
           gmail_user_2?: string | null
           id?: number
+          late_reminder_subject?: string
+          late_reminder_body?: string
           reminder_body?: string
           reminder_subject?: string
           rent_email_subject?: string | null
@@ -60,6 +64,8 @@ export type Database = {
           gmail_user?: string | null
           gmail_user_2?: string | null
           id?: number
+          late_reminder_subject?: string
+          late_reminder_body?: string
           reminder_body?: string
           reminder_subject?: string
           rent_email_subject?: string | null

@@ -18,20 +18,80 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
 
 export default function WiadomosciPage() {
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [recipient, setRecipient] = useState('')
+
+  const [appliedFilters, setAppliedFilters] = useState({
+    dateFrom: '',
+    dateTo: '',
+    recipient: '',
+  })
+
   const { data: logs = [], isLoading } = useQuery({
-    queryKey: ['emailLogs'],
-    queryFn: getEmailLogs,
+    queryKey: ['emailLogs', appliedFilters],
+    queryFn: () => getEmailLogs(appliedFilters),
   })
 
   const [selectedLog, setSelectedLog] = useState<Awaited<ReturnType<typeof getEmailLogs>>[number] | null>(null)
 
+  const handleFilter = (e: React.FormEvent) => {
+    e.preventDefault()
+    setAppliedFilters({ dateFrom, dateTo, recipient })
+  }
+
+  const handleClear = () => {
+    setDateFrom('')
+    setDateTo('')
+    setRecipient('')
+    setAppliedFilters({ dateFrom: '', dateTo: '', recipient: '' })
+  }
+
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Dziennik Wiadomości</h1>
       </div>
+
+      <form onSubmit={handleFilter} className="flex flex-col sm:flex-row gap-4 items-end bg-card p-4 border rounded-md shadow-sm">
+        <div className="space-y-1.5 flex-1 w-full">
+          <Label htmlFor="dateFrom">Data od</Label>
+          <Input 
+            id="dateFrom" 
+            type="date" 
+            value={dateFrom} 
+            onChange={(e) => setDateFrom(e.target.value)} 
+          />
+        </div>
+        <div className="space-y-1.5 flex-1 w-full">
+          <Label htmlFor="dateTo">Data do</Label>
+          <Input 
+            id="dateTo" 
+            type="date" 
+            value={dateTo} 
+            onChange={(e) => setDateTo(e.target.value)} 
+          />
+        </div>
+        <div className="space-y-1.5 flex-1 w-full">
+          <Label htmlFor="recipient">Odbiorca</Label>
+          <Input 
+            id="recipient" 
+            type="text" 
+            placeholder="Szukaj po adresie..." 
+            value={recipient} 
+            onChange={(e) => setRecipient(e.target.value)} 
+          />
+        </div>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button type="button" variant="outline" onClick={handleClear}>Wyczyść</Button>
+          <Button type="submit">Szukaj</Button>
+        </div>
+      </form>
 
       <div className="border rounded-md">
         <Table>

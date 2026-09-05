@@ -36,6 +36,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { TableFilterBar } from '@/components/ui/table-filter-bar'
+import { FacetedFilter } from '@/components/ui/faceted-filter'
 import { Pencil, Trash2, Plus, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 
 type Property = Awaited<ReturnType<typeof getProperties>>[number]
@@ -43,12 +44,6 @@ type SortKey = 'name' | 'address' | 'type' | 'tenants'
 type SortDir = 'asc' | 'desc'
 
 const PROPERTY_TYPES = ['Mieszkanie', 'Lokal użytkowy']
-
-const FILTER_COLUMNS = [
-  { key: 'name', label: 'Nazwa' },
-  { key: 'address', label: 'Adres' },
-  { key: 'type', label: 'Typ' },
-]
 
 function emptyForm() {
   return { name: '', address1: '', address2: '', type: '' }
@@ -77,22 +72,16 @@ function sortProperties(props: Property[], key: SortKey, dir: SortDir): Property
   })
 }
 
-function matchesFilter(p: Property, text: string, col: string): boolean {
+function matchesFilter(p: Property, text: string): boolean {
   const q = text.toLowerCase()
   const address = [p.address1, p.address2].filter(Boolean).join(', ').toLowerCase()
   const tenantCount = String((p.tenants as unknown as { count: number }[])?.[0]?.count ?? 0)
-  if (col === '__all__') {
-    return (
-      (p.name?.toLowerCase() ?? '').includes(q) ||
-      address.includes(q) ||
-      (p.type?.toLowerCase() ?? '').includes(q) ||
-      tenantCount.includes(q)
-    )
-  }
-  if (col === 'name') return (p.name?.toLowerCase() ?? '').includes(q)
-  if (col === 'address') return address.includes(q)
-  if (col === 'type') return (p.type?.toLowerCase() ?? '').includes(q)
-  return false
+  return (
+    (p.name?.toLowerCase() ?? '').includes(q) ||
+    address.includes(q) ||
+    (p.type?.toLowerCase() ?? '').includes(q) ||
+    tenantCount.includes(q)
+  )
 }
 
 function SortIcon({ col, sortKey, sortDir }: { col: SortKey, sortKey: SortKey, sortDir: SortDir }) {
@@ -115,7 +104,8 @@ export default function PropertiesPage() {
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [filterText, setFilterText] = useState('')
-  const [filterCol, setFilterCol] = useState('__all__')
+
+  const [propertyTypes, setPropertyTypes] = useState<Set<string>>(new Set())
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -126,9 +116,14 @@ export default function PropertiesPage() {
     }
   }
 
+  const facetedFiltered = properties.filter((p) => {
+    if (propertyTypes.size > 0 && !propertyTypes.has(p.type ?? '')) return false
+    return true
+  })
+
   const filtered = filterText
-    ? properties.filter((p) => matchesFilter(p, filterText, filterCol))
-    : properties
+    ? facetedFiltered.filter((p) => matchesFilter(p, filterText))
+    : facetedFiltered
   const sorted = sortProperties(filtered, sortKey, sortDir)
 
   function openCreate() {
@@ -191,10 +186,17 @@ export default function PropertiesPage() {
       <TableFilterBar
         value={filterText}
         onChange={setFilterText}
-        column={filterCol}
-        onColumnChange={setFilterCol}
-        columns={FILTER_COLUMNS}
+        hideColumns={true}
       />
+
+      <div className="flex flex-wrap gap-2 items-center pb-2">
+        <FacetedFilter
+          title="Typ"
+          options={PROPERTY_TYPES.map(t => ({ label: t, value: t }))}
+          selectedValues={propertyTypes}
+          onSelectedChange={setPropertyTypes}
+        />
+      </div>
 
       <Table>
         <TableHeader>
