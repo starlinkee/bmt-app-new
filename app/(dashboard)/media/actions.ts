@@ -169,7 +169,7 @@ export async function getMediaEmailPreview(groupId: number) {
   const [tenantsResult, appConfigResult] = await Promise.all([
     supabase
       .from('tenants')
-      .select('id, email, email2, sender_account')
+      .select('id, email, email2, sender_account, contracts(is_active, has_media_invoice)')
       .in('id', tenantIds),
     supabase
       .from('app_config')
@@ -181,6 +181,10 @@ export async function getMediaEmailPreview(groupId: number) {
   const recipients1: string[] = []
   const recipients2: string[] = []
   for (const t of tenantsResult.data ?? []) {
+    const hasMediaContract = (t.contracts as { is_active: boolean; has_media_invoice: boolean }[] | undefined)?.some(
+      (c) => c.is_active && c.has_media_invoice
+    )
+    if (!hasMediaContract) continue
     if (!t.email) continue
     const acc = ((t as { sender_account?: number | null }).sender_account ?? 1) === 2 ? 2 : 1
     const emails = [t.email, (t as Record<string, unknown>).email2 as string | null].filter(Boolean) as string[]
@@ -433,18 +437,27 @@ export async function processSettlement(
       if (amount < 0) throw new Error(`Ujemna kwota (${amount} zł) dla zakresu ${entry.range} — sprawdź odczyty licznika`)
       const tenant = tenantMap[entry.tenant_id]
       if (!tenant) return null
-      const activeContract = (tenant.contracts as { is_active: boolean; contract_type: string }[] | undefined)?.find(
-        (c) => c.is_active && c.contract_type === 'BUSINESS',
+      
+      const activeContract = (tenant.contracts as { is_active: boolean; contract_type: string; has_media_invoice: boolean; id: number }[] | undefined)?.find(
+        (c) => c.is_active && c.has_media_invoice,
       )
+      
+      if (!activeContract) {
+        throw new Error(`Najemca ${tenant.first_name} ${tenant.last_name} nie posiada aktywnej umowy z włączoną opcją rachunku za media (has_media_invoice=true). Zaktualizuj umowę przed rozliczeniem.`)
+      }
+      
       return { entry, amount, tenant, activeContract }
     })
     .filter((x): x is NonNullable<typeof x> => x !== null)
 
   let seqCounter = maxSeq
-  const assignedEntries = validEntries.map((item) => ({
-    ...item,
-    invoiceNumber: item.activeContract ? buildInvoiceNumber(month, year, ++seqCounter) : undefined,
-  }))
+  const assignedEntries = validEntries.map((item) => {
+    const isBusiness = item.activeContract.contract_type === 'BUSINESS'
+    return {
+      ...item,
+      invoiceNumber: isBusiness ? buildInvoiceNumber(month, year, ++seqCounter) : undefined,
+    }
+  })
 
   // Przetwarzaj wszystkich najemców równolegle
   type TenantResult = { tenantName: string; amount: number; invoiceNumber: string; invoiceError?: string; emailError?: string }
@@ -453,7 +466,7 @@ export async function processSettlement(
       let invoicePdfBuffer: Buffer | undefined
       let invoiceError: string | undefined
 
-      if (activeContract && invoiceNumber) {
+      if (invoiceNumber) {
         const { error } = await supabase.from('invoices').upsert(
           {
             type: entry.type,
@@ -462,7 +475,7 @@ export async function processSettlement(
             month,
             year,
             tenant_id: tenant.id,
-            contract_id: (activeContract as unknown as { id: number }).id,
+            contract_id: activeContract.id,
             media_settlement_id: settlement.id,
           },
           { ignoreDuplicates: true },
@@ -481,7 +494,7 @@ export async function processSettlement(
             month,
             year,
             tenant_id: tenant.id,
-            contract_id: null,
+            contract_id: activeContract.id,
             media_settlement_id: settlement.id,
           },
           { ignoreDuplicates: true },

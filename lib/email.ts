@@ -79,7 +79,7 @@ const DEFAULT_RENT_EMAIL_BODY =
 export async function sendRentEmail(
   to: string | string[],
   tenantName: string,
-  invoiceNumber: string,
+  invoiceNumber: string | null,
   amount: number,
   month: number,
   year: number,
@@ -91,7 +91,7 @@ export async function sendRentEmail(
   const cfg = await getProviderConfig(senderAccount)
   const vars: Record<string, string> = {
     najemca: tenantName,
-    numer_rachunku: invoiceNumber,
+    numer_rachunku: invoiceNumber || '',
     kwota: formatAmount(amount),
     miesiac: String(month),
     rok: String(year),
@@ -101,7 +101,7 @@ export async function sendRentEmail(
   const bodyText = applyVars(bodyTemplate || DEFAULT_RENT_EMAIL_BODY)
   const html = bodyText.split('\n').map(l => `<p>${l}</p>`).join('')
   const attachments = pdfBuffer
-    ? [{ filename: `${invoiceNumber.replace(/\//g, '-')}.pdf`, content: pdfBuffer }]
+    ? [{ filename: invoiceNumber ? `${invoiceNumber.replace(/\//g, '-')}.pdf` : 'Rachunek.pdf', content: pdfBuffer }]
     : []
   await sendEmail({ to, subject, html, attachments, cfg })
 }

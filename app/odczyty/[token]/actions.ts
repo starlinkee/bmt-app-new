@@ -1,28 +1,34 @@
 'use server'
 
+import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase/service'
 
 export async function getTenantReadingsContext(token: string) {
   const supabase = createServiceClient()
   
-  // Znajdź najemcę po tokenie
+  // Znajdź najemcę po tokenie i pobierz jego aktywne umowy z włączonymi mediami
   const { data: tenant, error: tenantErr } = await supabase
     .from('tenants')
-    .select('id, first_name, last_name, properties(id, name)')
+    .select('id, first_name, last_name, contracts(is_active, has_media_invoice, property_id)')
     // @ts-expect-error type inference is wrong here
     .eq('reading_token', token)
     .single()
     
   if (tenantErr || !tenant) return null
   
-  const propertyId = tenant.properties ? (tenant.properties as { id: number }).id : null
-  if (!propertyId) return null
+  const activeMediaContracts = (tenant.contracts as { is_active: boolean; has_media_invoice: boolean; property_id: number }[] | undefined)
+    ?.filter(c => c.is_active && c.has_media_invoice) || []
+    
+  if (activeMediaContracts.length === 0) return null
+  
+  const propertyIds = [...new Set(activeMediaContracts.map(c => c.property_id).filter(Boolean))]
+  if (propertyIds.length === 0) return null
 
-  // Znajdź grupy rozliczeniowe, do których należy ta nieruchomość
+  // Znajdź grupy rozliczeniowe, do których należą te nieruchomości
   const { data: sgp } = await supabase
     .from('settlement_group_properties')
     .select('settlement_group_id')
-    .eq('property_id', propertyId)
+    .in('property_id', propertyIds)
 
   if (!sgp || sgp.length === 0) return null
   
@@ -45,7 +51,11 @@ export async function getTenantReadingsContext(token: string) {
 }
 
 export async function getTargetMonthYear() {
-  const now = new Date()
+  const cookieStore = await cookies()
+  const isOverrideAllowed = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_ALLOW_TEST_PANEL === 'true'
+  const testDate = isOverrideAllowed ? cookieStore.get('bmt_test_date')?.value : null
+  const now = testDate ? new Date(testDate) : new Date()
+  
   const day = now.getDate()
   let month = now.getMonth() + 1
   let year = now.getFullYear()
