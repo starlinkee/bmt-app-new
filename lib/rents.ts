@@ -42,7 +42,6 @@ export async function getRentPreview(month: number, year: number) {
       .from('contracts')
       .select('*, tenants(id, first_name, last_name, tenant_type, company_name, email, email2, nip, address1, address2, property_id, sender_account)')
       .eq('is_active', true)
-      .eq('contract_type', 'BUSINESS')
       .not('id', 'in', existingContractIds.length ? `(${existingContractIds.join(',')})` : '(-1)'),
     supabase
       .from('app_config')
@@ -80,25 +79,16 @@ export async function generateRents(month: number, year: number) {
     .eq('id', 1)
     .single()
 
-  let monthFolder: string | undefined
-  if (config?.drive_invoices_folder_id) {
-    try {
-      monthFolder = await ensureYearMonthFolder(year, month, config.drive_invoices_folder_id)
-    } catch {
-      // folder opcjonalny
-    }
-  }
 
-  // Pre-przydziel numery faktur przed wejściem w równoległość
-  const assignedContracts = allContracts.map((contract, ci) => ({
+
+  const assignedContracts = allContracts.map((contract) => ({
     contract,
-    invoiceNumber: buildInvoiceNumber(month, year, ci + 1),
   }))
 
-  type RentResult = { invoiceNumber: string; tenantName: string; emailError?: string }
+  type RentResult = { invoiceNumber: string | null; tenantName: string; emailError?: string }
 
   const settled = await Promise.allSettled(
-    assignedContracts.map(async ({ contract, invoiceNumber }) => {
+    assignedContracts.map(async ({ contract }) => {
       const tenant = contract.tenants as {
         id: number
         first_name: string
@@ -116,7 +106,7 @@ export async function generateRents(month: number, year: number) {
       const { error } = await supabase.from('invoices').upsert(
         {
           type: 'RENT',
-          number: invoiceNumber,
+          number: null, // No official invoice number generated here anymore
           amount: contract.rent_amount,
           month,
           year,
@@ -127,80 +117,9 @@ export async function generateRents(month: number, year: number) {
       )
       if (error) return null
 
-      let pdfBuffer: Buffer | undefined
-
-      if (config?.rent_invoice_spreadsheet_id && monthFolder) {
-        try {
-          const dueDate = new Date(Date.UTC(year, month - 1, 10))
-          const vars: Record<string, string> = {
-            numer_rachunku: invoiceNumber,
-            data_wystawienia: new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString('pl-PL'),
-            termin_platnosci: dueDate.toLocaleDateString('pl-PL'),
-            najemca: tenantDisplayName(tenant),
-            adres_1: tenant.address1 ?? '',
-            adres_2: tenant.address2 ?? '',
-            nip: tenant.nip ?? '',
-            miesiac: String(month),
-            rok: String(year),
-            kwota: Number(contract.rent_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-            kwota_slownie: amountToWordsPLN(Number(contract.rent_amount)),
-            opis_rachunku: (contract as Record<string, unknown>).opis_rachunku as string ?? '',
-          }
-
-          const invoiceName = `Rachunek ${invoiceNumber.replace(/\//g, '-')} – ${tenantDisplayName(tenant)}`
-          const invoiceSheetId = await copySpreadsheet(
-            config.rent_invoice_spreadsheet_id,
-            invoiceName,
-            monthFolder,
-            getServiceAccountEmail(),
-          )
-          await stripSpreadsheetColors(invoiceSheetId)
-
-          const rawMapping = config?.rent_invoice_input_mapping_json as InvoiceMappingEntry[] | null
-          if (rawMapping?.length) {
-            const resolved = resolveInvoiceMapping(rawMapping, vars)
-            const inputMapping = Object.fromEntries(Object.keys(resolved).map((k) => [k, k]))
-            await writeInputValues(invoiceSheetId, inputMapping, resolved)
-          }
-
-          pdfBuffer = await exportSheetAsPdf(invoiceSheetId, config?.rent_invoice_pdf_gid || undefined)
-
-          if (pdfBuffer) {
-            await uploadPdfToDrive(
-              `${invoiceNumber.replace(/\//g, '-')}.pdf`,
-              pdfBuffer,
-              monthFolder,
-            )
-          }
-        } catch {
-          // PDF generowanie opcjonalne — kontynuuj bez niego
-        }
-      }
-
       let emailError: string | undefined
-      if (tenant.email) {
-        const recipients = [tenant.email, (tenant as unknown as { email2?: string | null }).email2].filter(Boolean) as string[]
-        const senderAccount = (tenant.sender_account ?? 1) === 2 ? 2 : 1
-        try {
-          await sendRentEmail(
-            recipients,
-            tenantDisplayName(tenant),
-            invoiceNumber,
-            contract.rent_amount,
-            month,
-            year,
-            pdfBuffer,
-            senderAccount,
-            (config as Record<string, unknown>).rent_email_subject as string | null,
-            (config as Record<string, unknown>).rent_email_body as string | null,
-          )
-        } catch (e) {
-          emailError = e instanceof Error ? e.message : String(e)
-          console.error('[finance] Błąd wysyłania emaila do najemcy', tenant.id, ':', emailError)
-        }
-      }
-
-      return { invoiceNumber, tenantName: tenantDisplayName(tenant), emailError } satisfies RentResult
+      // Wysyłanie maili o czynszach wyłączone – dokumenty generuje i wysyła inny system
+      return { invoiceNumber: null, tenantName: tenantDisplayName(tenant), emailError } satisfies RentResult
     }),
   )
 

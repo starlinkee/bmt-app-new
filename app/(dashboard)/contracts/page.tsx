@@ -37,7 +37,7 @@ import { TableFilterBar } from '@/components/ui/table-filter-bar'
 import { FacetedFilter } from '@/components/ui/faceted-filter'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Pencil, Trash2, Plus, ChevronUp, ChevronDown, ChevronsUpDown, TrendingUp } from 'lucide-react'
+import { Pencil, Trash2, Plus, ChevronUp, ChevronDown, ChevronsUpDown, TrendingUp, Link2 } from 'lucide-react'
 import { formatAmount, formatDate } from '@/lib/utils'
 
 type Contract = Awaited<ReturnType<typeof getContracts>>[number]
@@ -219,7 +219,7 @@ export default function ContractsPage() {
     const payload = {
       contract_type: form.contract_type,
       rent_amount: parseFloat(form.rent_amount),
-      has_media_invoice: form.contract_type === 'BUSINESS' ? form.has_media_invoice : false,
+      has_media_invoice: form.has_media_invoice,
       opis_rachunku: form.opis_rachunku,
       opis_rachunku_media: form.opis_rachunku_media,
       start_date: form.start_date,
@@ -382,11 +382,9 @@ export default function ContractsPage() {
                 </TableCell>
                 <TableCell>{formatAmount(Number(c.rent_amount))}</TableCell>
                 <TableCell>
-                  {c.contract_type === 'BUSINESS' && (
-                    <Badge variant={(c as Record<string, unknown>).has_media_invoice ? 'default' : 'outline'}>
-                      {(c as Record<string, unknown>).has_media_invoice ? 'Tak' : 'Nie'}
-                    </Badge>
-                  )}
+                  <Badge variant={(c as Record<string, unknown>).has_media_invoice ? 'default' : 'outline'}>
+                    {(c as Record<string, unknown>).has_media_invoice ? 'Tak' : 'Nie'}
+                  </Badge>
                 </TableCell>
                 <TableCell>{(c as Record<string, unknown>).opis_rachunku as string || null}</TableCell>
                 <TableCell>{formatDate(c.start_date)}</TableCell>
@@ -545,15 +543,13 @@ export default function ContractsPage() {
                 placeholder="2500.00"
               />
             </div>
-            {form.contract_type === 'BUSINESS' && (
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={form.has_media_invoice}
-                  onCheckedChange={(v) => setForm({ ...form, has_media_invoice: v })}
-                />
-                <Label>Umowa z rachunkiem za media</Label>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={form.has_media_invoice}
+                onCheckedChange={(v) => setForm({ ...form, has_media_invoice: v })}
+              />
+              <Label>Umowa z rachunkiem za media</Label>
+            </div>
             {form.contract_type === 'BUSINESS' && (
               <div className="space-y-1">
                 <Label>Opis rachunku (czynsz)</Label>

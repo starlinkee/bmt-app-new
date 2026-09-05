@@ -14,6 +14,7 @@ import {
   ArrowLeftRight,
   History,
   Mail,
+  Beaker,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { logoutAction } from '@/app/login/actions'
@@ -80,6 +81,20 @@ export function Sidebar() {
         </ul>
       </nav>
       <div className="border-t p-2 space-y-0.5">
+        {(process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_ALLOW_TEST_PANEL === 'true') && (
+          <Link
+            href="/testowanie"
+            className={cn(
+              'flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors',
+              pathname.startsWith('/testowanie')
+                ? 'bg-yellow-500 text-yellow-950 font-medium'
+                : 'text-yellow-600/90 hover:bg-yellow-500/20 hover:text-yellow-700',
+            )}
+          >
+            <Beaker className="h-4 w-4 shrink-0" />
+            Testowanie
+          </Link>
+        )}
         <Link
           href="/settings"
           className={cn(

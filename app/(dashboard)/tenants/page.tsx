@@ -76,8 +76,8 @@ function sortTenants(tenants: Tenant[], key: SortKey, dir: SortDir): Tenant[] {
       va = (a.phone ?? '').toLowerCase()
       vb = (b.phone ?? '').toLowerCase()
     } else if (key === 'contracts') {
-      va = (a.contracts as unknown as { count: number }[])?.[0]?.count ?? 0
-      vb = (b.contracts as unknown as { count: number }[])?.[0]?.count ?? 0
+      va = (a.contracts as unknown as any[])?.length ?? 0
+      vb = (b.contracts as unknown as any[])?.length ?? 0
     }
     if (va < vb) return dir === 'asc' ? -1 : 1
     if (va > vb) return dir === 'asc' ? 1 : -1
@@ -338,7 +338,7 @@ export default function TenantsPage() {
               </TableCell>
               <TableCell>{t.phone}</TableCell>
               <TableCell>
-                {(t.contracts as unknown as { count: number }[])?.[0]?.count ?? 0}
+                {(t.contracts as unknown as any[])?.length ?? 0}
               </TableCell>
               <TableCell>
                 <div className="flex gap-1">
@@ -348,13 +348,16 @@ export default function TenantsPage() {
                   >
                     <ExternalLink className="h-4 w-4" />
                   </Link>
-                  <Button variant="ghost" size="icon" onClick={() => {
-                    const url = `${window.location.origin}/odczyty/${(t as Record<string, unknown>).reading_token}`
-                    navigator.clipboard.writeText(url)
-                    toast.success('Link do odczytów skopiowany!')
-                  }} title="Kopiuj link do odczytów">
-                    <Link2 className="h-4 w-4" />
-                  </Button>
+                  {((t.contracts as unknown as any[]) || []).some(c => c.is_active && c.has_media_invoice) && (
+                    <Button variant="ghost" size="icon" onClick={() => {
+                      const url = `${window.location.origin}/odczyty/${(t as Record<string, unknown>).reading_token}`
+                      navigator.clipboard.writeText(url)
+                      toast.success('Link do odczytów skopiowany!')
+                    }} title="Kopiuj link do odczytów">
+                      <Link2 className="h-4 w-4" />
+                    </Button>
+                  )}
+
                   <Button variant="ghost" size="icon" onClick={() => openEdit(t)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
