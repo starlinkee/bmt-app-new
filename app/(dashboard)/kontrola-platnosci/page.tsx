@@ -172,11 +172,19 @@ export default function KontrolaPlatnosciPage() {
                   size="icon" 
                   onClick={(e) => {
                     e.stopPropagation()
-                    toast.promise(sendStatementToTenant(t.id), {
-                      loading: 'Wysyłanie wyciągu...',
-                      success: 'Wysłano pomyślnie!',
-                      error: (err) => err.message || 'Błąd wysyłania'
-                    })
+                    toast.promise(
+                      sendStatementToTenant(t.id).then((res) => {
+                        if (!res.success) {
+                          throw new Error(res.error)
+                        }
+                        return res
+                      }),
+                      {
+                        loading: 'Wysyłanie wyciągu...',
+                        success: 'Wysłano pomyślnie!',
+                        error: (err) => err.message || 'Błąd wysyłania'
+                      }
+                    )
                   }}
                   title="Wyślij podsumowanie do tego najemcy"
                 >
