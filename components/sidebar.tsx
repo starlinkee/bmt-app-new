@@ -13,7 +13,6 @@ import {
   ClipboardList,
   ArrowLeftRight,
   History,
-  Bot,
   Mail,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -34,7 +33,7 @@ const actionItems = [
   { href: '/import', label: 'Import CSV', icon: Upload },
 ]
 
-function NavItem({ href, label, icon: Icon, pathname }: { href: string, label: string, icon: any, pathname: string }) {
+function NavItem({ href, label, icon: Icon, pathname }: { href: string, label: string, icon: React.ElementType, pathname: string }) {
   const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href)
   return (
     <li>

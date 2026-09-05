@@ -7,7 +7,6 @@ import { getContracts, createContract, updateContract, deleteContract, revaluate
 import { getTenants } from '@/app/(dashboard)/tenants/actions'
 import { QUERY_KEYS } from '@/lib/queryKeys'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -284,7 +283,7 @@ export default function ContractsPage() {
   const month = now.getMonth() + 1
   const year = now.getFullYear()
 
-  const { data: stats } = useQuery({
+  useQuery({
     queryKey: ['contractStats', month, year],
     queryFn: () => getContractStats(month, year),
   })

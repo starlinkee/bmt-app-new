@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { useQuery } from '@tanstack/react-query'
-import { getTenantsWithBalances, getGlobalPaymentStats, sendStatementToTenant } from './actions'
+import { getTenantsWithBalances, sendStatementToTenant } from './actions'
 import { QUERY_KEYS } from '@/lib/queryKeys'
-import { formatAmount, formatDate } from '@/lib/utils'
+import { formatAmount } from '@/lib/utils'
 import {
   Table,
   TableBody,
