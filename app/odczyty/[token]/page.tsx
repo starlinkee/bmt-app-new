@@ -5,6 +5,7 @@ import { getTenantReadingsContext, getTargetMonthYear, hasAlreadySubmitted, save
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { LiveClock } from '@/components/live-clock'
 
 const MONTHS = ['Stycznia', 'Lutego', 'Marca', 'Kwietnia', 'Maja', 'Czerwca', 'Lipca', 'Sierpnia', 'Września', 'Października', 'Listopada', 'Grudnia']
 
@@ -73,7 +74,10 @@ export default function TenantReadingsPage({ params }: { params: Promise<{ token
   }
 
   return (
-    <div className="min-h-screen bg-muted/20 flex flex-col items-center p-4 py-12">
+    <div className="min-h-screen bg-muted/20 flex flex-col items-center p-4 py-12 relative">
+      <div className="absolute top-4 left-4">
+        <LiveClock />
+      </div>
       <div className="w-full max-w-md space-y-6">
         
         <div className="text-center space-y-2">

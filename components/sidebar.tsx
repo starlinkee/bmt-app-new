@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { logoutAction } from '@/app/login/actions'
+import { LiveClock } from '@/components/live-clock'
 
 const dataItems = [
   { href: '/contracts', label: 'Umowy', icon: FileText },
@@ -62,6 +63,9 @@ export function Sidebar() {
       <Link href="/" className="flex h-14 items-center border-b px-4 hover:bg-accent/50 transition-colors">
         <span className="font-semibold tracking-tight">BMT Nieruchomości</span>
       </Link>
+      <div className="px-4 py-2 pb-0">
+        <LiveClock />
+      </div>
       <nav className="flex-1 overflow-y-auto py-2">
         <div className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
           Akcje
