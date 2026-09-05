@@ -97,6 +97,7 @@ function emptyForm() {
     email_subject_template: 'Rozliczenie mediów {miesiac}/{rok}',
     email_body_template: DEFAULT_EMAIL_BODY,
     property_ids: [] as number[],
+    tenant_reading_keys: '',
   }
 }
 
@@ -167,6 +168,7 @@ export default function MediaPage() {
       email_subject_template: (raw.email_subject_template as string) || 'Rozliczenie mediów {miesiac}/{rok}',
       email_body_template: (raw.email_body_template as string) || DEFAULT_EMAIL_BODY,
       property_ids: propIds,
+      tenant_reading_keys: Array.isArray(raw.tenant_reading_keys) ? raw.tenant_reading_keys.join(', ') : '',
     })
     setJsonError('')
     setOpen(true)
@@ -196,6 +198,7 @@ export default function MediaPage() {
         email_subject_template: form.email_subject_template,
         email_body_template: form.email_body_template,
         property_ids: form.property_ids,
+        tenant_reading_keys: form.tenant_reading_keys.split(',').map(s => s.trim()).filter(Boolean),
       }
       if (editing) {
         await updateSettlementGroup(editing.id, payload)
@@ -332,6 +335,15 @@ export default function MediaPage() {
                   </label>
                 ))}
               </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Liczniki do podania przez najemcę</Label>
+              <Input
+                value={form.tenant_reading_keys}
+                onChange={(e) => setForm({ ...form, tenant_reading_keys: e.target.value })}
+                placeholder="np. WODA_ZIMNA, PRAD"
+              />
+              <p className="text-xs text-muted-foreground">Podaj klucze po przecinku.</p>
             </div>
             <div className="space-y-1">
               <Label>Mapowanie wejściowe (JSON)</Label>

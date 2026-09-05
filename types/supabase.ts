@@ -31,8 +31,9 @@ export type Database = {
           rent_invoice_input_mapping_json: Json
           rent_invoice_pdf_gid: string
           rent_invoice_spreadsheet_id: string
-        }
-        Insert: {
+            tenant_reading_keys: Json
+          }
+          Insert: {
           drive_invoices_folder_id?: string
           email_provider?: string
           email_provider_2?: string
@@ -48,8 +49,9 @@ export type Database = {
           rent_invoice_input_mapping_json?: Json
           rent_invoice_pdf_gid?: string
           rent_invoice_spreadsheet_id?: string
-        }
-        Update: {
+            tenant_reading_keys?: Json
+          }
+          Update: {
           drive_invoices_folder_id?: string
           email_provider?: string
           email_provider_2?: string
@@ -65,8 +67,9 @@ export type Database = {
           rent_invoice_input_mapping_json?: Json
           rent_invoice_pdf_gid?: string
           rent_invoice_spreadsheet_id?: string
-        }
-        Relationships: []
+            tenant_reading_keys?: Json
+          }
+          Relationships: []
       }
       contracts: {
         Row: {
@@ -353,8 +356,9 @@ export type Database = {
           output_mapping_json: Json
           pdf_sheets_json: Json
           spreadsheet_id: string
-        }
-        Insert: {
+            tenant_reading_keys: Json
+          }
+          Insert: {
           id?: never
           email_body_template?: string | null
           email_subject_template?: string | null
@@ -365,8 +369,9 @@ export type Database = {
           output_mapping_json?: Json
           pdf_sheets_json?: Json
           spreadsheet_id?: string
-        }
-        Update: {
+            tenant_reading_keys?: Json
+          }
+          Update: {
           id?: never
           email_body_template?: string | null
           email_subject_template?: string | null
@@ -377,8 +382,9 @@ export type Database = {
           output_mapping_json?: Json
           pdf_sheets_json?: Json
           spreadsheet_id?: string
-        }
-        Relationships: []
+            tenant_reading_keys?: Json
+          }
+          Relationships: []
       }
       tenants: {
         Row: {
@@ -588,6 +594,30 @@ export type Database = {
         }
         Relationships: []
       }
+        email_logs: {
+          Row: {
+            id: number
+            to_email: string
+            subject: string
+            body: string | null
+            sent_at: string
+          }
+          Insert: {
+            id?: never
+            to_email: string
+            subject: string
+            body?: string | null
+            sent_at?: string
+          }
+          Update: {
+            id?: never
+            to_email?: string
+            subject?: string
+            body?: string | null
+            sent_at?: string
+          }
+          Relationships: []
+        }
     }
     Views: {
       [_ in never]: never

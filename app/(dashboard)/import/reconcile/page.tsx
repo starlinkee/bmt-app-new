@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   getUnmatchedTransactions,
@@ -24,6 +25,7 @@ export default function ReconcilePage() {
   const [selectedCategories, setSelectedCategories] = useState<Record<number, Category>>({})
   const [bannerDismissed, setBannerDismissed] = useState(false)
   const [pending, startTransition] = useTransition()
+  const router = useRouter()
 
   function load() {
     startTransition(async () => {
@@ -66,7 +68,12 @@ export default function ReconcilePage() {
     startTransition(async () => {
       await reconcileMany(items)
       toast.success(`Przypisano ${items.length} transakcji.`)
-      load()
+      
+      if (items.length === transactions.length) {
+        router.push('/kontrola-platnosci')
+      } else {
+        load()
+      }
     })
   }
 

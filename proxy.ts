@@ -3,7 +3,7 @@ import { updateSession } from '@/lib/supabase/middleware'
 
 const PUBLIC_PATHS = ['/login']
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
     return NextResponse.next()
   }

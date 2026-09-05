@@ -3,10 +3,11 @@
 import { useState, useTransition } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { getContracts, createContract, updateContract, deleteContract, revaluateContract } from './actions'
+import { getContracts, createContract, updateContract, deleteContract, revaluateContract, getContractStats } from './actions'
 import { getTenants } from '@/app/(dashboard)/tenants/actions'
 import { QUERY_KEYS } from '@/lib/queryKeys'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -260,8 +261,17 @@ export default function ContractsPage() {
     })
   }
 
+  const now = new Date()
+  const month = now.getMonth() + 1
+  const year = now.getFullYear()
+
+  const { data: stats } = useQuery({
+    queryKey: ['contractStats', month, year],
+    queryFn: () => getContractStats(month, year),
+  })
+
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Umowy</h1>
         <div className="flex gap-2">
@@ -272,6 +282,41 @@ export default function ContractsPage() {
             <Plus className="h-4 w-4 mr-1" /> Dodaj
           </Button>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground font-normal">
+              Aktywne umowy
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold">{stats?.activeContracts ?? 0}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground font-normal">
+              Czynsze {month}/{year}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold">{stats?.rentCount ?? 0}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground font-normal">
+              Suma czynszów
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold">
+              {(stats?.rentSum ?? 0).toLocaleString('pl-PL', { minimumFractionDigits: 2 })} zł
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       <TableFilterBar

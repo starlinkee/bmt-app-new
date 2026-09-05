@@ -61,8 +61,12 @@ export async function importCsvTransactions(csvContent: string) {
     afterData: summary,
   })
 
+  // Uruchom sprawdzanie zaległości, jeśli to już po 10. dniu miesiąca
+  const { processLateReminders } = await import('@/lib/late-reminders')
+  const lateReminders = await processLateReminders()
+
   revalidatePath('/import')
-  return summary
+  return { ...summary, lateReminders }
 }
 
 export async function getUnmatchedTransactions() {
