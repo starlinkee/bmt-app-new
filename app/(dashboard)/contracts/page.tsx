@@ -37,7 +37,7 @@ import { TableFilterBar } from '@/components/ui/table-filter-bar'
 import { FacetedFilter } from '@/components/ui/faceted-filter'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Pencil, Trash2, Plus, ChevronUp, ChevronDown, ChevronsUpDown, TrendingUp, Link2 } from 'lucide-react'
+import { Pencil, Trash2, Plus, ChevronUp, ChevronDown, ChevronsUpDown, TrendingUp } from 'lucide-react'
 import { formatAmount, formatDate } from '@/lib/utils'
 
 type Contract = Awaited<ReturnType<typeof getContracts>>[number]
