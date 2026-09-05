@@ -607,6 +607,7 @@ export type Database = {
             subject: string
             body: string | null
             sent_at: string
+            attachments: Json | null
           }
           Insert: {
             id?: never
@@ -614,6 +615,7 @@ export type Database = {
             subject: string
             body?: string | null
             sent_at?: string
+            attachments?: Json | null
           }
           Update: {
             id?: never
@@ -621,6 +623,7 @@ export type Database = {
             subject?: string
             body?: string | null
             sent_at?: string
+            attachments?: Json | null
           }
           Relationships: []
         }

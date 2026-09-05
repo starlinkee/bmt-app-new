@@ -1,6 +1,9 @@
 import nodemailer from 'nodemailer'
 import { createServiceClient } from '@/lib/supabase/service'
 import { formatAmount } from '@/lib/utils'
+import fs from 'fs/promises'
+import path from 'path'
+import crypto from 'crypto'
 
 type EmailProvider = 'gmail_smtp'
 
@@ -61,10 +64,27 @@ async function sendEmail({ to, subject, html, attachments = [], cfg }: SendParam
     try {
       const supabase = createServiceClient()
       const recipients = Array.isArray(to) ? to.join(', ') : to
+      
+      const savedAttachments = []
+      if (attachments && attachments.length > 0) {
+        const attachDir = path.join(process.cwd(), 'data', 'attachments')
+        await fs.mkdir(attachDir, { recursive: true })
+        for (const a of attachments) {
+          const uniqueName = crypto.randomUUID() + '_' + a.filename
+          const filePath = path.join(attachDir, uniqueName)
+          await fs.writeFile(filePath, a.content)
+          savedAttachments.push({
+            name: a.filename,
+            path: uniqueName
+          })
+        }
+      }
+
       await supabase.from('email_logs').insert({
         to_email: recipients,
         subject,
         body: html,
+        attachments: savedAttachments.length > 0 ? savedAttachments : null,
       })
     } catch (e) {
       console.error('Failed to log email', e)

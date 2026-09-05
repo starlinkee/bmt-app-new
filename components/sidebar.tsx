@@ -25,7 +25,7 @@ const dataItems = [
   { href: '/properties', label: 'Nieruchomości', icon: Building2 },
   { href: '/tenants', label: 'Najemcy', icon: Users },
   { href: '/przeplywy', label: 'Przepływy', icon: ArrowLeftRight },
-  { href: '/wiadomosci', label: 'Dziennik wiad.', icon: Mail },
+  { href: '/wiadomosci', label: 'Dziennik wiadomości', icon: Mail },
   { href: '/audit', label: 'Historia operacji', icon: History },
 ]
 
@@ -42,7 +42,7 @@ function NavItem({ href, label, icon: Icon, pathname }: { href: string, label: s
       <Link
         href={href}
         className={cn(
-          'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors',
+          'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors whitespace-nowrap',
           isActive
             ? 'bg-primary text-primary-foreground'
             : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
@@ -59,7 +59,7 @@ export function Sidebar() {
   const pathname = usePathname()
 
   return (
-    <aside className="flex h-full w-56 flex-col border-r bg-sidebar" style={{ fontSize: '115%' }}>
+    <aside className="flex h-full w-max min-w-[224px] pr-2 flex-col border-r bg-sidebar" style={{ fontSize: '115%' }}>
       <Link href="/" className="flex h-14 items-center border-b px-4 hover:bg-accent/50 transition-colors">
         <span className="font-semibold tracking-tight">BMT Nieruchomości</span>
       </Link>
