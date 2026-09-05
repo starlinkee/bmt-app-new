@@ -16,8 +16,8 @@ export async function GET(request: Request) {
   try {
     const result = await processLateReminders()
     return NextResponse.json({ success: true, ...result })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error generating late reminders via cron:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 })
   }
 }

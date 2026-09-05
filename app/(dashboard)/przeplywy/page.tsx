@@ -112,6 +112,13 @@ const TENANT_TYPE_OPTIONS = [
   { value: 'BUSINESS', label: 'Firmy' },
 ] as const
 
+function SortIcon({ col, sortKey, sortDir }: { col: SortKey, sortKey: SortKey, sortDir: SortDir }) {
+  if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
+  return sortDir === 'asc'
+    ? <ChevronUp className="ml-1 h-3 w-3 inline" />
+    : <ChevronDown className="ml-1 h-3 w-3 inline" />
+}
+
 export default function PrzeplywyPage() {
   const [year, setYear] = useState(CURRENT_YEAR)
   const [typeFilter, setTypeFilter] = useState<'all' | 'RENT' | 'MEDIA' | 'transaction'>('all')
@@ -140,13 +147,6 @@ export default function PrzeplywyPage() {
       setSortKey(key)
       setSortDir('asc')
     }
-  }
-
-  function SortIcon({ col }: { col: SortKey }) {
-    if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
-    return sortDir === 'asc'
-      ? <ChevronUp className="ml-1 h-3 w-3 inline" />
-      : <ChevronDown className="ml-1 h-3 w-3 inline" />
   }
 
   const categoryFiltered = entries.filter((e) => {
@@ -279,22 +279,22 @@ export default function PrzeplywyPage() {
         <TableHeader>
           <TableRow>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('date')}>
-              Data<SortIcon col="date" />
+              Data<SortIcon col="date" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('type')}>
-              Typ<SortIcon col="type" />
+              Typ<SortIcon col="type" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('tenant')}>
-              Najemca<SortIcon col="tenant" />
+              Najemca<SortIcon col="tenant" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('tenantType')}>
-              Typ najemcy<SortIcon col="tenantType" />
+              Typ najemcy<SortIcon col="tenantType" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('description')}>
-              Opis<SortIcon col="description" />
+              Opis<SortIcon col="description" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort('amount')}>
-              Kwota<SortIcon col="amount" />
+              Kwota<SortIcon col="amount" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
           </TableRow>
         </TableHeader>

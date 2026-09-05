@@ -59,6 +59,13 @@ function matchesTenantFilter(t: TenantWithBalance, text: string, col: string): b
   return false
 }
 
+function SortIcon({ col, sortKey, sortDir }: { col: SortKey, sortKey: SortKey, sortDir: SortDir }) {
+  if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
+  return sortDir === 'asc'
+    ? <ChevronUp className="ml-1 h-3 w-3 inline" />
+    : <ChevronDown className="ml-1 h-3 w-3 inline" />
+}
+
 export default function KontrolaPlatnosciPage() {
   const router = useRouter()
   const { data: tenants = [], isLoading } = useQuery({
@@ -83,13 +90,6 @@ export default function KontrolaPlatnosciPage() {
       setSortKey(key)
       setSortDir('asc')
     }
-  }
-
-  function SortIcon({ col }: { col: SortKey }) {
-    if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
-    return sortDir === 'asc'
-      ? <ChevronUp className="ml-1 h-3 w-3 inline" />
-      : <ChevronDown className="ml-1 h-3 w-3 inline" />
   }
 
   const filtered = filterText
@@ -144,13 +144,13 @@ export default function KontrolaPlatnosciPage() {
         <TableHeader>
           <TableRow>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('name')}>
-              Najemca<SortIcon col="name" />
+              Najemca<SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('property')}>
-              Nieruchomość<SortIcon col="property" />
+              Nieruchomość<SortIcon col="property" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort('balance')}>
-              Saldo<SortIcon col="balance" />
+              Saldo<SortIcon col="balance" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="w-16"></TableHead>
           </TableRow>

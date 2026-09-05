@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 'use client'
 
 import { useState, useTransition, useEffect } from 'react'
@@ -115,6 +116,13 @@ function emptyForm() {
   }
 }
 
+function SortIcon({ col, sortKey, sortDir }: { col: SortKey, sortKey: SortKey, sortDir: SortDir }) {
+  if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
+  return sortDir === 'asc'
+    ? <ChevronUp className="ml-1 h-3 w-3 inline" />
+    : <ChevronDown className="ml-1 h-3 w-3 inline" />
+}
+
 export default function TenantsPage() {
   const queryClient = useQueryClient()
   const { data: tenants = [] } = useQuery({
@@ -163,13 +171,6 @@ export default function TenantsPage() {
       setSortKey(key)
       setSortDir('asc')
     }
-  }
-
-  function SortIcon({ col }: { col: SortKey }) {
-    if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
-    return sortDir === 'asc'
-      ? <ChevronUp className="ml-1 h-3 w-3 inline" />
-      : <ChevronDown className="ml-1 h-3 w-3 inline" />
   }
 
   const filteredTenants = filterText
@@ -280,22 +281,22 @@ export default function TenantsPage() {
         <TableHeader>
           <TableRow>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('name')}>
-              Imię i nazwisko<SortIcon col="name" />
+              Imię i nazwisko<SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('property')}>
-              Nieruchomość<SortIcon col="property" />
+              Nieruchomość<SortIcon col="property" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('type')}>
-              Typ<SortIcon col="type" />
+              Typ<SortIcon col="type" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('email')}>
-              E-mail<SortIcon col="email" />
+              E-mail<SortIcon col="email" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('phone')}>
-              Telefon<SortIcon col="phone" />
+              Telefon<SortIcon col="phone" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('contracts')}>
-              Umowy<SortIcon col="contracts" />
+              Umowy<SortIcon col="contracts" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="w-24" />
           </TableRow>
@@ -338,7 +339,7 @@ export default function TenantsPage() {
                     <ExternalLink className="h-4 w-4" />
                   </Link>
                   <Button variant="ghost" size="icon" onClick={() => {
-                    const url = `${window.location.origin}/odczyty/${(t as any).reading_token}`
+                    const url = `${window.location.origin}/odczyty/${(t as Record<string, unknown>).reading_token}`
                     navigator.clipboard.writeText(url)
                     toast.success('Link do odczytów skopiowany!')
                   }} title="Kopiuj link do odczytów">

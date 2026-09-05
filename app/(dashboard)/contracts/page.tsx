@@ -127,6 +127,13 @@ function emptyForm() {
   }
 }
 
+function SortIcon({ col, sortKey, sortDir }: { col: SortKey, sortKey: SortKey, sortDir: SortDir }) {
+  if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
+  return sortDir === 'asc'
+    ? <ChevronUp className="ml-1 h-3 w-3 inline" />
+    : <ChevronDown className="ml-1 h-3 w-3 inline" />
+}
+
 export default function ContractsPage() {
   const queryClient = useQueryClient()
   const { data: contracts = [] } = useQuery({
@@ -156,13 +163,6 @@ export default function ContractsPage() {
       setSortKey(key)
       setSortDir('asc')
     }
-  }
-
-  function SortIcon({ col }: { col: SortKey }) {
-    if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
-    return sortDir === 'asc'
-      ? <ChevronUp className="ml-1 h-3 w-3 inline" />
-      : <ChevronDown className="ml-1 h-3 w-3 inline" />
   }
 
   const filtered = filterText
@@ -331,29 +331,29 @@ export default function ContractsPage() {
         <TableHeader>
           <TableRow>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('tenant')}>
-              Najemca<SortIcon col="tenant" />
+              Najemca<SortIcon col="tenant" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('property')}>
-              Nieruchomość<SortIcon col="property" />
+              Nieruchomość<SortIcon col="property" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('type')}>
-              Typ<SortIcon col="type" />
+              Typ<SortIcon col="type" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('amount')}>
-              Kwota<SortIcon col="amount" />
+              Kwota<SortIcon col="amount" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('media')}>
-              Media<SortIcon col="media" />
+              Media<SortIcon col="media" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead>Opis rachunku</TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('from')}>
-              Od<SortIcon col="from" />
+              Od<SortIcon col="from" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('to')}>
-              Do<SortIcon col="to" />
+              Do<SortIcon col="to" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('active')}>
-              Aktywna<SortIcon col="active" />
+              Aktywna<SortIcon col="active" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="w-20" />
           </TableRow>

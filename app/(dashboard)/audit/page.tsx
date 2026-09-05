@@ -318,6 +318,13 @@ function DetailPanel({ log }: { log: AuditLog }) {
   )
 }
 
+function SortIcon({ col, sortKey, sortDir }: { col: SortKey, sortKey: SortKey | null, sortDir: SortDir }) {
+  if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
+  return sortDir === 'asc'
+    ? <ChevronUp className="ml-1 h-3 w-3 inline" />
+    : <ChevronDown className="ml-1 h-3 w-3 inline" />
+}
+
 export default function AuditPage() {
   const { data: logs = [], isLoading } = useQuery({
     queryKey: QUERY_KEYS.auditLog,
@@ -338,13 +345,6 @@ export default function AuditPage() {
       setSortKey(key)
       setSortDir(key === 'created_at' ? 'desc' : 'asc')
     }
-  }
-
-  function SortIcon({ col }: { col: SortKey }) {
-    if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
-    return sortDir === 'asc'
-      ? <ChevronUp className="ml-1 h-3 w-3 inline" />
-      : <ChevronDown className="ml-1 h-3 w-3 inline" />
   }
 
   const allOperations = [...new Set(logs.map((l) => l.operation))].sort()
@@ -435,16 +435,16 @@ export default function AuditPage() {
         <TableHeader>
           <TableRow>
             <TableHead className="cursor-pointer select-none w-44" onClick={() => handleSort('created_at')}>
-              Czas<SortIcon col="created_at" />
+              Czas<SortIcon col="created_at" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('action_name')}>
-              Akcja<SortIcon col="action_name" />
+              Akcja<SortIcon col="action_name" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('table_name')}>
-              Tabela<SortIcon col="table_name" />
+              Tabela<SortIcon col="table_name" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none w-32" onClick={() => handleSort('operation')}>
-              Operacja<SortIcon col="operation" />
+              Operacja<SortIcon col="operation" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="w-24">ID rekordu</TableHead>
             <TableHead className="w-12"></TableHead>

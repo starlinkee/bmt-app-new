@@ -95,6 +95,13 @@ function matchesFilter(p: Property, text: string, col: string): boolean {
   return false
 }
 
+function SortIcon({ col, sortKey, sortDir }: { col: SortKey, sortKey: SortKey, sortDir: SortDir }) {
+  if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
+  return sortDir === 'asc'
+    ? <ChevronUp className="ml-1 h-3 w-3 inline" />
+    : <ChevronDown className="ml-1 h-3 w-3 inline" />
+}
+
 export default function PropertiesPage() {
   const queryClient = useQueryClient()
   const { data: properties = [] } = useQuery({
@@ -117,13 +124,6 @@ export default function PropertiesPage() {
       setSortKey(key)
       setSortDir('asc')
     }
-  }
-
-  function SortIcon({ col }: { col: SortKey }) {
-    if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
-    return sortDir === 'asc'
-      ? <ChevronUp className="ml-1 h-3 w-3 inline" />
-      : <ChevronDown className="ml-1 h-3 w-3 inline" />
   }
 
   const filtered = filterText
@@ -200,16 +200,16 @@ export default function PropertiesPage() {
         <TableHeader>
           <TableRow>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('name')}>
-              Nazwa<SortIcon col="name" />
+              Nazwa<SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('address')}>
-              Adres<SortIcon col="address" />
+              Adres<SortIcon col="address" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('type')}>
-              Typ<SortIcon col="type" />
+              Typ<SortIcon col="type" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('tenants')}>
-              Najemcy<SortIcon col="tenants" />
+              Najemcy<SortIcon col="tenants" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="w-20" />
           </TableRow>

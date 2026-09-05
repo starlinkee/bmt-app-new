@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const express = require('express')
 const pty = require('node-pty')
 const crypto = require('crypto')
@@ -319,6 +320,7 @@ app.get('/job/:id', (req, res) => {
   if (!requireToken(req, res)) return
   const job = jobs.get(req.params.id)
   if (!job) return res.status(404).json({ error: 'Job not found' })
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { proc: _proc, ...safe } = job
   res.json(safe)
 })

@@ -164,6 +164,13 @@ function CategoryCell({ tx }: { tx: Transaction }) {
   )
 }
 
+function SortIcon({ col, sortKey, sortDir }: { col: SortKey, sortKey: SortKey, sortDir: SortDir }) {
+  if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
+  return sortDir === 'asc'
+    ? <ChevronUp className="ml-1 h-3 w-3 inline" />
+    : <ChevronDown className="ml-1 h-3 w-3 inline" />
+}
+
 export default function TransactionHistoryPage() {
   const searchParams = useSearchParams()
   const status = searchParams.get('status') ?? undefined
@@ -185,13 +192,6 @@ export default function TransactionHistoryPage() {
       setSortKey(key)
       setSortDir('asc')
     }
-  }
-
-  function SortIcon({ col }: { col: SortKey }) {
-    if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
-    return sortDir === 'asc'
-      ? <ChevronUp className="ml-1 h-3 w-3 inline" />
-      : <ChevronDown className="ml-1 h-3 w-3 inline" />
   }
 
   const filtered = filterText
@@ -258,28 +258,28 @@ export default function TransactionHistoryPage() {
         <TableHeader>
           <TableRow>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('date')}>
-              Data<SortIcon col="date" />
+              Data<SortIcon col="date" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('title')}>
-              Tytuł<SortIcon col="title" />
+              Tytuł<SortIcon col="title" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('bank_account')}>
-              Konto nadawcy<SortIcon col="bank_account" />
+              Konto nadawcy<SortIcon col="bank_account" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('tenant')}>
-              Najemca<SortIcon col="tenant" />
+              Najemca<SortIcon col="tenant" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort('amount')}>
-              Kwota<SortIcon col="amount" />
+              Kwota<SortIcon col="amount" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('category')}>
-              Rodzaj<SortIcon col="category" />
+              Rodzaj<SortIcon col="category" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('status')}>
-              Status<SortIcon col="status" />
+              Status<SortIcon col="status" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('created_at')}>
-              Dodano<SortIcon col="created_at" />
+              Dodano<SortIcon col="created_at" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
           </TableRow>
         </TableHeader>

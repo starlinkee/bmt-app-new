@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ success: true, inserted: rowsToInsert.length })
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: 'Nieoczekiwany błąd' }, { status: 500 })
   }
 }

@@ -25,7 +25,7 @@ export default function WiadomosciPage() {
     queryFn: getEmailLogs,
   })
 
-  const [selectedLog, setSelectedLog] = useState<any>(null)
+  const [selectedLog, setSelectedLog] = useState<Awaited<ReturnType<typeof getEmailLogs>>[number] | null>(null)
 
   return (
     <div className="p-6 space-y-4">
