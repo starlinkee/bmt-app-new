@@ -33,7 +33,7 @@ export async function GET(
         'Content-Disposition': `attachment; filename="${encodeURIComponent(originalName)}"`,
       },
     })
-  } catch (e) {
+  } catch {
     return new NextResponse('File not found', { status: 404 })
   }
 }

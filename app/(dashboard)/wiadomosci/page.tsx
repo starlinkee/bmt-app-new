@@ -150,7 +150,7 @@ export default function WiadomosciPage() {
               <div className="text-muted-foreground flex items-center gap-2">
                 Załączniki: 
                 <div className="flex flex-wrap gap-2">
-                  {(selectedLog.attachments as any[]).map((att: any, i: number) => (
+                  {(selectedLog.attachments as { path: string; name: string }[]).map((att: { path: string; name: string }, i: number) => (
                     <a
                       key={i}
                       href={`/api/attachments/${att.path}`}
