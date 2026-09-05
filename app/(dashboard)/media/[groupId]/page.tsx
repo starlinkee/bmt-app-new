@@ -4,7 +4,7 @@
 import { useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import { use } from 'react'
-import { getSettlementGroup, getPreviousMeterReadings, processSettlement, getMediaEmailPreview, getSettlementForMonth } from '../actions'
+import { getSettlementGroup, getPreviousMeterReadings, getCurrentMeterReadings, processSettlement, getMediaEmailPreview, getSettlementForMonth } from '../actions'
 import { MonthYearPicker } from '@/components/month-year-picker'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -77,6 +77,7 @@ export default function MediaGroupPage({
   const [group, setGroup] = useState<Group | null>(null)
   const [inputValues, setInputValues] = useState<Record<string, string>>({})
   const [previousReadings, setPreviousReadings] = useState<Record<string, number>>({})
+  const [currentReadings, setCurrentReadings] = useState<Record<string, number>>({})
   const [editedPreviousReadings, setEditedPreviousReadings] = useState<Record<string, string>>({})
   const [settlementExists, setSettlementExists] = useState(false)
   const [readingsLoaded, setReadingsLoaded] = useState(false)
@@ -96,12 +97,15 @@ export default function MediaGroupPage({
   useEffect(() => {
     if (!group) return
     setReadingsLoaded(false)
+    setInputValues({}) // Reset inputs when month/year changes to prevent bleeding
     startTransition(async () => {
-      const [prev, exists] = await Promise.all([
+      const [prev, exists, current] = await Promise.all([
         getPreviousMeterReadings(Number(groupId), month, year),
         getSettlementForMonth(Number(groupId), month, year),
+        getCurrentMeterReadings(Number(groupId), month, year),
       ])
       setPreviousReadings(prev)
+      setCurrentReadings(current)
       setEditedPreviousReadings({})
       setSettlementExists(exists)
       setReadingsLoaded(true)
@@ -112,9 +116,23 @@ export default function MediaGroupPage({
     if (!group) return
     const inputMapping = (group.input_mapping_json as Record<string, Record<string, FieldDef>>) ?? {}
     const autoVals = computeAutoValues(month, year, inputMapping)
-    if (Object.keys(autoVals).length === 0) return
-    setInputValues(prev => ({ ...prev, ...autoVals }))
-  }, [month, year, group])
+    
+    const prepopulated: Record<string, string> = {}
+    if (readingsLoaded) {
+      for (const fields of Object.values(inputMapping)) {
+        for (const [, fieldDef] of Object.entries(fields)) {
+          if (typeof fieldDef !== 'string' && fieldDef.source === 'user' && fieldDef.save_key) {
+             if (currentReadings[fieldDef.save_key] !== undefined) {
+               prepopulated[fieldDef.range] = String(currentReadings[fieldDef.save_key])
+             }
+          }
+        }
+      }
+    }
+    
+    if (Object.keys(autoVals).length === 0 && Object.keys(prepopulated).length === 0) return
+    setInputValues(prev => ({ ...prev, ...autoVals, ...prepopulated }))
+  }, [month, year, group, currentReadings, readingsLoaded])
 
   const inputMapping = (group?.input_mapping_json as Record<string, Record<string, FieldDef>>) ?? {}
 

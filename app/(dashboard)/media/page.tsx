@@ -10,6 +10,8 @@ import {
   updateSettlementGroup,
   deleteSettlementGroup,
 } from './actions'
+import { SkillRunner } from '@/components/skill-runner'
+import { VpsFileBrowser } from '@/components/vps-file-browser'
 import { getProperties } from '@/app/(dashboard)/properties/actions'
 import { getTenants } from '@/app/(dashboard)/tenants/actions'
 import { SearchSelect } from '@/components/ui/search-select'
@@ -42,12 +44,6 @@ type Tenant = Awaited<ReturnType<typeof getTenants>>[number]
 type SortKey = 'name' | 'properties' | 'spreadsheet_id'
 type SortDir = 'asc' | 'desc'
 
-const FILTER_COLUMNS = [
-  { key: 'name', label: 'Nazwa' },
-  { key: 'properties', label: 'Nieruchomości' },
-  { key: 'spreadsheet_id', label: 'ID arkusza' },
-]
-
 function getGroupProperties(g: Group): string {
   const props = g.settlement_group_properties as unknown as { properties: { name: string } }[]
   return props?.map((p) => p.properties?.name).filter(Boolean).join(', ') || ''
@@ -73,16 +69,12 @@ function sortGroups(groups: Group[], key: SortKey, dir: SortDir): Group[] {
   })
 }
 
-function matchesGroupFilter(g: Group, text: string, col: string): boolean {
+function matchesGroupFilter(g: Group, text: string): boolean {
   const q = text.toLowerCase()
   const name = g.name.toLowerCase()
   const props = getGroupProperties(g).toLowerCase()
   const sid = (g.spreadsheet_id ?? '').toLowerCase()
-  if (col === '__all__') return name.includes(q) || props.includes(q) || sid.includes(q)
-  if (col === 'name') return name.includes(q)
-  if (col === 'properties') return props.includes(q)
-  if (col === 'spreadsheet_id') return sid.includes(q)
-  return false
+  return name.includes(q) || props.includes(q) || sid.includes(q)
 }
 
 const DEFAULT_EMAIL_BODY = `Szanowny/a {imie},\nW załączeniu rozliczenie mediów nr {numer_rachunku} za {miesiac}/{rok} na kwotę {kwota}.\n\nPozdrawiamy,\nBMT`
@@ -131,7 +123,7 @@ export default function MediaPage() {
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [filterText, setFilterText] = useState('')
-  const [filterCol, setFilterCol] = useState('__all__')
+  const [autoView, setAutoView] = useState<'tasks' | 'files'>('tasks')
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -143,7 +135,7 @@ export default function MediaPage() {
   }
 
   const filtered = filterText
-    ? groups.filter((g) => matchesGroupFilter(g, filterText, filterCol))
+    ? groups.filter((g) => matchesGroupFilter(g, filterText))
     : groups
   const sorted = sortGroups(filtered, sortKey, sortDir)
 
@@ -242,9 +234,7 @@ export default function MediaPage() {
       <TableFilterBar
         value={filterText}
         onChange={setFilterText}
-        column={filterCol}
-        onColumnChange={setFilterCol}
-        columns={FILTER_COLUMNS}
+        hideColumns={true}
       />
 
       <Table>
@@ -299,6 +289,44 @@ export default function MediaPage() {
           )}
         </TableBody>
       </Table>
+
+      <div className="pt-10 space-y-6">
+        <div className="border-t pt-8">
+          <h2 className="text-xl font-semibold">Ściągnij faktury z AI</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Skrypty Claude Code uruchamiane na serwerze VPS w tle. Wymaga skonfigurowanego{' '}
+            <code className="text-xs bg-muted px-1 py-0.5 rounded">SKILL_RUNNER_URL</code> i{' '}
+            <code className="text-xs bg-muted px-1 py-0.5 rounded">SKILL_RUNNER_TOKEN</code>.
+          </p>
+        </div>
+
+        <div className="flex gap-1 border-b">
+          <button
+            onClick={() => setAutoView('tasks')}
+            className={[
+              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+              autoView === 'tasks'
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
+            ].join(' ')}
+          >
+            Zadania
+          </button>
+          <button
+            onClick={() => setAutoView('files')}
+            className={[
+              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+              autoView === 'files'
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
+            ].join(' ')}
+          >
+            Pliki VPS
+          </button>
+        </div>
+
+        {autoView === 'tasks' ? <SkillRunner /> : <VpsFileBrowser />}
+      </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>

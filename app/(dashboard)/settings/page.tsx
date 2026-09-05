@@ -42,6 +42,8 @@ export default function SettingsPage() {
     drive_invoices_folder_id: '',
     reminder_subject: DEFAULT_REMINDER_SUBJECT,
     reminder_body: DEFAULT_REMINDER_BODY,
+    late_reminder_subject: 'Rozliczenie wpłat i rachunków - BMT',
+    late_reminder_body: 'Szanowny/a {imie},\n\nPrzesyłamy w załączeniu aktualne podsumowanie Państwa konta. Saldo na dzień dzisiejszy wynosi: {saldo}.\n\nProsimy o uregulowanie należności.\n\nPozdrawiamy,\nBMT',
     rent_email_subject: DEFAULT_RENT_EMAIL_SUBJECT,
     rent_email_body: DEFAULT_RENT_EMAIL_BODY,
     gmail_user: '',
@@ -67,6 +69,8 @@ export default function SettingsPage() {
           drive_invoices_folder_id: config.drive_invoices_folder_id ?? '',
           reminder_subject: config.reminder_subject ?? DEFAULT_REMINDER_SUBJECT,
           reminder_body: config.reminder_body ?? DEFAULT_REMINDER_BODY,
+          late_reminder_subject: (config as any).late_reminder_subject ?? 'Rozliczenie wpłat i rachunków - BMT',
+          late_reminder_body: (config as any).late_reminder_body ?? 'Szanowny/a {imie},\n\nPrzesyłamy w załączeniu aktualne podsumowanie Państwa konta. Saldo na dzień dzisiejszy wynosi: {saldo}.\n\nProsimy o uregulowanie należności.\n\nPozdrawiamy,\nBMT',
           rent_email_subject: (config as Record<string, unknown>).rent_email_subject as string ?? DEFAULT_RENT_EMAIL_SUBJECT,
           rent_email_body: (config as Record<string, unknown>).rent_email_body as string ?? DEFAULT_RENT_EMAIL_BODY,
           gmail_user: config.gmail_user ?? '',
@@ -98,6 +102,8 @@ export default function SettingsPage() {
           drive_invoices_folder_id: form.drive_invoices_folder_id,
           reminder_subject: form.reminder_subject,
           reminder_body: form.reminder_body,
+          late_reminder_subject: form.late_reminder_subject,
+          late_reminder_body: form.late_reminder_body,
           rent_email_subject: form.rent_email_subject || null,
           rent_email_body: form.rent_email_body || null,
           email_provider: 'gmail_smtp',
@@ -210,6 +216,43 @@ export default function SettingsPage() {
 
       <div className="space-y-4">
         <div>
+          <h2 className="text-lg font-semibold">Automatyczne ponaglenia (wezwania do zapłaty)</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Wiadomość z ponagleniem jest wysyłana automatycznie do najemców, którzy po zaimportowaniu wyciągów (np. 15. dnia miesiąca) wciąż mają niedopłatę na swoim koncie.
+          </p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Dostępne zmienne w temacie i treści:{' '}
+            <code className="text-xs bg-muted px-1 py-0.5 rounded">{'{imie}'}</code>{' '}
+            <code className="text-xs bg-muted px-1 py-0.5 rounded">{'{saldo}'}</code>
+          </p>
+        </div>
+
+        <div className="space-y-1">
+          <Label>Temat wiadomości</Label>
+          <Input
+            value={form.late_reminder_subject}
+            onChange={(e) => setForm({ ...form, late_reminder_subject: e.target.value })}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <Label>Treść wiadomości</Label>
+          <Textarea
+            value={form.late_reminder_body}
+            onChange={(e) => setForm({ ...form, late_reminder_body: e.target.value })}
+            rows={6}
+          />
+        </div>
+
+        <Button onClick={handleSave} disabled={pending}>
+          Zapisz ustawienia
+        </Button>
+      </div>
+
+      <hr />
+
+      <div className="space-y-4">
+        <div>
           <h2 className="text-lg font-semibold">Wysyłka e-mail — konto 1</h2>
           <p className="text-sm text-muted-foreground mt-1">
             Główne konto Gmail używane do wysyłania wiadomości e-mail z aplikacji.
@@ -283,12 +326,16 @@ export default function SettingsPage() {
 
       <hr />
 
-      <div className="space-y-4">
+      <div className="space-y-4 opacity-75">
         <div>
-          <h2 className="text-lg font-semibold">Automatyczne przypomnienia</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-muted-foreground">Automatyczne przypomnienia (wyłączone)</h2>
+            <span className="text-xs bg-muted px-2 py-1 rounded text-muted-foreground">Tymczasowo nieaktywne</span>
+          </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Wysyłane automatycznie <strong>1. dnia każdego miesiąca o 8:00</strong> do wszystkich
-            aktywnych najemców z umową prywatną, którzy mają podany adres e-mail.
+            <del>Wysyłane automatycznie <strong>1. dnia każdego miesiąca o 8:00</strong> do wszystkich
+            aktywnych najemców z umową prywatną/BMT, którzy mają podany adres e-mail.</del><br/>
+            Obecnie automatyczna wysyłka przypomnień o czynszu pierwszego dnia miesiąca jest wyłączona w systemie.
           </p>
           <p className="text-sm text-muted-foreground mt-1">
             Dostępne zmienne w temacie i treści:{' '}
@@ -323,11 +370,15 @@ export default function SettingsPage() {
 
       <hr />
 
-      <div className="space-y-4">
+      <div className="space-y-4 opacity-75">
         <div>
-          <h2 className="text-lg font-semibold">E-mail z fakturą czynszową</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-muted-foreground">E-mail z fakturą czynszową (wyłączone)</h2>
+            <span className="text-xs bg-muted px-2 py-1 rounded text-muted-foreground">Tymczasowo nieaktywne</span>
+          </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Treść wiadomości wysyłanej najemcy wraz z fakturą PDF przy generowaniu czynszów.
+            <del>Treść wiadomości wysyłanej najemcy wraz z fakturą PDF przy generowaniu czynszów.</del><br/>
+            Obecnie automatyczna wysyłka e-maili z fakturą czynszową jest wyłączona w systemie.
           </p>
           <p className="text-sm text-muted-foreground mt-1">
             Dostępne zmienne w temacie i treści:{' '}

@@ -19,19 +19,21 @@ export interface FilterColumn {
 interface TableFilterBarProps {
   value: string
   onChange: (v: string) => void
-  column: string
-  onColumnChange: (col: string) => void
-  columns: FilterColumn[]
+  column?: string
+  onColumnChange?: (col: string) => void
+  columns?: FilterColumn[]
   placeholder?: string
+  hideColumns?: boolean
 }
 
 export function TableFilterBar({
   value,
   onChange,
-  column,
+  column = '__all__',
   onColumnChange,
-  columns,
+  columns = [],
   placeholder = 'Szukaj...',
+  hideColumns = false,
 }: TableFilterBarProps) {
   return (
     <div className="flex gap-2 items-center">
@@ -54,23 +56,25 @@ export function TableFilterBar({
           </Button>
         )}
       </div>
-      <Select value={column} onValueChange={(v) => onColumnChange(v ?? '__all__')}>
-        <SelectTrigger className="w-44">
-          <SelectValue>
-            {column === '__all__'
-              ? 'Wszystkie kolumny'
-              : (columns.find((c) => c.key === column)?.label ?? column)}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="__all__">Wszystkie kolumny</SelectItem>
-          {columns.map((c) => (
-            <SelectItem key={c.key} value={c.key}>
-              {c.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {!hideColumns && onColumnChange && columns.length > 0 && (
+        <Select value={column} onValueChange={(v) => onColumnChange(v ?? '__all__')}>
+          <SelectTrigger className="w-44">
+            <SelectValue>
+              {column === '__all__'
+                ? 'Wszystkie kolumny'
+                : (columns.find((c) => c.key === column)?.label ?? column)}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">Wszystkie kolumny</SelectItem>
+            {columns.map((c) => (
+              <SelectItem key={c.key} value={c.key}>
+                {c.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
     </div>
   )
 }

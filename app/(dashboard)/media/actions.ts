@@ -233,6 +233,26 @@ export async function getPreviousMeterReadings(
   return result
 }
 
+export async function getCurrentMeterReadings(
+  groupId: number,
+  month: number,
+  year: number,
+): Promise<Record<string, number>> {
+  const supabase = createServiceClient()
+  const { data } = await supabase
+    .from('media_meter_readings')
+    .select('key, value')
+    .eq('group_id', groupId)
+    .eq('month', month)
+    .eq('year', year)
+
+  const result: Record<string, number> = {}
+  for (const row of data ?? []) {
+    result[row.key] = Number(row.value)
+  }
+  return result
+}
+
 export async function processSettlement(
   groupId: number,
   inputValues: Record<string, string | number>,

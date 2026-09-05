@@ -35,6 +35,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { TableFilterBar } from '@/components/ui/table-filter-bar'
+import { FacetedFilter } from '@/components/ui/faceted-filter'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Pencil, Trash2, Plus, ChevronUp, ChevronDown, ChevronsUpDown, TrendingUp } from 'lucide-react'
@@ -45,12 +46,7 @@ type Tenant = Awaited<ReturnType<typeof getTenants>>[number]
 type SortKey = 'tenant' | 'property' | 'type' | 'amount' | 'from' | 'to' | 'active' | 'media'
 type SortDir = 'asc' | 'desc'
 
-const FILTER_COLUMNS = [
-  { key: 'tenant', label: 'Najemca' },
-  { key: 'property', label: 'Nieruchomość' },
-  { key: 'type', label: 'Typ' },
-  { key: 'active', label: 'Aktywna' },
-]
+
 
 function getTenantData(c: Contract) {
   return c.tenants as unknown as {
@@ -97,19 +93,14 @@ function sortContracts(contracts: Contract[], key: SortKey, dir: SortDir): Contr
   })
 }
 
-function matchesContractFilter(c: Contract, text: string, col: string): boolean {
+function matchesContractFilter(c: Contract, text: string): boolean {
   const q = text.toLowerCase()
   const t = getTenantData(c)
   const tenant = `${t?.first_name ?? ''} ${t?.last_name ?? ''}`.toLowerCase()
   const property = (t?.properties?.name ?? '').toLowerCase()
   const type = c.contract_type.toLowerCase()
   const active = c.is_active ? 'tak' : 'nie'
-  if (col === '__all__') return tenant.includes(q) || property.includes(q) || type.includes(q) || active.includes(q)
-  if (col === 'tenant') return tenant.includes(q)
-  if (col === 'property') return property.includes(q)
-  if (col === 'type') return type.includes(q)
-  if (col === 'active') return active.includes(q)
-  return false
+  return tenant.includes(q) || property.includes(q) || type.includes(q) || active.includes(q)
 }
 
 function emptyForm() {
@@ -154,7 +145,11 @@ export default function ContractsPage() {
   const [sortKey, setSortKey] = useState<SortKey>('tenant')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [filterText, setFilterText] = useState('')
-  const [filterCol, setFilterCol] = useState('__all__')
+
+  const [tenantNames, setTenantNames] = useState<Set<string>>(new Set())
+  const [propertyNames, setPropertyNames] = useState<Set<string>>(new Set())
+  const [contractTypes, setContractTypes] = useState<Set<string>>(new Set())
+  const [activeStatuses, setActiveStatuses] = useState<Set<string>>(new Set())
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -165,10 +160,34 @@ export default function ContractsPage() {
     }
   }
 
+  const facetedFiltered = contracts.filter((c) => {
+    const t = getTenantData(c)
+    const tName = `${t?.first_name ?? ''} ${t?.last_name ?? ''}`.trim()
+    const pName = t?.properties?.name ?? ''
+    const cType = c.contract_type
+    const act = c.is_active ? 'Tak' : 'Nie'
+
+    if (tenantNames.size > 0 && !tenantNames.has(tName)) return false
+    if (propertyNames.size > 0 && !propertyNames.has(pName)) return false
+    if (contractTypes.size > 0 && !contractTypes.has(cType)) return false
+    if (activeStatuses.size > 0 && !activeStatuses.has(act)) return false
+    return true
+  })
+
   const filtered = filterText
-    ? contracts.filter((c) => matchesContractFilter(c, filterText, filterCol))
-    : contracts
+    ? facetedFiltered.filter((c) => matchesContractFilter(c, filterText))
+    : facetedFiltered
   const sorted = sortContracts(filtered, sortKey, sortDir)
+
+  const uniqueTenants = Array.from(new Set(contracts.map((c) => {
+    const t = getTenantData(c)
+    return `${t?.first_name ?? ''} ${t?.last_name ?? ''}`.trim()
+  }).filter(Boolean))).sort()
+
+  const uniqueProperties = Array.from(new Set(contracts.map((c) => {
+    const t = getTenantData(c)
+    return t?.properties?.name ?? ''
+  }).filter(Boolean))).sort()
 
   function openCreate() {
     setEditing(null)
@@ -284,48 +303,38 @@ export default function ContractsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground font-normal">
-              Aktywne umowy
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">{stats?.activeContracts ?? 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground font-normal">
-              Czynsze {month}/{year}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">{stats?.rentCount ?? 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground font-normal">
-              Suma czynszów
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">
-              {(stats?.rentSum ?? 0).toLocaleString('pl-PL', { minimumFractionDigits: 2 })} zł
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
       <TableFilterBar
         value={filterText}
         onChange={setFilterText}
-        column={filterCol}
-        onColumnChange={setFilterCol}
-        columns={FILTER_COLUMNS}
+        hideColumns={true}
       />
+      
+      <div className="flex flex-wrap gap-2 items-center pb-2">
+        <FacetedFilter
+          title="Najemca"
+          options={uniqueTenants.map(t => ({ label: t, value: t }))}
+          selectedValues={tenantNames}
+          onSelectedChange={setTenantNames}
+        />
+        <FacetedFilter
+          title="Nieruchomość"
+          options={uniqueProperties.map(p => ({ label: p, value: p }))}
+          selectedValues={propertyNames}
+          onSelectedChange={setPropertyNames}
+        />
+        <FacetedFilter
+          title="Typ umowy"
+          options={[{ label: 'PRIVATE', value: 'PRIVATE' }, { label: 'BUSINESS', value: 'BUSINESS' }]}
+          selectedValues={contractTypes}
+          onSelectedChange={setContractTypes}
+        />
+        <FacetedFilter
+          title="Aktywna"
+          options={[{ label: 'Tak', value: 'Tak' }, { label: 'Nie', value: 'Nie' }]}
+          selectedValues={activeStatuses}
+          onSelectedChange={setActiveStatuses}
+        />
+      </div>
 
       <Table>
         <TableHeader>

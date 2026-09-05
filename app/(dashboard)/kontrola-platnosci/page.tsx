@@ -23,11 +23,6 @@ type TenantWithBalance = Awaited<ReturnType<typeof getTenantsWithBalances>>[numb
 type SortKey = 'name' | 'property' | 'balance'
 type SortDir = 'asc' | 'desc'
 
-const FILTER_COLUMNS = [
-  { key: 'name', label: 'Najemca' },
-  { key: 'property', label: 'Nieruchomość' },
-]
-
 function sortTenants(tenants: TenantWithBalance[], key: SortKey, dir: SortDir): TenantWithBalance[] {
   return [...tenants].sort((a, b) => {
     let va: string | number = ''
@@ -48,15 +43,12 @@ function sortTenants(tenants: TenantWithBalance[], key: SortKey, dir: SortDir): 
   })
 }
 
-function matchesTenantFilter(t: TenantWithBalance, text: string, col: string): boolean {
+function matchesTenantFilter(t: TenantWithBalance, text: string): boolean {
   const q = text.toLowerCase()
   const name = `${t.first_name} ${t.last_name}`.toLowerCase()
   const company = (t.company_name ?? '').toLowerCase()
   const property = (t.property?.name || t.property?.address1 || '').toLowerCase()
-  if (col === '__all__') return name.includes(q) || company.includes(q) || property.includes(q)
-  if (col === 'name') return name.includes(q) || company.includes(q)
-  if (col === 'property') return property.includes(q)
-  return false
+  return name.includes(q) || company.includes(q) || property.includes(q)
 }
 
 function SortIcon({ col, sortKey, sortDir }: { col: SortKey, sortKey: SortKey, sortDir: SortDir }) {
@@ -73,15 +65,9 @@ export default function KontrolaPlatnosciPage() {
     queryFn: getTenantsWithBalances,
   })
 
-  const { data: stats } = useQuery({
-    queryKey: ['globalPaymentStats'],
-    queryFn: getGlobalPaymentStats,
-  })
-
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [filterText, setFilterText] = useState('')
-  const [filterCol, setFilterCol] = useState('__all__')
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -93,7 +79,7 @@ export default function KontrolaPlatnosciPage() {
   }
 
   const filtered = filterText
-    ? tenants.filter((t) => matchesTenantFilter(t, filterText, filterCol))
+    ? tenants.filter((t) => matchesTenantFilter(t, filterText))
     : tenants
   const sorted = sortTenants(filtered, sortKey, sortDir)
 
@@ -111,16 +97,6 @@ export default function KontrolaPlatnosciPage() {
                 {formatAmount(totalBalance)}
               </span>
             </div>
-            {stats && (
-              <div className="text-xs mt-1">
-                Całkowity zarobek: <span className="font-semibold text-foreground">{formatAmount(stats.totalEarnings)}</span>
-              </div>
-            )}
-            {stats?.trackingSince && (
-              <div className="text-xs">
-                Śledzimy od: <span className="font-semibold text-foreground">{formatDate(stats.trackingSince)}</span>
-              </div>
-            )}
           </div>
           <Button 
             size="sm" 
@@ -135,9 +111,7 @@ export default function KontrolaPlatnosciPage() {
       <TableFilterBar
         value={filterText}
         onChange={setFilterText}
-        column={filterCol}
-        onColumnChange={setFilterCol}
-        columns={FILTER_COLUMNS}
+        hideColumns={true}
       />
 
       <Table>

@@ -22,6 +22,8 @@ export async function upsertAppConfig(data: {
   drive_invoices_folder_id?: string
   reminder_subject?: string
   reminder_body?: string
+  late_reminder_subject?: string
+  late_reminder_body?: string
   rent_email_subject?: string | null
   rent_email_body?: string | null
   email_provider?: string
