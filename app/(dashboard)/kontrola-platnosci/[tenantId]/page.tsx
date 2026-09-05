@@ -100,6 +100,13 @@ function matchesTextFilter(entry: StatementEntry, text: string, col: string): bo
   return false
 }
 
+function SortIcon({ col, sortKey, sortDir }: { col: SortKey, sortKey: SortKey, sortDir: SortDir }) {
+  if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
+  return sortDir === 'asc'
+    ? <ChevronUp className="ml-1 h-3 w-3 inline" />
+    : <ChevronDown className="ml-1 h-3 w-3 inline" />
+}
+
 export default function TenantStatementPage() {
   const params = useParams()
   const router = useRouter()
@@ -134,13 +141,6 @@ export default function TenantStatementPage() {
       setSortKey(key)
       setSortDir('asc')
     }
-  }
-
-  function SortIcon({ col }: { col: SortKey }) {
-    if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
-    return sortDir === 'asc'
-      ? <ChevronUp className="ml-1 h-3 w-3 inline" />
-      : <ChevronDown className="ml-1 h-3 w-3 inline" />
   }
 
   const filtered = statement
@@ -373,17 +373,17 @@ export default function TenantStatementPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="cursor-pointer select-none" onClick={() => handleSort('date')}>
-                  Data<SortIcon col="date" />
+                  Data<SortIcon col="date" sortKey={sortKey} sortDir={sortDir} />
                 </TableHead>
                 <TableHead>Rodzaj</TableHead>
                 <TableHead className="cursor-pointer select-none" onClick={() => handleSort('description')}>
-                  Opis<SortIcon col="description" />
+                  Opis<SortIcon col="description" sortKey={sortKey} sortDir={sortDir} />
                 </TableHead>
                 <TableHead
                   className="text-right cursor-pointer select-none"
                   onClick={() => handleSort('amount')}
                 >
-                  Kwota<SortIcon col="amount" />
+                  Kwota<SortIcon col="amount" sortKey={sortKey} sortDir={sortDir} />
                 </TableHead>
                 <TableHead className="text-right">Saldo</TableHead>
               </TableRow>

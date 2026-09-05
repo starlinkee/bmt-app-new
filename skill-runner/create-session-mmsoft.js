@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { chromium } = require('/home/apprunner/.npm/_npx/e41f203b7505f1fb/node_modules/playwright');
 const path = require('path');
 

@@ -3,11 +3,9 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  LayoutDashboard,
   Building2,
   Users,
   FileText,
-  CreditCard,
   Gauge,
   Upload,
   Settings,

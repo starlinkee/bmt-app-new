@@ -9,13 +9,13 @@ export async function getTenantReadingsContext(token: string) {
   const { data: tenant, error: tenantErr } = await supabase
     .from('tenants')
     .select('id, first_name, last_name, properties(id, name)')
-    // @ts-ignore
+    // @ts-expect-error type inference is wrong here
     .eq('reading_token', token)
     .single()
     
   if (tenantErr || !tenant) return null
   
-  const propertyId = tenant.properties ? (tenant.properties as any).id : null
+  const propertyId = tenant.properties ? (tenant.properties as { id: number }).id : null
   if (!propertyId) return null
 
   // Znajdź grupy rozliczeniowe, do których należy ta nieruchomość

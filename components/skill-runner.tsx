@@ -33,7 +33,7 @@ interface JobFiles {
 }
 
 function Countdown({ startedAt, timeoutMs }: { startedAt: number; timeoutMs: number }) {
-  const [remaining, setRemaining] = useState(timeoutMs - (Date.now() - startedAt))
+  const [remaining, setRemaining] = useState(() => timeoutMs - (Date.now() - startedAt))
 
   useEffect(() => {
     const t = setInterval(() => {

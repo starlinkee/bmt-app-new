@@ -101,6 +101,13 @@ function emptyForm() {
   }
 }
 
+function SortIcon({ col, sortKey, sortDir }: { col: SortKey, sortKey: SortKey, sortDir: SortDir }) {
+  if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
+  return sortDir === 'asc'
+    ? <ChevronUp className="ml-1 h-3 w-3 inline" />
+    : <ChevronDown className="ml-1 h-3 w-3 inline" />
+}
+
 export default function MediaPage() {
   const queryClient = useQueryClient()
   const { data: groups = [] } = useQuery({
@@ -133,13 +140,6 @@ export default function MediaPage() {
       setSortKey(key)
       setSortDir('asc')
     }
-  }
-
-  function SortIcon({ col }: { col: SortKey }) {
-    if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
-    return sortDir === 'asc'
-      ? <ChevronUp className="ml-1 h-3 w-3 inline" />
-      : <ChevronDown className="ml-1 h-3 w-3 inline" />
   }
 
   const filtered = filterText
@@ -251,13 +251,13 @@ export default function MediaPage() {
         <TableHeader>
           <TableRow>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('name')}>
-              Nazwa<SortIcon col="name" />
+              Nazwa<SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('properties')}>
-              Nieruchomości<SortIcon col="properties" />
+              Nieruchomości<SortIcon col="properties" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('spreadsheet_id')}>
-              ID arkusza<SortIcon col="spreadsheet_id" />
+              ID arkusza<SortIcon col="spreadsheet_id" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="w-28" />
           </TableRow>

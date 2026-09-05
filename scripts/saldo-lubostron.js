@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
@@ -24,7 +25,7 @@ const path = require('path');
         await closeLink.first().click();
         console.log('Popup zamknięty');
       }
-    } catch (e) {
+    } catch {
       console.log('Brak popupu UWAGA');
     }
 

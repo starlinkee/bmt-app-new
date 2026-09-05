@@ -15,20 +15,6 @@ import {
 import { ensureYearMonthFolder, copySpreadsheet, uploadPdfToDrive } from '@/lib/driveEngine'
 import { sendMediaEmail } from '@/lib/email'
 import { buildInvoiceNumber, tenantDisplayName } from '@/lib/utils'
-import { amountToWordsPLN } from '@/lib/numberWords'
-
-type InvoiceMappingEntry = { range: string; value: string }
-
-function resolveInvoiceMapping(
-  mapping: InvoiceMappingEntry[],
-  vars: Record<string, string>,
-): Record<string, string> {
-  const result: Record<string, string> = {}
-  for (const entry of mapping) {
-    result[entry.range] = entry.value.replace(/\{(\w+)\}/g, (_, key) => vars[key] ?? '')
-  }
-  return result
-}
 
 export async function getSettlementGroups() {
   const supabase = createServiceClient()
@@ -67,7 +53,7 @@ export async function createSettlementGroup(data: {
   
   const payload = { ...groupData }
   if (tenant_reading_keys) {
-    (payload as any).tenant_reading_keys = tenant_reading_keys
+    (payload as Record<string, unknown>).tenant_reading_keys = tenant_reading_keys
   }
 
   const { data: created, error } = await supabase
@@ -117,7 +103,7 @@ export async function updateSettlementGroup(
 
   const payload = { ...rest }
   if (tenant_reading_keys !== undefined) {
-    (payload as any).tenant_reading_keys = tenant_reading_keys
+    (payload as Record<string, unknown>).tenant_reading_keys = tenant_reading_keys
   }
 
   if (Object.keys(payload).length) {
