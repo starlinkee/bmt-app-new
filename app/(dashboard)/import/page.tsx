@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { toast } from 'sonner'
 import Link from 'next/link'
-import { importCsvTransactions } from './actions'
+import { importCsvTransactions, getLastImportInfo } from './actions'
 import { Label } from '@/components/ui/label'
-import { History, AlertTriangle, X } from 'lucide-react'
+import { History, AlertTriangle, X, Info } from 'lucide-react'
 
 export default function ImportPage() {
   const [result, setResult] = useState<{
@@ -15,7 +15,23 @@ export default function ImportPage() {
     withoutSuggestion: number
     skipped: number
     duplicates: number
+    minDate?: string | null
+    maxDate?: string | null
+    savedFileName?: string
   } | null>(null)
+  
+  const [lastImport, setLastImport] = useState<{
+    minDate?: string | null
+    maxDate?: string | null
+    savedFileName?: string
+  } | null>(null)
+
+  useEffect(() => {
+    getLastImportInfo().then(info => {
+      if (info) setLastImport(info)
+    }).catch(console.error)
+  }, [])
+
   const [bannerDismissed, setBannerDismissed] = useState(false)
   const [pending, startTransition] = useTransition()
 
@@ -78,6 +94,17 @@ export default function ImportPage() {
           disabled={pending}
           className="block text-sm file:mr-3 file:py-1 file:px-3 file:rounded file:border file:border-input file:bg-background file:text-sm file:cursor-pointer"
         />
+        {lastImport?.minDate && lastImport?.maxDate && (
+          <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 p-3 rounded-md border border-blue-200 dark:border-blue-900 mt-4">
+            <Info className="h-4 w-4 shrink-0" />
+            <div>
+              Ostatnio wgrany wyciąg obejmował okres: <strong>{lastImport.minDate}</strong> – <strong>{lastImport.maxDate}</strong>.
+              {lastImport.savedFileName && (
+                <div className="text-xs opacity-80 mt-0.5">Zapisany jako: {lastImport.savedFileName.replace('import_', '').substring(0, 8)}...</div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {pending && (
@@ -89,6 +116,9 @@ export default function ImportPage() {
           <p className="font-medium">Wynik importu</p>
           <ul className="space-y-1 text-muted-foreground">
             <li>Bank: <span className="text-foreground">{result.bank}</span></li>
+            {result.minDate && result.maxDate && (
+              <li>Okres: <span className="text-foreground">{result.minDate} – {result.maxDate}</span></li>
+            )}
             <li>Z sugestią najemcy: <span className="text-foreground">{result.withSuggestion}</span></li>
             <li>Bez dopasowania: <span className="text-foreground">{result.withoutSuggestion}</span></li>
             <li>Pominięte (wychodzące / brak danych): <span className="text-muted-foreground">{result.skipped}</span></li>

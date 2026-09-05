@@ -5,6 +5,9 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { parseCsv } from '@/lib/csvParser'
 import { matchTransaction } from '@/lib/matcher'
 import { logAudit } from '@/lib/audit'
+import fs from 'fs/promises'
+import path from 'path'
+import crypto from 'crypto'
 
 export async function importCsvTransactions(csvContent: string) {
   const supabase = createServiceClient()
@@ -20,8 +23,13 @@ export async function importCsvTransactions(csvContent: string) {
   let withSuggestion = 0
   let withoutSuggestion = 0
   let duplicates = 0
+  let minDate = '9999-12-31'
+  let maxDate = '0000-01-01'
 
   for (const tx of transactions) {
+    if (tx.date < minDate) minDate = tx.date
+    if (tx.date > maxDate) maxDate = tx.date
+
     const { count } = await supabase
       .from('transactions')
       .select('*', { count: 'exact', head: true })
@@ -53,7 +61,14 @@ export async function importCsvTransactions(csvContent: string) {
     }
   }
 
-  const summary = { bank, total: transactions.length, withSuggestion, withoutSuggestion, skipped, duplicates }
+  // Zapis pliku na VPS
+  const attachDir = path.join(process.cwd(), 'data', 'attachments')
+  await fs.mkdir(attachDir, { recursive: true })
+  const savedFileName = `import_${crypto.randomUUID()}.csv`
+  const filePath = path.join(attachDir, savedFileName)
+  await fs.writeFile(filePath, csvContent, 'utf-8')
+
+  const summary = { bank, total: transactions.length, withSuggestion, withoutSuggestion, skipped, duplicates, minDate: minDate === '9999-12-31' ? null : minDate, maxDate: maxDate === '0000-01-01' ? null : maxDate, savedFileName }
   await logAudit({
     actionName: 'importCsvTransactions',
     tableName: 'transaction_staging',
@@ -67,6 +82,24 @@ export async function importCsvTransactions(csvContent: string) {
 
   revalidatePath('/import')
   return { ...summary, lateReminders }
+}
+
+export async function getLastImportInfo() {
+  const supabase = createServiceClient()
+  const { data, error } = await supabase
+    .from('audit_log')
+    .select('after_data, created_at')
+    .eq('action_name', 'importCsvTransactions')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single()
+    
+  if (error || !data) return null
+  return data.after_data as {
+    minDate?: string | null
+    maxDate?: string | null
+    savedFileName?: string
+  }
 }
 
 export async function getUnmatchedTransactions() {
