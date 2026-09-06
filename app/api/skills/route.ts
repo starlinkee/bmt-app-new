@@ -1,22 +1,28 @@
 import { NextResponse } from 'next/server'
-import { getVpsUrl, invalidatePortCache, vpsHeaders } from '@/lib/skill-runner-client'
+import { createServiceClient } from '@/lib/supabase/service'
 
 export async function GET() {
-  const vpsUrl = await getVpsUrl()
-  if (!vpsUrl) {
-    return NextResponse.json({ error: 'Skill runner not configured or unreachable' }, { status: 503 })
-  }
-
+  const supabase = createServiceClient()
+  
   try {
-    const res = await fetch(`${vpsUrl}/skills`, {
-      headers: vpsHeaders(),
-      signal: AbortSignal.timeout(5_000),
-    })
-    const data = await res.json()
-    return NextResponse.json(data, { status: res.status })
+    const { data, error } = await supabase
+      .from('skill_prompts')
+      .select('id, label, description, timeout_ms')
+      .order('id')
+      
+    if (error) throw error
+    
+    // Map to expected frontend format
+    const skills = data.map(s => ({
+      id: s.id,
+      label: s.label,
+      description: s.description,
+      timeoutMs: s.timeout_ms
+    }))
+    
+    return NextResponse.json({ skills })
   } catch (err) {
-    invalidatePortCache()
     const message = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ error: `Could not reach skill runner: ${message}` }, { status: 502 })
+    return NextResponse.json({ error: \Could not fetch skills: \\ }, { status: 502 })
   }
 }

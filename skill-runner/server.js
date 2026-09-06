@@ -5,6 +5,7 @@ const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 const os = require('os')
+const { createClient } = require('@supabase/supabase-js')
 
 // Load env files from script directory (.env first, then secrets.env overrides)
 function loadEnvFile(filePath) {
@@ -85,6 +86,11 @@ const WORK_DIR = process.env.WORK_DIR || 'C:\\Users\\Jerzy\\Desktop\\bmt-app-new
 const OUTPUT_BASE_DIR = process.env.OUTPUT_BASE_DIR || path.join(WORK_DIR, 'gemini_results')
 const PROMPTS_FILE = path.join(__dirname, 'prompts.json')
 
+let supabase = null;
+if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+}
+
 function loadPrompts() {
   try { return JSON.parse(fs.readFileSync(PROMPTS_FILE, 'utf8')) } catch { return {} }
 }
@@ -160,6 +166,36 @@ function findJobOutputDir(job) {
     return dirs[0] || null
   } catch { return null }
 }
+
+async function uploadJobFilesToSupabase(job, jobId) {
+  if (!supabase) return;
+  const dir = findJobOutputDir(job);
+  if (!dir) return;
+
+  try {
+    const files = fs.readdirSync(dir.fullPath).filter(name => fs.statSync(path.join(dir.fullPath, name)).isFile());
+    for (const name of files) {
+      const fullPath = path.join(dir.fullPath, name);
+      const buffer = fs.readFileSync(fullPath);
+      const ext = path.extname(name).toLowerCase();
+      const contentType = FILE_MIME_TYPES[ext] || 'application/octet-stream';
+      
+      const remotePath = `ai-files/${job.skill}/${jobId}/${name}`;
+      const { error } = await supabase.storage.from('invoices').upload(remotePath, buffer, {
+        contentType,
+        upsert: true
+      });
+      if (error) {
+        console.error(`[${jobId}] Błąd wgrywania ${name} do Supabase:`, error.message);
+      } else {
+        console.log(`[${jobId}] Wgrano ${name} do Supabase (${remotePath})`);
+      }
+    }
+  } catch (err) {
+    console.error(`[${jobId}] Błąd podczas wysyłania do Supabase:`, err.message);
+  }
+}
+
 const INIT_DELAY_MS = 8000
 const IDLE_TIMEOUT_MS = 15_000  // brak outputu przez 15 sekund = gotowe
 const MAX_RUNTIME_MS = 15 * 60 * 1000 // twardy limit 15 minut
@@ -216,24 +252,34 @@ function spawnGemini(workDir) {
   })
 }
 
-app.post('/run-skill', (req, res) => {
+app.post('/run-skill', async (req, res) => {
   if (!requireToken(req, res)) return
 
   const { skill } = req.body || {}
-  if (!skill || !isSkillAllowed(skill)) {
+  if (!skill) {
     return res.status(400).json({ error: `Skill not found: ${skill}` })
+  }
+
+  let content = '';
+  if (supabase) {
+    const { data } = await supabase.from('skill_prompts').select('prompt').eq('id', skill).single();
+    if (data) content = data.prompt;
+  } else {
+    const prompts = loadPrompts();
+    content = getPromptContent(prompts[skill]);
+  }
+
+  if (!content) {
+    return res.status(400).json({ error: `Skill not found or no prompt: ${skill}` })
   }
 
   const jobId = crypto.randomUUID()
   jobs.set(jobId, { status: 'running', startedAt: new Date().toISOString(), skill, output: '', proc: null })
   res.json({ jobId, status: 'started', skill })
 
-  // Nadpisz .md aktualnym promptem z prompts.json
-  const prompts = loadPrompts()
-  const content = getPromptContent(prompts[skill])
-  if (content) applyPrompt(skill, content)
+  applyPrompt(skill, content)
 
-  console.log(`[${jobId}] Uruchamiam Claude PTY dla /${skill} w ${WORK_DIR}`)
+  console.log(`[${jobId}] Uruchamiam Claude/Gemini PTY dla /${skill} w ${WORK_DIR}`)
 
   const buffer = new RawBuffer()
   let proc
@@ -266,6 +312,7 @@ app.post('/run-skill', (req, res) => {
       job.output = current + (current ? '\n\n' : '') + '✓ Zakończono.'
       job.status = 'done'
       job.finishedAt = new Date().toISOString()
+      uploadJobFilesToSupabase(job, jobId)
     }
   }
 
@@ -300,6 +347,9 @@ app.post('/run-skill', (req, res) => {
       job.output = current + (current ? '\n\n' : '') + msg
       job.status = exitCode === 0 ? 'done' : 'error'
       job.finishedAt = new Date().toISOString()
+      if (exitCode === 0) {
+        uploadJobFilesToSupabase(job, jobId)
+      }
     }
   })
 
