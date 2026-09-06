@@ -24,7 +24,7 @@ export async function addAdjustment(
     throw error
   }
   await logAudit({ actionName: 'addAdjustment', tableName: 'transactions', operation: 'CREATE', recordId: created.id, afterData: created })
-  revalidatePath(`/tenants/${tenantId}`)
+  revalidatePath(`/najemcy/${tenantId}`)
 }
 
 export async function addManualBankTransaction(
@@ -47,7 +47,7 @@ export async function addManualBankTransaction(
     throw error
   }
   await logAudit({ actionName: 'addManualBankTransaction', tableName: 'transactions', operation: 'CREATE', recordId: created.id, afterData: created })
-  revalidatePath(`/tenants/${tenantId}`)
+  revalidatePath(`/najemcy/${tenantId}`)
 }
 
 export async function updateTransaction(
@@ -87,7 +87,7 @@ export async function updateTransaction(
   }
   await logAudit({ actionName: 'updateTransaction', tableName: 'transactions', operation: 'UPDATE', recordId: txId, beforeData: before, afterData: after })
 
-  revalidatePath(`/tenants/${tenantId}`)
+  revalidatePath(`/najemcy/${tenantId}`)
 }
 
 export async function getTransactionAmendments(txId: number) {

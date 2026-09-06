@@ -41,5 +41,5 @@ export async function upsertAppConfig(data: {
     throw error
   }
   await logAudit({ actionName: 'upsertAppConfig', tableName: 'app_config', operation: 'UPDATE', recordId: '1', beforeData: before, afterData: after })
-  revalidatePath('/settings')
+  revalidatePath('/ustawienia')
 }

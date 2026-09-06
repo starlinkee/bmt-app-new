@@ -6,8 +6,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { getTenants, createTenant, updateTenant, deleteTenant } from './actions'
-import { getProperties } from '@/app/(dashboard)/properties/actions'
-import { getAppConfig } from '@/app/(dashboard)/settings/actions'
+import { getProperties } from '@/app/(dashboard)/nieruchomosci/actions'
+import { getAppConfig } from '@/app/(dashboard)/ustawienia/actions'
 import { QUERY_KEYS } from '@/lib/queryKeys'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -305,7 +305,7 @@ export default function TenantsPage() {
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('phone')}>
               Telefon<SortIcon col="phone" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
-            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('contracts')}>
+            <TableHead className="cursor-pointer select-none text-center" onClick={() => handleSort('contracts')}>
               Umowy<SortIcon col="contracts" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="w-24" />
@@ -337,13 +337,13 @@ export default function TenantsPage() {
                 )}
               </TableCell>
               <TableCell>{t.phone}</TableCell>
-              <TableCell>
+              <TableCell className="text-center">
                 {(t.contracts as unknown as unknown[])?.length ?? 0}
               </TableCell>
               <TableCell>
                 <div className="flex gap-1">
                   <Link
-                    href={`/tenants/${t.id}`}
+                    href={`/najemcy/${t.id}`}
                     className="inline-flex items-center justify-center h-8 w-8 rounded-lg hover:bg-muted transition-colors"
                   >
                     <ExternalLink className="h-4 w-4" />

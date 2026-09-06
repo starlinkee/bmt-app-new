@@ -30,7 +30,7 @@ export async function createContract(data: {
     throw error
   }
   await logAudit({ actionName: 'createContract', tableName: 'contracts', operation: 'CREATE', recordId: created.id, afterData: created })
-  revalidatePath('/contracts')
+  revalidatePath('/umowy')
 }
 
 export async function updateContract(
@@ -52,7 +52,7 @@ export async function updateContract(
     throw error
   }
   await logAudit({ actionName: 'updateContract', tableName: 'contracts', operation: 'UPDATE', recordId: id, beforeData: before, afterData: after })
-  revalidatePath('/contracts')
+  revalidatePath('/umowy')
 }
 
 export async function deleteContract(id: number) {
@@ -64,7 +64,7 @@ export async function deleteContract(id: number) {
     throw error
   }
   await logAudit({ actionName: 'deleteContract', tableName: 'contracts', operation: 'DELETE', recordId: id, beforeData: before })
-  revalidatePath('/contracts')
+  revalidatePath('/umowy')
 }
 
 export async function revaluateContract(id: number, inflationPercent: number) {
@@ -87,7 +87,7 @@ export async function revaluateContract(id: number, inflationPercent: number) {
     throw error
   }
   await logAudit({ actionName: 'revaluateContract', tableName: 'contracts', operation: 'UPDATE', recordId: id, beforeData: before, afterData: after })
-  revalidatePath('/contracts')
+  revalidatePath('/umowy')
   return newRent
 }
 
