@@ -175,7 +175,7 @@ export default function ReconcilePage() {
               <div className="flex gap-2 pt-1 border-t">
                 <div className="flex-1 space-y-2">
                   {tx.suggested_tenant_id != null && selectedTenants[tx.id] === String(tx.suggested_tenant_id) && (
-                    <p className="text-xs text-muted-foreground">Sugestia wg numeru rachunku — wymaga potwierdzenia</p>
+                    <p className="text-xs text-muted-foreground">Sugestia wg kwoty i historii — wymaga potwierdzenia</p>
                   )}
                   <SearchSelect
                     options={tenants.map((t) => ({

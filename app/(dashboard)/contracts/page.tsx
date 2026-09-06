@@ -107,8 +107,7 @@ function emptyForm() {
     contract_type: 'PRIVATE',
     rent_amount: '',
     has_media_invoice: false,
-    opis_rachunku: '',
-    opis_rachunku_media: '',
+
     start_date: '',
     end_date: '',
     indefinite: true,
@@ -200,8 +199,7 @@ export default function ContractsPage() {
       contract_type: c.contract_type,
       rent_amount: String(c.rent_amount),
       has_media_invoice: (c as Record<string, unknown>).has_media_invoice as boolean ?? false,
-      opis_rachunku: (c as Record<string, unknown>).opis_rachunku as string ?? '',
-      opis_rachunku_media: (c as Record<string, unknown>).opis_rachunku_media as string ?? '',
+
       start_date: c.start_date,
       end_date: c.end_date ?? '',
       indefinite: !c.end_date,
@@ -220,8 +218,7 @@ export default function ContractsPage() {
       contract_type: form.contract_type,
       rent_amount: parseFloat(form.rent_amount),
       has_media_invoice: form.has_media_invoice,
-      opis_rachunku: form.opis_rachunku,
-      opis_rachunku_media: form.opis_rachunku_media,
+
       start_date: form.start_date,
       end_date: form.indefinite ? undefined : (form.end_date || undefined),
       is_active: form.is_active,
@@ -353,7 +350,6 @@ export default function ContractsPage() {
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('media')}>
               Media<SortIcon col="media" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
-            <TableHead>Opis rachunku</TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('from')}>
               Od<SortIcon col="from" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
@@ -386,7 +382,6 @@ export default function ContractsPage() {
                     {(c as Record<string, unknown>).has_media_invoice ? 'Tak' : 'Nie'}
                   </Badge>
                 </TableCell>
-                <TableCell>{(c as Record<string, unknown>).opis_rachunku as string || null}</TableCell>
                 <TableCell>{formatDate(c.start_date)}</TableCell>
                 <TableCell>
                   {c.end_date
@@ -548,28 +543,9 @@ export default function ContractsPage() {
                 checked={form.has_media_invoice}
                 onCheckedChange={(v) => setForm({ ...form, has_media_invoice: v })}
               />
-              <Label>Umowa z rachunkiem za media</Label>
+              <Label>Rozliczaj media z tej umowy</Label>
             </div>
-            {form.contract_type === 'BUSINESS' && (
-              <div className="space-y-1">
-                <Label>Opis rachunku (czynsz)</Label>
-                <Input
-                  value={form.opis_rachunku}
-                  onChange={(e) => setForm({ ...form, opis_rachunku: e.target.value })}
-                  placeholder="Czynsz za lokal jp64"
-                />
-              </div>
-            )}
-            {form.contract_type === 'BUSINESS' && (
-              <div className="space-y-1">
-                <Label>Opis rachunku (media)</Label>
-                <Input
-                  value={form.opis_rachunku_media}
-                  onChange={(e) => setForm({ ...form, opis_rachunku_media: e.target.value })}
-                  placeholder="Media jp64 lokal 1"
-                />
-              </div>
-            )}
+
             <div className="space-y-1">
               <Label>Data od *</Label>
               <Input

@@ -443,63 +443,41 @@ export async function processSettlement(
       )
       
       if (!activeContract) {
-        throw new Error(`Najemca ${tenant.first_name} ${tenant.last_name} nie posiada aktywnej umowy z włączoną opcją rachunku za media (has_media_invoice=true). Zaktualizuj umowę przed rozliczeniem.`)
+        throw new Error(`Najemca ${tenant.first_name} ${tenant.last_name} nie posiada aktywnej umowy z włączoną opcją rozliczania mediów. Zaktualizuj umowę przed rozliczeniem.`)
       }
       
       return { entry, amount, tenant, activeContract }
     })
     .filter((x): x is NonNullable<typeof x> => x !== null)
 
-  let seqCounter = maxSeq
   const assignedEntries = validEntries.map((item) => {
-    const isBusiness = item.activeContract.contract_type === 'BUSINESS'
     return {
       ...item,
-      invoiceNumber: isBusiness ? buildInvoiceNumber(month, year, ++seqCounter) : undefined,
+      invoiceNumber: undefined,
     }
   })
 
   // Przetwarzaj wszystkich najemców równolegle
-  type TenantResult = { tenantName: string; amount: number; invoiceNumber: string; invoiceError?: string; emailError?: string }
+  type TenantResult = { tenantName: string; amount: number; invoiceNumber: string | null; invoiceError?: string; emailError?: string }
   const settled = await Promise.allSettled(
-    assignedEntries.map(async ({ entry, amount, tenant, activeContract, invoiceNumber }) => {
+    assignedEntries.map(async ({ entry, amount, tenant, activeContract }) => {
       let invoicePdfBuffer: Buffer | undefined
       let invoiceError: string | undefined
 
-      if (invoiceNumber) {
-        const { error } = await supabase.from('invoices').upsert(
-          {
-            type: entry.type,
-            number: invoiceNumber,
-            amount,
-            month,
-            year,
-            tenant_id: tenant.id,
-            contract_id: activeContract.id,
-            media_settlement_id: settlement.id,
-          },
-          { ignoreDuplicates: true },
-        )
-        if (error) {
-          console.error('[media] invoice upsert error:', JSON.stringify(error), 'amount:', amount, 'tenant:', tenant.id)
-          return null
-        }
-      } else {
-        // PRIVATE: zapisz należność bez formalnego numeru rachunku
-        await supabase.from('invoices').upsert(
-          {
-            type: entry.type,
-            number: null,
-            amount,
-            month,
-            year,
-            tenant_id: tenant.id,
-            contract_id: activeContract.id,
-            media_settlement_id: settlement.id,
-          },
-          { ignoreDuplicates: true },
-        )
-      }
+      // Zapisz należność bez formalnego numeru rachunku
+      await supabase.from('invoices').upsert(
+        {
+          type: entry.type,
+          number: null,
+          amount,
+          month,
+          year,
+          tenant_id: tenant.id,
+          contract_id: activeContract.id,
+          media_settlement_id: settlement.id,
+        },
+        { ignoreDuplicates: true },
+      )
 
       // 9. Wygeneruj Notę Rozliczeniową (Mockup) dla każdego najemcy
       try {
@@ -537,7 +515,7 @@ export async function processSettlement(
           await sendMediaEmail(
             recipients,
             tenantDisplayName(tenant),
-            invoiceNumber ?? `${String(month).padStart(2, '0')}/${year}`,
+            `${String(month).padStart(2, '0')}/${year}`,
             amount,
             month,
             year,
@@ -555,7 +533,7 @@ export async function processSettlement(
       return {
         tenantName: tenantDisplayName(tenant),
         amount,
-        invoiceNumber: invoiceNumber ?? `${String(month).padStart(2, '0')}/${year}`,
+        invoiceNumber: null,
         invoiceError,
         emailError,
       } satisfies TenantResult

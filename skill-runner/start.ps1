@@ -1,5 +1,5 @@
 $env:SKILL_RUNNER_TOKEN = "localdev"
-$env:WORK_DIR = "C:\Users\Jerzy\Desktop\bmt-app-new"
+$env:WORK_DIR = "C:\Users\shiva\Desktop\BMT\bmt-app-new"
 
 Write-Host "Skill-runner auto-restart. Zatrzymaj: Ctrl+C" -ForegroundColor DarkGray
 

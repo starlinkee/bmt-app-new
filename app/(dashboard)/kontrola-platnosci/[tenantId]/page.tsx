@@ -34,7 +34,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 function entryKind(entry: StatementEntry): string {
   if (entry.type === 'invoice') {
-    return CATEGORY_LABELS[entry.invoiceType ?? ''] ?? 'Rachunek'
+    return CATEGORY_LABELS[entry.invoiceType ?? ''] ?? 'Obciazenie'
   }
   if (entry.transactionCategory) {
     return `Wpłata (${CATEGORY_LABELS[entry.transactionCategory] ?? entry.transactionCategory})`
@@ -152,7 +152,7 @@ export default function TenantStatementPage() {
     ? `${dateFrom ? fmtDatePL(dateFrom) : '…'} – ${dateTo ? fmtDatePL(dateTo) : '…'}`
     : null
   const filterParts = [
-    entryTypeFilter === 'transaction' ? 'Wpłaty' : entryTypeFilter === 'invoice' ? 'Rachunki' : null,
+    entryTypeFilter === 'transaction' ? 'Wpłaty' : entryTypeFilter === 'invoice' ? 'Obciazenia' : null,
     categoryFilter === 'RENT' ? 'Czynsz' : categoryFilter === 'MEDIA' ? 'Media' : null,
     dateRangeLabel,
     filterText ? `szukaj: „${filterText}"` : null,
@@ -297,7 +297,7 @@ export default function TenantStatementPage() {
               size="sm"
               onClick={() => setEntryTypeFilter((v) => v === 'invoice' ? 'all' : 'invoice')}
             >
-              Rachunki
+              Obciazenia
             </Button>
           </div>
           <div className="w-px h-5 bg-border" />

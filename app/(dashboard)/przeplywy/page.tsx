@@ -43,7 +43,7 @@ type SortDir = 'asc' | 'desc'
 
 function getTypeLabel(entry: Entry): string {
   if (entry.type === 'invoice') {
-    return entry.invoiceType ? (TYPE_LABELS[entry.invoiceType] ?? entry.invoiceType) : 'Rachunek'
+    return entry.invoiceType ? (TYPE_LABELS[entry.invoiceType] ?? entry.invoiceType) : 'Obciazenie'
   }
   if (entry.transactionCategory) {
     return `Wpłata (${TYPE_LABELS[entry.transactionCategory] ?? entry.transactionCategory})`
@@ -265,7 +265,7 @@ export default function PrzeplywyPage() {
               <TableCell>
                 {entry.type === 'invoice' ? (
                   <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${entry.invoiceType === 'RENT' ? 'bg-gray-100 text-gray-600' : 'bg-blue-100 text-blue-700'}`}>
-                    {entry.invoiceType ? (TYPE_LABELS[entry.invoiceType] ?? entry.invoiceType) : 'Rachunek'}
+                    {entry.invoiceType ? (TYPE_LABELS[entry.invoiceType] ?? entry.invoiceType) : 'Obciazenie'}
                   </span>
                 ) : (
                   <span className="inline-flex items-center rounded-md bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">

@@ -77,7 +77,8 @@ function matchesGroupFilter(g: Group, text: string): boolean {
   return name.includes(q) || props.includes(q) || sid.includes(q)
 }
 
-const DEFAULT_EMAIL_BODY = `Szanowny/a {imie},\nW załączeniu rozliczenie mediów nr {numer_rachunku} za {miesiac}/{rok} na kwotę {kwota}.\n\nPozdrawiamy,\nBMT`
+const DEFAULT_EMAIL_SUBJECT = 'Rozliczenie mediów - {miesiac}/{rok}'
+const DEFAULT_EMAIL_BODY = `Szanowny/a {imie},\nW załączeniu rozliczenie mediów za {miesiac}/{rok} na kwotę {kwota}.\n\nPozdrawiamy,\nBMT`
 
 function emptyForm() {
   return {
@@ -292,7 +293,7 @@ export default function MediaPage() {
 
       <div className="pt-10 space-y-6">
         <div className="border-t pt-8">
-          <h2 className="text-xl font-semibold">Ściągnij faktury z AI</h2>
+          <h2 className="text-xl font-semibold">Ściągnij dokumenty kosztowe z AI</h2>
           <p className="text-sm text-muted-foreground mt-1">
             Skrypty Claude Code uruchamiane na serwerze VPS w tle. Wymaga skonfigurowanego{' '}
             <code className="text-xs bg-muted px-1 py-0.5 rounded">SKILL_RUNNER_URL</code> i{' '}
@@ -438,7 +439,7 @@ export default function MediaPage() {
                 onChange={(e) => setForm({ ...form, email_subject_template: e.target.value })}
                 placeholder="Rozliczenie mediów {miesiac}/{rok}"
               />
-              <p className="text-xs text-muted-foreground">Zmienne: {'{imie}'}, {'{numer_rachunku}'}, {'{kwota}'}, {'{miesiac}'}, {'{rok}'}</p>
+              <p className="text-xs text-muted-foreground">Zmienne: {'{imie}'}, {'{kwota}'}, {'{miesiac}'}, {'{rok}'}</p>
             </div>
             <div className="space-y-1">
               <Label>Treść e-maila</Label>

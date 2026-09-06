@@ -30,9 +30,9 @@ const DEFAULT_REMINDER_SUBJECT = 'Przypomnienie o płatności czynszu {miesiac}/
 const DEFAULT_REMINDER_BODY =
   'Szanowny/a {imie},\n\nPrzypominamy o płatności czynszu za {miesiac}/{rok} w kwocie {kwota} zł.\n\nPozdrawiamy,\nBMT'
 
-const DEFAULT_RENT_EMAIL_SUBJECT = 'Faktura czynszu {numer_rachunku}'
+const DEFAULT_RENT_EMAIL_SUBJECT = 'Obciążenie czynszowe za {miesiac}/{rok}'
 const DEFAULT_RENT_EMAIL_BODY =
-  'Szanowny/a {najemca},\n\nW załączeniu faktura za czynsz nr {numer_rachunku} za {miesiac}/{rok} na kwotę {kwota}.\n\nPozdrawiamy,\nBMT'
+  'Szanowny/a {najemca},\n\nW załączeniu nota za czynsz za {miesiac}/{rok} na kwotę {kwota}.\n\nPozdrawiamy,\nBMT'
 
 export default function SettingsPage() {
   const [form, setForm] = useState({
@@ -162,7 +162,6 @@ export default function SettingsPage() {
             Tablica obiektów: <code className="bg-muted px-1 rounded">range</code> = adres komórki (np. &quot;B2&quot;),
             {' '}<code className="bg-muted px-1 rounded">value</code> = wartość z dostępnymi zmiennymi:
             {' '}<code className="bg-muted px-1 rounded">{'{najemca}'}</code>{' '}
-            <code className="bg-muted px-1 rounded">{'{numer_rachunku}'}</code>{' '}
             <code className="bg-muted px-1 rounded">{'{kwota}'}</code>{' '}
             <code className="bg-muted px-1 rounded">{'{kwota_slownie}'}</code>{' '}
             <code className="bg-muted px-1 rounded">{'{adres_1}'}</code>{' '}
@@ -171,8 +170,7 @@ export default function SettingsPage() {
             <code className="bg-muted px-1 rounded">{'{miesiac}'}</code>{' '}
             <code className="bg-muted px-1 rounded">{'{rok}'}</code>{' '}
             <code className="bg-muted px-1 rounded">{'{data_wystawienia}'}</code>{' '}
-            <code className="bg-muted px-1 rounded">{'{termin_platnosci}'}</code>{' '}
-            <code className="bg-muted px-1 rounded">{'{opis_rachunku}'}</code>
+            <code className="bg-muted px-1 rounded">{'{termin_platnosci}'}</code>
           </p>
           {jsonError && <p className="text-sm text-destructive">{jsonError}</p>}
         </div>
@@ -373,17 +371,16 @@ export default function SettingsPage() {
       <div className="space-y-4 opacity-75">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold text-muted-foreground">E-mail z fakturą czynszową (wyłączone)</h2>
+            <h2 className="text-lg font-semibold text-muted-foreground">E-mail powiadomienia o czynszu (wyłączone)</h2>
             <span className="text-xs bg-muted px-2 py-1 rounded text-muted-foreground">Tymczasowo nieaktywne</span>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            <del>Treść wiadomości wysyłanej najemcy wraz z fakturą PDF przy generowaniu czynszów.</del><br/>
-            Obecnie automatyczna wysyłka e-maili z fakturą czynszową jest wyłączona w systemie.
+            <del>Treść wiadomości wysyłanej najemcy przy generowaniu obciążeń czynszowych.</del><br/>
+            Obecnie automatyczna wysyłka e-maili z powiadomieniem czynszowym jest wyłączona w systemie.
           </p>
           <p className="text-sm text-muted-foreground mt-1">
             Dostępne zmienne w temacie i treści:{' '}
             <code className="text-xs bg-muted px-1 py-0.5 rounded">{'{najemca}'}</code>{' '}
-            <code className="text-xs bg-muted px-1 py-0.5 rounded">{'{numer_rachunku}'}</code>{' '}
             <code className="text-xs bg-muted px-1 py-0.5 rounded">{'{kwota}'}</code>{' '}
             <code className="text-xs bg-muted px-1 py-0.5 rounded">{'{miesiac}'}</code>{' '}
             <code className="text-xs bg-muted px-1 py-0.5 rounded">{'{rok}'}</code>

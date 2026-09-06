@@ -82,7 +82,7 @@ app.use(express.json())
 
 const SECRET_TOKEN = process.env.SKILL_RUNNER_TOKEN
 const WORK_DIR = process.env.WORK_DIR || 'C:\\Users\\Jerzy\\Desktop\\bmt-app-new'
-const OUTPUT_BASE_DIR = process.env.OUTPUT_BASE_DIR || path.join(WORK_DIR, 'claude_code_results')
+const OUTPUT_BASE_DIR = process.env.OUTPUT_BASE_DIR || path.join(WORK_DIR, 'gemini_results')
 const PROMPTS_FILE = path.join(__dirname, 'prompts.json')
 
 function loadPrompts() {
@@ -115,7 +115,7 @@ function isSkillAllowed(skillId) {
 }
 
 function skillCommandPath(skillId) {
-  return path.join(WORK_DIR, '.claude', 'commands', `${skillId}.md`)
+  return path.join(WORK_DIR, '.gemini', 'commands', `${skillId}.md`)
 }
 
 function applyPrompt(skillId, content) {
@@ -185,10 +185,10 @@ function requireToken(req, res) {
   return true
 }
 
-function spawnClaude(workDir) {
+function spawnGemini(workDir) {
   const isWindows = process.platform === 'win32'
   if (isWindows) {
-    return pty.spawn('cmd.exe', ['/c', 'claude --dangerously-skip-permissions'], {
+    return pty.spawn('cmd.exe', ['/c', 'gemini --dangerously-skip-permissions'], {
       cwd: workDir,
       env: { ...process.env },
       cols: 120,
@@ -199,16 +199,16 @@ function spawnClaude(workDir) {
     ...process.env,
     NODE_PATH: path.join(workDir, 'node_modules'),
   }
-  const runAsUser = process.env.CLAUDE_RUN_AS
+  const runAsUser = process.env.AI_RUN_AS
   if (runAsUser) {
-    return pty.spawn('sudo', ['-u', runAsUser, '/bin/bash', '-c', `cd ${workDir} && claude --dangerously-skip-permissions`], {
+    return pty.spawn('sudo', ['-u', runAsUser, '/bin/bash', '-c', `cd ${workDir} && gemini --dangerously-skip-permissions`], {
       cwd: workDir,
       env: spawnEnv,
       cols: 120,
       rows: 30,
     })
   }
-  return pty.spawn('claude', ['--dangerously-skip-permissions'], {
+  return pty.spawn('gemini', ['--dangerously-skip-permissions'], {
     cwd: workDir,
     env: spawnEnv,
     cols: 120,
@@ -238,7 +238,7 @@ app.post('/run-skill', (req, res) => {
   const buffer = new RawBuffer()
   let proc
   try {
-    proc = spawnClaude(WORK_DIR)
+    proc = spawnGemini(WORK_DIR)
   } catch (err) {
     console.error(`[${jobId}] Nie można uruchomić claude:`, err.message)
     const job = jobs.get(jobId)
