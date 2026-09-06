@@ -12,9 +12,22 @@ import {
   getServiceAccountEmail,
   stripSpreadsheetColors,
 } from '@/lib/sheetsEngine'
-import { ensureYearMonthFolder, copySpreadsheet, uploadPdfToDrive } from '@/lib/driveEngine'
+import { copySpreadsheet, deleteFile } from '@/lib/driveEngine'
 import { sendMediaEmail } from '@/lib/email'
 import { buildInvoiceNumber, tenantDisplayName } from '@/lib/utils'
+
+
+async function uploadToSupabaseStorage(supabase: any, year: number, month: number, fileName: string, buffer: Buffer): Promise<string> {
+  const filePath = `${year}/${String(month).padStart(2, '0')}/${fileName}`
+  const { error } = await supabase.storage.from('invoices').upload(filePath, buffer, {
+    contentType: 'application/pdf',
+    upsert: true,
+  })
+  if (error) {
+    console.error('Błąd wgrywania pliku do Storage:', error)
+  }
+  return filePath
+}
 
 export async function getSettlementGroups() {
   const supabase = createServiceClient()
@@ -282,7 +295,7 @@ export async function processSettlement(
     .single()
 
   // 1. Utwórz folder MM/YYYY i skopiuj szablon arkusza do niego
-  const monthFolder = await ensureYearMonthFolder(year, month, config!.drive_invoices_folder_id)
+  // Month folder is handled in Supabase Storage directly
   const sheetName = `Media ${String(month).padStart(2, '0')}/${year} – ${group.name}`
   const workingSheetId = await copySpreadsheet(
     group.spreadsheet_id,
@@ -358,7 +371,7 @@ export async function processSettlement(
 
   if (!pdfSheets || pdfSheets.length === 0) {
     const buffer = await exportSheetAsPdf(workingSheetId)
-    const driveId = await uploadPdfToDrive(`${baseName}.pdf`, buffer, monthFolder)
+    const driveId = await uploadToSupabaseStorage(supabase, year, month, `${baseName}.pdf`, buffer)
     exportedPdfs.push({ name: baseName, driveId, buffer })
   } else {
     const allGids = await getAllSheetGids(workingSheetId)
@@ -367,7 +380,7 @@ export async function processSettlement(
         const gid = sheet.tab ? allGids[sheet.tab] : sheet.gid
         const buffer = await exportSheetAsPdf(workingSheetId, gid, { printRange: sheet.range, portrait: sheet.portrait, fitToPage: sheet.fitToPage })
         const fileName = `${baseName} – ${sheet.name}.pdf`
-        const driveId = await uploadPdfToDrive(fileName, buffer, monthFolder)
+        const driveId = await uploadToSupabaseStorage(supabase, year, month, fileName, buffer)
         return { name: sheet.name, driveId, buffer }
       }),
     )
@@ -486,7 +499,7 @@ export async function processSettlement(
         invoicePdfBuffer = await generateMockupNotaPdfBuffer(tenantName, amount, month, year)
         
         const fileName = `Nota_Rozliczeniowa_${tenantName.replace(/\s+/g, '_')}_${month}_${year}.pdf`
-        await uploadPdfToDrive(fileName, invoicePdfBuffer, monthFolder)
+        await uploadToSupabaseStorage(supabase, year, month, fileName, invoicePdfBuffer)
       } catch (e) {
         invoiceError = e instanceof Error ? e.message : String(e)
         console.error('[media] Błąd generowania noty dla najemcy', tenant.id, ':', invoiceError)

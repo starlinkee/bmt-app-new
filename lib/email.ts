@@ -67,16 +67,23 @@ async function sendEmail({ to, subject, html, attachments = [], cfg }: SendParam
       
       const savedAttachments = []
       if (attachments && attachments.length > 0) {
-        const attachDir = path.join(process.cwd(), 'data', 'attachments')
-        await fs.mkdir(attachDir, { recursive: true })
         for (const a of attachments) {
           const uniqueName = crypto.randomUUID() + '_' + a.filename
-          const filePath = path.join(attachDir, uniqueName)
-          await fs.writeFile(filePath, a.content)
-          savedAttachments.push({
-            name: a.filename,
-            path: uniqueName
-          })
+          
+          const { error: uploadError } = await supabase.storage
+            .from('invoices')
+            .upload(`emails/${uniqueName}`, a.content, { 
+              contentType: a.filename.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream' 
+            })
+          
+          if (uploadError) {
+            console.error('Storage upload error:', uploadError)
+          } else {
+            savedAttachments.push({
+              name: a.filename,
+              path: uniqueName
+            })
+          }
         }
       }
 
