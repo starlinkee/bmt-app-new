@@ -362,9 +362,10 @@ app.post('/run-skill', async (req, res) => {
   // Wyślij komendę po INIT_DELAY_MS (czas na załadowanie Claude)
   setTimeout(() => {
     try {
-      proc.write(`Przeczytaj i wykonaj instrukcje z pliku: .gemini/commands/${skill}.md\r`)
+      const absolutePath = path.join(WORK_DIR, '.gemini', 'commands', `${skill}.md`).replace(/\\/g, '/')
+      proc.write(`Przeczytaj i wykonaj instrukcje z pliku: ${absolutePath}\r`)
       skillSent = true
-      console.log(`[${jobId}] Wysłano instrukcję wczytania pliku .gemini/commands/${skill}.md`)
+      console.log(`[${jobId}] Wysłano instrukcję wczytania pliku ${absolutePath}`)
       resetIdleTimer()
     } catch (e) {
       console.error(`[${jobId}] Błąd wysyłania komendy:`, e.message)
