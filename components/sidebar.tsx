@@ -21,12 +21,12 @@ import { logoutAction } from '@/app/login/actions'
 import { LiveClock } from '@/components/live-clock'
 
 const dataItems = [
-  { href: '/contracts', label: 'Umowy', icon: FileText },
-  { href: '/properties', label: 'Nieruchomości', icon: Building2 },
-  { href: '/tenants', label: 'Najemcy', icon: Users },
+  { href: '/umowy', label: 'Umowy', icon: FileText },
+  { href: '/nieruchomosci', label: 'Nieruchomości', icon: Building2 },
+  { href: '/najemcy', label: 'Najemcy', icon: Users },
   { href: '/przeplywy', label: 'Przepływy', icon: ArrowLeftRight },
   { href: '/wiadomosci', label: 'Dziennik wiadomości', icon: Mail },
-  { href: '/audit', label: 'Historia operacji', icon: History },
+  { href: '/historia', label: 'Historia operacji', icon: History },
 ]
 
 const actionItems = [
@@ -103,7 +103,7 @@ export function Sidebar() {
           href="/settings"
           className={cn(
             'flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors',
-            pathname.startsWith('/settings')
+            pathname.startsWith('/ustawienia')
               ? 'bg-primary text-primary-foreground'
               : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
           )}

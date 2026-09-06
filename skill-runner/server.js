@@ -13,12 +13,18 @@ function loadEnvFile(filePath) {
   fs.readFileSync(filePath, 'utf8').split(/\r?\n/).forEach(line => {
     const eq = line.indexOf('=')
     if (eq > 0 && !line.trim().startsWith('#')) {
-      process.env[line.slice(0, eq).trim()] = line.slice(eq + 1).trim()
+      let val = line.slice(eq + 1).trim()
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.slice(1, -1)
+      }
+      process.env[line.slice(0, eq).trim()] = val
     }
   })
 }
 loadEnvFile(path.join(__dirname, '.env'))
 loadEnvFile(path.join(__dirname, 'secrets.env'))
+loadEnvFile(path.join(__dirname, '..', '.env.local'))
+loadEnvFile(path.join(__dirname, '..', '.env.development'))
 
 function stripAnsi(raw) {
   return raw
@@ -224,7 +230,7 @@ function requireToken(req, res) {
 function spawnGemini(workDir) {
   const isWindows = process.platform === 'win32'
   if (isWindows) {
-    return pty.spawn('cmd.exe', ['/c', 'gemini --dangerously-skip-permissions'], {
+    return pty.spawn('cmd.exe', ['/c', 'agy --dangerously-skip-permissions'], {
       cwd: workDir,
       env: { ...process.env },
       cols: 120,
@@ -237,14 +243,14 @@ function spawnGemini(workDir) {
   }
   const runAsUser = process.env.AI_RUN_AS
   if (runAsUser) {
-    return pty.spawn('sudo', ['-u', runAsUser, '/bin/bash', '-c', `cd ${workDir} && gemini --dangerously-skip-permissions`], {
+    return pty.spawn('sudo', ['-u', runAsUser, '/bin/bash', '-c', `cd ${workDir} && agy --dangerously-skip-permissions`], {
       cwd: workDir,
       env: spawnEnv,
       cols: 120,
       rows: 30,
     })
   }
-  return pty.spawn('gemini', ['--dangerously-skip-permissions'], {
+  return pty.spawn('agy', ['--dangerously-skip-permissions'], {
     cwd: workDir,
     env: spawnEnv,
     cols: 120,
@@ -356,9 +362,9 @@ app.post('/run-skill', async (req, res) => {
   // Wyślij komendę po INIT_DELAY_MS (czas na załadowanie Claude)
   setTimeout(() => {
     try {
-      proc.write(`/${skill}\r`)
+      proc.write(`Przeczytaj i wykonaj instrukcje z pliku: .gemini/commands/${skill}.md\r`)
       skillSent = true
-      console.log(`[${jobId}] Wysłano: /${skill}`)
+      console.log(`[${jobId}] Wysłano instrukcję wczytania pliku .gemini/commands/${skill}.md`)
       resetIdleTimer()
     } catch (e) {
       console.error(`[${jobId}] Błąd wysyłania komendy:`, e.message)
@@ -580,11 +586,37 @@ function listenOnFreePort(port, maxTries = 20) {
   server.on('error', (err) => {
     if (err.code === 'EADDRINUSE' && maxTries > 0) {
       console.log(`Port ${port} zajęty, próbuję ${port + 1}...`)
-      listenOnFreePort(port + 1, maxTries - 1)
+      setTimeout(() => listenOnFreePort(port + 1, maxTries - 1), 500)
     } else {
       throw err
     }
   })
 }
 
-listenOnFreePort(BASE_PORT)
+function killPreviousInstances() {
+  const reg = readRegistry()
+  let killed = false
+  const { execSync } = require('child_process')
+  for (const e of reg) {
+    if (e.pid === process.pid) continue
+    try {
+      if (process.platform === 'win32') {
+        execSync(`taskkill /F /PID ${e.pid}`, { stdio: 'ignore' })
+      } else {
+        process.kill(e.pid, 'SIGKILL')
+      }
+      console.log(`Zabito poprzedni proces (pid ${e.pid}) aby zwolnić port.`)
+      killed = true
+    } catch {}
+  }
+  if (killed) {
+    fs.writeFileSync(REGISTRY_FILE, JSON.stringify([]))
+  }
+  return killed
+}
+
+if (killPreviousInstances()) {
+  setTimeout(() => listenOnFreePort(BASE_PORT), 1500)
+} else {
+  listenOnFreePort(BASE_PORT)
+}

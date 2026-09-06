@@ -8,7 +8,7 @@ import {
   reconcileMany,
   dismissTransaction,
 } from '../actions'
-import { getTenants } from '@/app/(dashboard)/tenants/actions'
+import { getTenants } from '@/app/(dashboard)/najemcy/actions'
 import { Button } from '@/components/ui/button'
 import { SearchSelect } from '@/components/ui/search-select'
 import { formatAmount, formatDate } from '@/lib/utils'

@@ -51,7 +51,7 @@ export async function createTenant(data: {
     throw error
   }
   await logAudit({ actionName: 'createTenant', tableName: 'tenants', operation: 'CREATE', recordId: created.id, afterData: created })
-  revalidatePath('/tenants')
+  revalidatePath('/najemcy')
 }
 
 export async function updateTenant(
@@ -80,8 +80,8 @@ export async function updateTenant(
     throw error
   }
   await logAudit({ actionName: 'updateTenant', tableName: 'tenants', operation: 'UPDATE', recordId: id, beforeData: before, afterData: after })
-  revalidatePath('/tenants')
-  revalidatePath(`/tenants/${id}`)
+  revalidatePath('/najemcy')
+  revalidatePath(`/najemcy/${id}`)
 }
 
 export async function deleteTenant(id: number) {
@@ -102,5 +102,5 @@ export async function deleteTenant(id: number) {
     throw error
   }
   await logAudit({ actionName: 'deleteTenant', tableName: 'tenants', operation: 'DELETE', recordId: id, beforeData: before })
-  revalidatePath('/tenants')
+  revalidatePath('/najemcy')
 }

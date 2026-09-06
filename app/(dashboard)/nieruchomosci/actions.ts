@@ -22,7 +22,7 @@ export async function createProperty(data: {
   const supabase = createServiceClient()
   const { error } = await supabase.from('properties').insert(data)
   if (error) throw error
-  revalidatePath('/properties')
+  revalidatePath('/nieruchomosci')
 }
 
 export async function updateProperty(
@@ -35,7 +35,7 @@ export async function updateProperty(
     .update({ ...data, updated_at: new Date().toISOString() })
     .eq('id', id)
   if (error) throw error
-  revalidatePath('/properties')
+  revalidatePath('/nieruchomosci')
 }
 
 export async function deleteProperty(id: number) {
@@ -52,5 +52,5 @@ export async function deleteProperty(id: number) {
 
   const { error } = await supabase.from('properties').delete().eq('id', id)
   if (error) throw error
-  revalidatePath('/properties')
+  revalidatePath('/nieruchomosci')
 }

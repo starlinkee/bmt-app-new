@@ -59,7 +59,7 @@ export async function createSettlementGroup(data: {
   email_subject_template?: string
   email_body_template?: string
   property_ids: number[]
-  tenant_reading_keys?: string[]
+  tenant_reading_keys?: Record<string, string[]>
 }) {
   const supabase = createServiceClient()
   const { property_ids, tenant_reading_keys, ...groupData } = data
@@ -106,7 +106,7 @@ export async function updateSettlementGroup(
     email_subject_template?: string
     email_body_template?: string
     property_ids?: number[]
-    tenant_reading_keys?: string[]
+    tenant_reading_keys?: Record<string, string[]>
   },
 ) {
   const supabase = createServiceClient()

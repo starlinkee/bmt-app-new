@@ -30,7 +30,8 @@ export default function TenantReadingsPage({ params }: { params: Promise<{ token
         const statuses: Record<number, boolean> = {}
         const initVals: Record<number, Record<string, string>> = {}
         for (const g of data.groups) {
-          const keys = (g.tenant_reading_keys as string[]) || []
+          const trk = (g.tenant_reading_keys as Record<string, string[]>) || {}
+          const keys = trk[data.tenant.id.toString()] || []
           statuses[g.id] = await hasAlreadySubmitted(g.id, d.month, d.year, keys)
           initVals[g.id] = {}
           for (const key of keys) {
@@ -114,7 +115,7 @@ export default function TenantReadingsPage({ params }: { params: Promise<{ token
               <h3 className="font-semibold border-b pb-3">{group.name}</h3>
               
               <div className="space-y-4">
-                {((group.tenant_reading_keys as string[]) || []).map((key: string) => (
+                {(((group.tenant_reading_keys as Record<string, string[]>) || {})[ctx.tenant.id.toString()] || []).map((key: string) => (
                   <div key={key} className="space-y-2">
                     <Label className="text-sm font-medium">{key.replace(/_/g, ' ')}</Label>
                     <Input

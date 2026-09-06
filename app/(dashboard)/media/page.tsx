@@ -12,8 +12,8 @@ import {
 } from './actions'
 import { SkillRunner } from '@/components/skill-runner'
 import { VpsFileBrowser } from '@/components/vps-file-browser'
-import { getProperties } from '@/app/(dashboard)/properties/actions'
-import { getTenants } from '@/app/(dashboard)/tenants/actions'
+import { getProperties } from '@/app/(dashboard)/nieruchomosci/actions'
+import { getTenants } from '@/app/(dashboard)/najemcy/actions'
 import { SearchSelect } from '@/components/ui/search-select'
 import { QUERY_KEYS } from '@/lib/queryKeys'
 import { Button } from '@/components/ui/button'
@@ -90,7 +90,7 @@ function emptyForm() {
     email_subject_template: 'Rozliczenie mediów {miesiac}/{rok}',
     email_body_template: DEFAULT_EMAIL_BODY,
     property_ids: [] as number[],
-    tenant_reading_keys: '',
+    tenant_reading_keys: {} as Record<string, string>,
   }
 }
 
@@ -152,6 +152,15 @@ export default function MediaPage() {
     const propIds = (g.settlement_group_properties as unknown as { property_id: number }[])
       ?.map((sgp) => sgp.property_id) ?? []
     const raw = g as Record<string, unknown>
+    
+    let parsedTrk: Record<string, string> = {}
+    if (raw.tenant_reading_keys && typeof raw.tenant_reading_keys === 'object' && !Array.isArray(raw.tenant_reading_keys)) {
+      const trkMap = raw.tenant_reading_keys as Record<string, string[]>
+      for (const [tId, keysArr] of Object.entries(trkMap)) {
+        parsedTrk[tId] = Array.isArray(keysArr) ? keysArr.join(', ') : ''
+      }
+    }
+
     setForm({
       name: g.name,
       spreadsheet_id: g.spreadsheet_id,
@@ -161,7 +170,7 @@ export default function MediaPage() {
       email_subject_template: (raw.email_subject_template as string) || 'Rozliczenie mediów {miesiac}/{rok}',
       email_body_template: (raw.email_body_template as string) || DEFAULT_EMAIL_BODY,
       property_ids: propIds,
-      tenant_reading_keys: Array.isArray(raw.tenant_reading_keys) ? raw.tenant_reading_keys.join(', ') : '',
+      tenant_reading_keys: parsedTrk,
     })
     setJsonError('')
     setOpen(true)
@@ -182,6 +191,14 @@ export default function MediaPage() {
     setJsonError('')
 
     startTransition(async () => {
+      const finalTrk: Record<string, string[]> = {}
+      for (const [tId, keysStr] of Object.entries(form.tenant_reading_keys)) {
+        const keys = keysStr.split(',').map(s => s.trim()).filter(Boolean)
+        if (keys.length > 0) {
+          finalTrk[tId] = keys
+        }
+      }
+
       const payload = {
         name: form.name,
         spreadsheet_id: form.spreadsheet_id,
@@ -191,7 +208,7 @@ export default function MediaPage() {
         email_subject_template: form.email_subject_template,
         email_body_template: form.email_body_template,
         property_ids: form.property_ids,
-        tenant_reading_keys: form.tenant_reading_keys.split(',').map(s => s.trim()).filter(Boolean),
+        tenant_reading_keys: finalTrk,
       }
       if (editing) {
         await updateSettlementGroup(editing.id, payload)
@@ -309,7 +326,7 @@ export default function MediaPage() {
                 : 'border-transparent text-muted-foreground hover:text-foreground',
             ].join(' ')}
           >
-            Zadania
+            Zadania AI
           </button>
           <button
             onClick={() => setAutoView('files')}
@@ -320,7 +337,7 @@ export default function MediaPage() {
                 : 'border-transparent text-muted-foreground hover:text-foreground',
             ].join(' ')}
           >
-            Pliki AI
+            Pliki
           </button>
         </div>
 
@@ -363,14 +380,66 @@ export default function MediaPage() {
                 ))}
               </div>
             </div>
-            <div className="space-y-1">
-              <Label>Liczniki do podania przez najemcę</Label>
-              <Input
-                value={form.tenant_reading_keys}
-                onChange={(e) => setForm({ ...form, tenant_reading_keys: e.target.value })}
-                placeholder="np. WODA_ZIMNA, PRAD"
-              />
-              <p className="text-xs text-muted-foreground">Podaj klucze po przecinku.</p>
+            <div className="space-y-3 p-3 border rounded-md bg-muted/20">
+              <Label className="text-base">Liczniki do podania przez najemcę</Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                Zaznacz najemców, którzy będą sami podawać odczyty i wpisz dla nich odpowiednie klucze po przecinku (z mapowania wejściowego).
+              </p>
+              
+              {(() => {
+                const groupTenants = tenants.filter((t) => form.property_ids.includes(t.property_id))
+                if (groupTenants.length === 0) {
+                  return <p className="text-xs text-orange-600">Brak najemców. Wybierz nieruchomości powyżej.</p>
+                }
+                
+                return groupTenants.map((t) => {
+                  const isChecked = form.tenant_reading_keys[t.id.toString()] !== undefined
+                  const keysStr = form.tenant_reading_keys[t.id.toString()] || ''
+                  
+                  return (
+                    <div key={t.id} className="space-y-2 border-b pb-3 last:border-0 last:pb-0">
+                      <label className="flex items-center gap-2 text-sm font-medium cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            const newTrk = { ...form.tenant_reading_keys }
+                            if (e.target.checked) {
+                              newTrk[t.id.toString()] = ''
+                            } else {
+                              delete newTrk[t.id.toString()]
+                            }
+                            setForm({ ...form, tenant_reading_keys: newTrk })
+                          }}
+                        />
+                        {t.first_name} {t.last_name} 
+                        <span className="text-muted-foreground font-normal">
+                          ({(t.properties as { name?: string } | null)?.name || 'Brak nazwy lokalu'})
+                        </span>
+                      </label>
+                      
+                      {isChecked && (
+                        <div className="pl-6">
+                          <Input
+                            value={keysStr}
+                            onChange={(e) => {
+                              setForm({
+                                ...form,
+                                tenant_reading_keys: {
+                                  ...form.tenant_reading_keys,
+                                  [t.id.toString()]: e.target.value
+                                }
+                              })
+                            }}
+                            placeholder="np. woda_zimna, prad"
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })
+              })()}
             </div>
             <div className="space-y-1">
               <Label>Mapowanie wejściowe (JSON)</Label>

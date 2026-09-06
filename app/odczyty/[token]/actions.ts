@@ -46,7 +46,12 @@ export async function getTenantReadingsContext(token: string) {
       id: tenant.id,
       name: `${tenant.first_name} ${tenant.last_name}`,
     },
-    groups: groups.filter(g => Array.isArray(g.tenant_reading_keys) && g.tenant_reading_keys.length > 0)
+    groups: groups.filter(g => {
+      if (!g.tenant_reading_keys || typeof g.tenant_reading_keys !== 'object' || Array.isArray(g.tenant_reading_keys)) return false;
+      const trk = g.tenant_reading_keys as Record<string, string[]>;
+      const keys = trk[tenant.id.toString()];
+      return Array.isArray(keys) && keys.length > 0;
+    })
   }
 }
 

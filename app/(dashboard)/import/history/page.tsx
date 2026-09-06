@@ -296,7 +296,7 @@ export default function TransactionHistoryPage() {
                 <TableCell className="text-sm">
                   {tenant ? (
                     <Link
-                      href={`/tenants/${tx.tenant_id}`}
+                      href={`/najemcy/${tx.tenant_id}`}
                       className="hover:underline"
                     >
                       {tenant.first_name} {tenant.last_name}

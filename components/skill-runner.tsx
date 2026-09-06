@@ -18,6 +18,7 @@ interface Job {
   jobId: string
   status: JobStatus
   startedAt: number
+  completedAt?: number
   timeoutMs: number
 }
 
@@ -182,7 +183,7 @@ export function SkillRunner() {
 
   const markInterrupted = useCallback((skillId: string, reason: string) => {
     stopPolling(skillId)
-    setJobs(prev => ({ ...prev, [skillId]: { ...prev[skillId]!, status: 'error' } }))
+    setJobs(prev => ({ ...prev, [skillId]: { ...prev[skillId]!, status: 'error', completedAt: Date.now() } }))
     toast.error(reason)
   }, [stopPolling])
 
@@ -200,7 +201,7 @@ export function SkillRunner() {
         const data = await res.json()
         if (data.status === 'done' || data.status === 'error') {
           stopPolling(skillId)
-          setJobs(prev => ({ ...prev, [skillId]: { ...prev[skillId]!, status: data.status } }))
+          setJobs(prev => ({ ...prev, [skillId]: { ...prev[skillId]!, status: data.status, completedAt: Date.now() } }))
           if (data.status === 'done') toast.success('Zakończono pomyślnie.')
           else toast.error('Zakończono z błędem.')
         }
@@ -340,14 +341,14 @@ export function SkillRunner() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setJobs(prev => ({ ...prev, [skill.id]: { ...prev[skill.id]!, status: 'error' } }))
+        setJobs(prev => ({ ...prev, [skill.id]: { ...prev[skill.id]!, status: 'error', completedAt: Date.now() } }))
         toast.error(data.error ?? 'Nieznany błąd')
         return
       }
       setJobs(prev => ({ ...prev, [skill.id]: { ...prev[skill.id]!, jobId: data.jobId } }))
       startPolling(skill.id, data.jobId)
     } catch (err) {
-      setJobs(prev => ({ ...prev, [skill.id]: { ...prev[skill.id]!, status: 'error' } }))
+      setJobs(prev => ({ ...prev, [skill.id]: { ...prev[skill.id]!, status: 'error', completedAt: Date.now() } }))
       toast.error(`Nie można połączyć z serwerem: ${err instanceof Error ? err.message : err}`)
     }
   }
@@ -472,15 +473,15 @@ export function SkillRunner() {
                         </>
                       )}
                       {status === 'done' && (
-                        <span className="flex items-center gap-1.5 text-sm text-green-600 font-medium">
+                        <span className="flex items-center gap-1.5 text-sm text-green-600 font-medium" title={job?.completedAt ? new Date(job.completedAt).toLocaleString() : undefined}>
                           <CheckCircle2 className="h-4 w-4" />
-                          Zakończono
+                          Zakończono {job?.completedAt && <span className="text-xs font-normal text-muted-foreground ml-1">{new Date(job.completedAt).toLocaleString()}</span>}
                         </span>
                       )}
                       {status === 'error' && (
-                        <span className="flex items-center gap-1.5 text-sm text-destructive font-medium">
+                        <span className="flex items-center gap-1.5 text-sm text-destructive font-medium" title={job?.completedAt ? new Date(job.completedAt).toLocaleString() : undefined}>
                           <AlertCircle className="h-4 w-4" />
-                          Przerwano
+                          Przerwano {job?.completedAt && <span className="text-xs font-normal text-muted-foreground/80 ml-1">{new Date(job.completedAt).toLocaleString()}</span>}
                         </span>
                       )}
                     </div>
