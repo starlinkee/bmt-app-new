@@ -1,7 +1,7 @@
+
 import { NextRequest, NextResponse } from 'next/server'
-import path from 'path'
-import fs from 'fs/promises'
 import { requireAuth } from '@/lib/auth'
+import { createServiceClient } from '@/lib/supabase/service'
 
 export async function GET(
   request: NextRequest,
@@ -14,26 +14,16 @@ export async function GET(
     return new NextResponse('Invalid filename', { status: 400 })
   }
 
-  const filePath = path.join(process.cwd(), 'data', 'attachments', filename)
+  const supabase = createServiceClient()
+  
+  // Try finding it in 'emails/' folder
+  const { data, error } = await supabase.storage
+    .from('invoices')
+    .createSignedUrl(`emails/${filename}`, 60, { download: true })
 
-  try {
-    const file = await fs.readFile(filePath)
-    
-    // Determine content type (defaulting to pdf since mostly we send pdfs)
-    let contentType = 'application/octet-stream'
-    if (filename.toLowerCase().endsWith('.pdf')) {
-      contentType = 'application/pdf'
-    }
-
-    const originalName = filename.split('_').slice(1).join('_') || filename
-
-    return new NextResponse(file, {
-      headers: {
-        'Content-Type': contentType,
-        'Content-Disposition': `attachment; filename="${encodeURIComponent(originalName)}"`,
-      },
-    })
-  } catch {
+  if (error || !data) {
     return new NextResponse('File not found', { status: 404 })
   }
+
+  return NextResponse.redirect(data.signedUrl)
 }
