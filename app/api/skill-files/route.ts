@@ -19,14 +19,14 @@ export async function GET(req: NextRequest) {
       const skills = []
       
       for (const sf of skillFolders || []) {
-        if (!sf.id) continue; // skip files if any
+        if (sf.id) continue; // skip files if any
         const { data: runFolders } = await supabase.storage.from('invoices').list(`ai-files/${sf.name}`)
         const runs = []
         
         for (const rf of runFolders || []) {
-          if (!rf.id) continue;
+          if (rf.id) continue;
           const { data: filesData } = await supabase.storage.from('invoices').list(`ai-files/${sf.name}/${rf.name}`)
-          const files = (filesData || []).filter(f => !f.id).map(f => ({
+          const files = (filesData || []).filter(f => f.id).map(f => ({
             name: f.name,
             size: f.metadata?.size || 0,
             ext: '.' + f.name.split('.').pop()?.toLowerCase(),
