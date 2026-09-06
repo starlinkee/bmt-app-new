@@ -164,7 +164,7 @@ export default function MediaGroupPage({
       }
     }
     if (emptyUserFields.length > 0) {
-      toast.error(`Uzupełnij wszystkie pola przed wystawieniem: ${emptyUserFields.join(', ')}`)
+      toast.error(`Uzupełnij wszystkie pola przed zapisaniem: ${emptyUserFields.join(', ')}`)
       return
     }
 
@@ -209,7 +209,7 @@ export default function MediaGroupPage({
         clearInterval(interval)
         setProgress(100)
         setResults(res)
-        toast.success(`Rozliczono. Wystawiono ${res.length} rachunków.`)
+        toast.success(`Rozliczono. Zapisano ${res.length} obciążeń.`)
       } catch (e) {
         clearInterval(interval)
         setProgress(0)
@@ -315,24 +315,22 @@ export default function MediaGroupPage({
       </div>
 
       <Button onClick={handleOpenConfirm} disabled={pending}>
-        Przelicz i wystaw
+        Przelicz i zapisz
       </Button>
 
 
       {results.length > 0 && (
         <div className="space-y-2">
-          <h2 className="font-semibold">Wystawione rachunki</h2>
+          <h2 className="font-semibold">Utworzone obciążenia</h2>
           <ul className="space-y-1 text-sm">
             {results.map((r, i) => (
               <li key={i} className="space-y-0.5">
                 <div>
-                  {r.invoiceNumber && <span className="font-mono">{r.invoiceNumber}</span>}
-                  {r.invoiceNumber && ' — '}
                   {r.tenantName} — {formatAmount(r.amount)}
                 </div>
                 {r.invoiceError && (
                   <div className="text-xs text-destructive pl-1">
-                    Błąd rachunku: {r.invoiceError}
+                    Błąd obciążenia: {r.invoiceError}
                   </div>
                 )}
                 {r.emailError && (
@@ -353,7 +351,7 @@ export default function MediaGroupPage({
           </DialogHeader>
           <div className="text-sm space-y-2">
             {(emailPreview?.total ?? 0) === 0 ? (
-              <p className="text-muted-foreground">Brak najemców z adresem e-mail — rachunki zostaną wystawione bez wysyłki.</p>
+              <p className="text-muted-foreground">Brak najemców z adresem e-mail — obciążenia zostaną zapisane bez wysyłki.</p>
             ) : (
               <>
                 <p>Zostaną wysłane <strong>{emailPreview?.total}</strong> wiadomości e-mail:</p>
@@ -377,7 +375,7 @@ export default function MediaGroupPage({
               Anuluj
             </Button>
             <Button onClick={handleProcess} disabled={pending}>
-              Przelicz i wystaw
+              Przelicz i zapisz
             </Button>
           </DialogFooter>
         </DialogContent>

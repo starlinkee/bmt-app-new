@@ -18,8 +18,6 @@ export async function createContract(data: {
   contract_type: string
   rent_amount: number
   has_media_invoice: boolean
-  opis_rachunku: string
-  opis_rachunku_media: string
   start_date: string
   end_date?: string
   is_active: boolean
@@ -40,10 +38,8 @@ export async function updateContract(
   data: Partial<{
     contract_type: string
     rent_amount: number
-    has_media_invoice: boolean
-    opis_rachunku: string
-    opis_rachunku_media: string
-    start_date: string
+    has_media_invoice?: boolean
+    start_date?: string
     end_date: string
     is_active: boolean
   }>,

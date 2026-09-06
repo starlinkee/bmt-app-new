@@ -39,10 +39,17 @@ export async function getStatement(tenantId: number): Promise<StatementEntry[]> 
   const entries: StatementEntry[] = []
 
   for (const inv of invoices ?? []) {
+    let desc = inv.type === 'RENT' ? 'Obciążenie - Czynsz' : 'Obciążenie - Media'
+    
+    // Jeśli mamy jakiś numer to możemy dodać w nawiasie (na wypadek starych, już wygenerowanych faktur)
+    if (inv.number && inv.number.includes('/')) {
+      desc += ` (${inv.number})`
+    }
+
     entries.push({
       id: `inv-${inv.id}`,
       date: `${inv.year}-${String(inv.month).padStart(2, '0')}-01`,
-      description: `Rachunek ${inv.number} (${inv.type})`,
+      description: desc,
       amount: -Number(inv.amount),
       runningBalance: 0,
       isPaid: false,

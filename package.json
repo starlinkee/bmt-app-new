@@ -6,7 +6,9 @@
     "skill-runner"
   ],
   "scripts": {
-    "dev": "next dev",
+    "dev:next": "next dev",
+    "dev:skill": "npm run start -w skill-runner",
+    "dev": "concurrently -c \"cyan,magenta\" -n \"next,skill\" \"npm run dev:next\" \"npm run dev:skill\"",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -52,6 +54,7 @@
     "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^10.0.5",
     "dotenv-cli": "^8.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.3",

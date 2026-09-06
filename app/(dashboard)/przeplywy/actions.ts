@@ -39,7 +39,7 @@ export async function getAllFlows(year: number): Promise<FlowEntry[]> {
       id: `inv-${inv.id}`,
       date: `${inv.year}-${String(inv.month).padStart(2, '0')}-01`,
       type: 'invoice',
-      description: `Rachunek ${inv.number}`,
+      description: `Obciążenie ${inv.number ? '(' + inv.number + ')' : ''}`,
       amount: -Number(inv.amount),
       tenantName: name,
       tenantType: t?.tenant_type ?? '',
