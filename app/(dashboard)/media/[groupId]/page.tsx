@@ -81,7 +81,7 @@ export default function MediaGroupPage({
   const [editedPreviousReadings, setEditedPreviousReadings] = useState<Record<string, string>>({})
   const [settlementExists, setSettlementExists] = useState(false)
   const [readingsLoaded, setReadingsLoaded] = useState(false)
-  const [results, setResults] = useState<{ tenantName: string; amount: number; invoiceNumber: string; invoiceError?: string; emailError?: string }[]>([])
+  const [results, setResults] = useState<{ tenantName: string; amount: number; invoiceNumber: string | null; invoiceError?: string; emailError?: string }[]>([])
   const [progress, setProgress] = useState(0)
   const [pending, startTransition] = useTransition()
   const [confirmOpen, setConfirmOpen] = useState(false)
