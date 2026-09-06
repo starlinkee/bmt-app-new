@@ -300,7 +300,7 @@ export async function processSettlement(
   const workingSheetId = await copySpreadsheet(
     group.spreadsheet_id,
     sheetName,
-    monthFolder,
+    config!.drive_invoices_folder_id,
     getServiceAccountEmail(),
   )
 
