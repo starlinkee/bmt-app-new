@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getVpsUrl, invalidatePortCache, vpsHeaders } from '@/lib/skill-runner-client'
+import { createServiceClient } from '@/lib/supabase/service'
 
 function isValidSkillId(id: unknown): id is string {
   return typeof id === 'string' && /^[a-z0-9-]+$/.test(id) && id.length <= 60
@@ -11,22 +11,26 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid skillId' }, { status: 400 })
   }
 
-  const vpsUrl = await getVpsUrl()
-  if (!vpsUrl) {
-    return NextResponse.json({ error: 'Skill runner not configured or unreachable' }, { status: 503 })
-  }
+  const supabase = createServiceClient()
 
   try {
-    const res = await fetch(`${vpsUrl}/skill/${skillId}/prompt`, {
-      headers: vpsHeaders(),
-      signal: AbortSignal.timeout(5_000),
-    })
-    const data = await res.json()
-    return NextResponse.json(data, { status: res.status })
+    const { data, error } = await supabase
+      .from('skill_prompts')
+      .select('prompt')
+      .eq('id', skillId)
+      .single()
+      
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Skill not found' }, { status: 404 })
+      }
+      throw error
+    }
+    
+    return NextResponse.json({ content: data.prompt })
   } catch (err) {
-    invalidatePortCache()
     const message = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ error: `Could not reach skill runner: ${message}` }, { status: 502 })
+    return NextResponse.json({ error: \Could not fetch prompt: \\ }, { status: 502 })
   }
 }
 
@@ -41,24 +45,26 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'content must be a string' }, { status: 400 })
   }
 
-  const vpsUrl = await getVpsUrl()
-  if (!vpsUrl) {
-    return NextResponse.json({ error: 'Skill runner not configured or unreachable' }, { status: 503 })
-  }
+  const supabase = createServiceClient()
 
   try {
-    const res = await fetch(`${vpsUrl}/skill/${skillId}/prompt`, {
-      method: 'PUT',
-      headers: vpsHeaders(),
-      body: JSON.stringify({ content, label, description, timeoutMs }),
-      signal: AbortSignal.timeout(5_000),
-    })
-    const data = await res.json()
-    return NextResponse.json(data, { status: res.status })
+    const { error } = await supabase
+      .from('skill_prompts')
+      .upsert({
+        id: skillId,
+        prompt: content,
+        label: label || skillId,
+        description: description || '',
+        timeout_ms: timeoutMs || 300000,
+        updated_at: new Date().toISOString()
+      })
+      
+    if (error) throw error
+    
+    return NextResponse.json({ ok: true })
   } catch (err) {
-    invalidatePortCache()
     const message = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ error: `Could not reach skill runner: ${message}` }, { status: 502 })
+    return NextResponse.json({ error: \Could not save prompt: \\ }, { status: 502 })
   }
 }
 
@@ -68,22 +74,19 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid skillId' }, { status: 400 })
   }
 
-  const vpsUrl = await getVpsUrl()
-  if (!vpsUrl) {
-    return NextResponse.json({ error: 'Skill runner not configured or unreachable' }, { status: 503 })
-  }
+  const supabase = createServiceClient()
 
   try {
-    const res = await fetch(`${vpsUrl}/skill/${skillId}`, {
-      method: 'DELETE',
-      headers: vpsHeaders(),
-      signal: AbortSignal.timeout(5_000),
-    })
-    const data = await res.json()
-    return NextResponse.json(data, { status: res.status })
+    const { error } = await supabase
+      .from('skill_prompts')
+      .delete()
+      .eq('id', skillId)
+      
+    if (error) throw error
+    
+    return NextResponse.json({ ok: true })
   } catch (err) {
-    invalidatePortCache()
     const message = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ error: `Could not reach skill runner: ${message}` }, { status: 502 })
+    return NextResponse.json({ error: \Could not delete skill: \\ }, { status: 502 })
   }
 }
