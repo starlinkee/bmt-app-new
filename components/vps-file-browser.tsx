@@ -216,14 +216,16 @@ export function VpsFileBrowser() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          Pliki wygenerowane przez automatyzacje na serwerze VPS
-        </p>
-        <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+      <div className="mb-4">
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+          Pliki wygenerowane przez skrypty i automatyzacje AI
+          </p>
+          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
           <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
           Odśwież
         </Button>
+      </div>
       </div>
 
       {error && (
