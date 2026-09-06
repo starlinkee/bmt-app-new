@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   const supabase = createServiceClient()
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('skill_prompts')
       .select('prompt')
       .eq('id', skillId)
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ content: data.prompt })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ error: \Could not fetch prompt: \\ }, { status: 502 })
+    return NextResponse.json({ error: `Could not fetch prompt: ${message}` }, { status: 502 })
   }
 }
 
@@ -48,7 +48,7 @@ export async function PUT(req: NextRequest) {
   const supabase = createServiceClient()
 
   try {
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('skill_prompts')
       .upsert({
         id: skillId,
@@ -64,7 +64,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ ok: true })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ error: \Could not save prompt: \\ }, { status: 502 })
+    return NextResponse.json({ error: `Could not save prompt: ${message}` }, { status: 502 })
   }
 }
 
@@ -77,7 +77,7 @@ export async function DELETE(req: NextRequest) {
   const supabase = createServiceClient()
 
   try {
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('skill_prompts')
       .delete()
       .eq('id', skillId)
@@ -87,6 +87,6 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ ok: true })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ error: \Could not delete skill: \\ }, { status: 502 })
+    return NextResponse.json({ error: `Could not delete skill: ${message}` }, { status: 502 })
   }
 }

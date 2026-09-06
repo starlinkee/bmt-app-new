@@ -5,7 +5,7 @@ export async function GET() {
   const supabase = createServiceClient()
   
   try {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('skill_prompts')
       .select('id, label, description, timeout_ms')
       .order('id')
@@ -13,7 +13,7 @@ export async function GET() {
     if (error) throw error
     
     // Map to expected frontend format
-    const skills = data.map(s => ({
+    const skills = (data as any[]).map((s: any) => ({
       id: s.id,
       label: s.label,
       description: s.description,
@@ -23,6 +23,6 @@ export async function GET() {
     return NextResponse.json({ skills })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ error: \Could not fetch skills: \\ }, { status: 502 })
+    return NextResponse.json({ error: `Could not fetch skills: ${message}` }, { status: 502 })
   }
 }
