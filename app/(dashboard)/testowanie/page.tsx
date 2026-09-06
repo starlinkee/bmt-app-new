@@ -1,17 +1,30 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Beaker, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Beaker, AlertTriangle, CheckCircle2, FileText } from 'lucide-react'
+import { getSettlementGroups } from '@/app/(dashboard)/media/actions'
+import { generateTestMediaCharge } from './actions'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 export default function TestowaniePage() {
   const [month, setMonth] = useState(new Date().getMonth() + 1)
   const [year, setYear] = useState(new Date().getFullYear())
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<{ success?: boolean; generated?: number; error?: string } | null>(null)
+  
+  const [groups, setGroups] = useState<{ id: number; name: string }[]>([])
+  const [selectedGroup, setSelectedGroup] = useState<string>('')
+  const [mediaAmount, setMediaAmount] = useState<string>('100.00')
+  const [mediaLoading, setMediaLoading] = useState(false)
+  const [mediaResult, setMediaResult] = useState<{ success?: boolean; generated?: number; error?: string } | null>(null)
+
+  useEffect(() => {
+    getSettlementGroups().then(setGroups).catch(console.error)
+  }, [])
 
   const handleTestCron = async () => {
     setLoading(true)
@@ -29,6 +42,25 @@ export default function TestowaniePage() {
       setResult({ error: err instanceof Error ? err.message : 'Wystąpił błąd' })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleTestMediaCharge = async () => {
+    if (!selectedGroup || !mediaAmount) return
+    setMediaLoading(true)
+    setMediaResult(null)
+    try {
+      const res = await generateTestMediaCharge(
+        parseInt(selectedGroup),
+        parseFloat(mediaAmount.replace(',', '.')),
+        month,
+        year
+      )
+      setMediaResult({ success: true, generated: res.count })
+    } catch (err: any) {
+      setMediaResult({ error: err.message || 'Wystąpił błąd' })
+    } finally {
+      setMediaLoading(false)
     }
   }
 
@@ -102,6 +134,73 @@ export default function TestowaniePage() {
                   <div>
                     <p className="font-medium">Błąd</p>
                     <p className="text-sm text-red-800">{result.error}</p>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-purple-500/50 shadow-sm">
+        <CardHeader className="bg-purple-50/50 dark:bg-purple-950/20 border-b border-purple-100 dark:border-purple-900/50">
+          <CardTitle className="text-purple-800 dark:text-purple-500 flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Wystaw testowe obciążenie (Media)
+          </CardTitle>
+          <CardDescription>
+            Tworzy notę obciążeniową w bazie dla wszystkich przypisanych najemców z wybranej grupy.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-6 space-y-4">
+          <div className="space-y-2">
+            <Label>Grupa rozliczeniowa</Label>
+            <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+              <SelectTrigger>
+                <SelectValue placeholder="Wybierz grupę..." />
+              </SelectTrigger>
+              <SelectContent>
+                {groups.map(g => (
+                  <SelectItem key={g.id} value={g.id.toString()}>{g.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="space-y-2">
+            <Label>Kwota obciążenia (dla każdego najemcy)</Label>
+            <Input 
+              type="number" 
+              step="0.01"
+              value={mediaAmount}
+              onChange={e => setMediaAmount(e.target.value)}
+            />
+          </div>
+
+          <Button 
+            onClick={handleTestMediaCharge} 
+            disabled={mediaLoading || !selectedGroup}
+            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold mt-2"
+          >
+            {mediaLoading ? 'Wystawianie...' : `Wystaw obciążenia dla ${month}/${year}`}
+          </Button>
+
+          {mediaResult && (
+            <div className={`p-4 rounded-md mt-4 flex items-start gap-3 ${mediaResult.success ? 'bg-green-50 text-green-900 border border-green-200' : 'bg-red-50 text-red-900 border border-red-200'}`}>
+              {mediaResult.success ? (
+                <>
+                  <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
+                  <div>
+                    <p className="font-medium">Sukces!</p>
+                    <p className="text-sm text-green-800">Wystawiono testowe obciążenia dla {mediaResult.generated} najemców.</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
+                  <div>
+                    <p className="font-medium">Błąd</p>
+                    <p className="text-sm text-red-800">{mediaResult.error}</p>
                   </div>
                 </>
               )}
