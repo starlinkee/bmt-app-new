@@ -295,9 +295,7 @@ export default function MediaPage() {
         <div className="border-t pt-8">
           <h2 className="text-xl font-semibold">Ściągnij dokumenty kosztowe z AI</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Skrypty Claude Code uruchamiane na serwerze VPS w tle. Wymaga skonfigurowanego{' '}
-            <code className="text-xs bg-muted px-1 py-0.5 rounded">SKILL_RUNNER_URL</code> i{' '}
-            <code className="text-xs bg-muted px-1 py-0.5 rounded">SKILL_RUNNER_TOKEN</code>.
+            Skrypty AI i automatyzacje uruchamiane w tle.
           </p>
         </div>
 
@@ -322,7 +320,7 @@ export default function MediaPage() {
                 : 'border-transparent text-muted-foreground hover:text-foreground',
             ].join(' ')}
           >
-            Pliki VPS
+            Pliki AI
           </button>
         </div>
 
