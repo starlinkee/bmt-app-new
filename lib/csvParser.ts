@@ -67,6 +67,7 @@ export interface CsvImportResult {
   bank: string
   transactions: ParsedTransaction[]
   skipped: number
+  skippedTransactions: ParsedTransaction[]
 }
 
 export function parseCsv(csvContent: string): CsvImportResult {
@@ -91,6 +92,7 @@ export function parseCsv(csvContent: string): CsvImportResult {
   const bank = config ? config.bankName : 'Nierozpoznany bank'
 
   const transactions: ParsedTransaction[] = []
+  const skippedTransactions: ParsedTransaction[] = []
   let skipped = 0
 
   for (const row of result.data) {
@@ -105,12 +107,7 @@ export function parseCsv(csvContent: string): CsvImportResult {
     }
 
     const amount = parsePolishAmount(amountRaw)
-    // Importujemy tylko przychodzące wpłaty (amount > 0); wychodzące pomijamy
-    if (isNaN(amount) || amount <= 0) {
-      skipped++
-      continue
-    }
-
+    
     // Zbierz wszystkie niepuste pola z wiersza CSV jako raw_data
     const rawData: Record<string, string> = {}
     for (const [key, value] of Object.entries(row)) {
@@ -118,14 +115,23 @@ export function parseCsv(csvContent: string): CsvImportResult {
       if (v) rawData[key.trim()] = v
     }
 
-    transactions.push({
+    const tx: ParsedTransaction = {
       date: parseDate(dateRaw),
       title: titleRaw?.trim() ?? '',
-      amount,
+      amount: isNaN(amount) ? 0 : amount,
       bankAccount: accountRaw?.trim().replace(/^'+/, '') || undefined,
       rawData,
-    })
+    }
+
+    // Importujemy tylko przychodzące wpłaty (amount > 0); wychodzące pomijamy
+    if (isNaN(amount) || amount <= 0) {
+      skipped++
+      skippedTransactions.push(tx)
+      continue
+    }
+
+    transactions.push(tx)
   }
 
-  return { bank, transactions, skipped }
+  return { bank, transactions, skipped, skippedTransactions }
 }

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { useQuery } from '@tanstack/react-query'
-import { getTenantsWithBalances, sendStatementToTenant } from './actions'
+import { getTenantsWithBalances, sendStatementToTenant, getGlobalPaymentStats } from './actions'
 import { QUERY_KEYS } from '@/lib/queryKeys'
 import { formatAmount } from '@/lib/utils'
 import {
@@ -20,7 +20,7 @@ import { TableFilterBar } from '@/components/ui/table-filter-bar'
 import { ChevronUp, ChevronDown, ChevronsUpDown, Mail } from 'lucide-react'
 
 type TenantWithBalance = Awaited<ReturnType<typeof getTenantsWithBalances>>[number]
-type SortKey = 'name' | 'property' | 'balance'
+type SortKey = 'name' | 'property' | 'balance' | 'totalInflows'
 type SortDir = 'asc' | 'desc'
 
 function sortTenants(tenants: TenantWithBalance[], key: SortKey, dir: SortDir): TenantWithBalance[] {
@@ -36,6 +36,9 @@ function sortTenants(tenants: TenantWithBalance[], key: SortKey, dir: SortDir): 
     } else if (key === 'balance') {
       va = a.balance
       vb = b.balance
+    } else if (key === 'totalInflows') {
+      va = a.totalInflows
+      vb = b.totalInflows
     }
     if (va < vb) return dir === 'asc' ? -1 : 1
     if (va > vb) return dir === 'asc' ? 1 : -1
@@ -64,6 +67,11 @@ export default function KontrolaPlatnosciPage() {
     queryKey: QUERY_KEYS.kontrolaPlatnosci,
     queryFn: getTenantsWithBalances,
   })
+  
+  const { data: stats } = useQuery({
+    queryKey: QUERY_KEYS.globalPaymentStats,
+    queryFn: getGlobalPaymentStats,
+  })
 
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
@@ -87,10 +95,25 @@ export default function KontrolaPlatnosciPage() {
 
   return (
     <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Kontrola płatności</h1>
-        <div className="flex items-center gap-6 text-sm text-muted-foreground">
-          <div className="flex flex-col items-end">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold">Kontrola płatności</h1>
+          {stats?.trackingSince && (
+            <p className="text-sm text-muted-foreground mt-1">
+              Śledzimy płatności od: <span className="font-medium text-foreground">{new Date(stats.trackingSince).toLocaleDateString('pl-PL')}</span>
+            </p>
+          )}
+        </div>
+        <div className="flex flex-col md:flex-row items-center gap-6 text-sm text-muted-foreground">
+          <div className="flex items-center gap-6">
+            {stats && (
+              <div>
+                Łączne przychody:{' '}
+                <span className="font-semibold text-foreground">
+                  {formatAmount(stats.totalInflows)}
+                </span>
+              </div>
+            )}
             <div>
               Łączne saldo:{' '}
               <span className={`font-semibold ${totalBalance >= 0 ? 'text-green-600' : 'text-destructive'}`}>
@@ -123,6 +146,9 @@ export default function KontrolaPlatnosciPage() {
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('property')}>
               Nieruchomość<SortIcon col="property" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
+            <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort('totalInflows')}>
+              Przychody<SortIcon col="totalInflows" sortKey={sortKey} sortDir={sortDir} />
+            </TableHead>
             <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort('balance')}>
               Saldo<SortIcon col="balance" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
@@ -132,14 +158,14 @@ export default function KontrolaPlatnosciPage() {
         <TableBody>
           {isLoading && (
             <TableRow>
-              <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                 Ładowanie…
               </TableCell>
             </TableRow>
           )}
           {!isLoading && sorted.length === 0 && (
             <TableRow>
-              <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                 {filterText ? 'Brak wyników dla podanego filtra' : 'Brak najemców'}
               </TableCell>
             </TableRow>
@@ -158,6 +184,9 @@ export default function KontrolaPlatnosciPage() {
               </TableCell>
               <TableCell className="text-muted-foreground">
                 {t.property?.name || t.property?.address1 || '—'}
+              </TableCell>
+              <TableCell className="text-right text-muted-foreground">
+                {formatAmount(t.totalInflows)}
               </TableCell>
               <TableCell
                 className={`text-right font-semibold ${

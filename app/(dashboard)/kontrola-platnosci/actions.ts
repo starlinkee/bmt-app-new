@@ -20,13 +20,13 @@ export async function getTenantsWithBalances() {
   const txMap = new Map<number, number>()
   for (const tx of transactions ?? []) {
     if (tx.tenant_id == null) continue
-    txMap.set(tx.tenant_id, (txMap.get(tx.tenant_id) ?? 0) + Number(tx.amount))
+    txMap.set(tx.tenant_id, (txMap.get(tx.tenant_id) ?? 0) + (Number(tx.amount) || 0))
   }
 
   const invMap = new Map<number, number>()
   for (const inv of invoices ?? []) {
     if (inv.tenant_id == null) continue
-    invMap.set(inv.tenant_id, (invMap.get(inv.tenant_id) ?? 0) + Number(inv.amount))
+    invMap.set(inv.tenant_id, (invMap.get(inv.tenant_id) ?? 0) + (Number(inv.amount) || 0))
   }
 
   return (tenants ?? [])
@@ -37,6 +37,7 @@ export async function getTenantsWithBalances() {
       company_name: t.company_name,
       property: t.properties as unknown as { name: string; address1: string } | null,
       balance: (txMap.get(t.id) ?? 0) - (invMap.get(t.id) ?? 0),
+      totalInflows: txMap.get(t.id) ?? 0,
     }))
     .sort((a, b) => a.balance - b.balance)
 }
@@ -61,8 +62,8 @@ export async function getTenantWithBalance(tenantId: number) {
 
   if (!tenant) return null
 
-  const txSum = (transactions ?? []).reduce((sum, tx) => sum + Number(tx.amount), 0)
-  const invSum = (invoices ?? []).reduce((sum, inv) => sum + Number(inv.amount), 0)
+  const txSum = (transactions ?? []).reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0)
+  const invSum = (invoices ?? []).reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0)
 
   return {
     id: tenant.id,
@@ -111,25 +112,28 @@ export async function sendBulkStatements() {
 export async function getGlobalPaymentStats() {
   const supabase = createServiceClient()
   const [{ data: txs }, { data: invs }] = await Promise.all([
-    supabase.from('transactions').select('date').neq('status', 'DISMISSED'),
+    supabase.from('transactions').select('date, amount').neq('status', 'DISMISSED'),
     supabase.from('invoices').select('amount')
   ])
 
   let earliestDate: Date | null = null
-  let totalEarnings = 0
+  let totalInvoiced = 0
+  let totalInflows = 0
 
   for (const inv of invs ?? []) {
-    totalEarnings += Number(inv.amount)
+    totalInvoiced += (Number(inv.amount) || 0)
   }
   
   for (const tx of txs ?? []) {
+    totalInflows += (Number(tx.amount) || 0)
     if (!tx.date) continue
     const d = new Date(tx.date)
     if (!earliestDate || d < earliestDate) earliestDate = d
   }
 
   return {
-    totalEarnings,
+    totalInvoiced,
+    totalInflows,
     trackingSince: earliestDate ? earliestDate.toISOString() : null,
   }
 }

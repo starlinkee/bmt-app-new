@@ -34,6 +34,7 @@ export type Database = {
           rent_invoice_pdf_gid: string
           rent_invoice_spreadsheet_id: string
             tenant_reading_keys: Json
+            ignored_source_accounts: string
           }
           Insert: {
           drive_invoices_folder_id?: string
@@ -54,6 +55,7 @@ export type Database = {
           rent_invoice_pdf_gid?: string
           rent_invoice_spreadsheet_id?: string
             tenant_reading_keys?: Json
+            ignored_source_accounts?: string
           }
           Update: {
           drive_invoices_folder_id?: string
@@ -74,6 +76,7 @@ export type Database = {
           rent_invoice_pdf_gid?: string
           rent_invoice_spreadsheet_id?: string
             tenant_reading_keys?: Json
+            ignored_source_accounts?: string
           }
           Relationships: []
       }
