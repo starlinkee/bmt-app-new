@@ -100,7 +100,7 @@ export function Sidebar() {
           </Link>
         )}
         <Link
-          href="/settings"
+          href="/ustawienia"
           className={cn(
             'flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors',
             pathname.startsWith('/ustawienia')

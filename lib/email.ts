@@ -13,24 +13,11 @@ type ProviderConfig = {
   gmailAppPassword: string | null
 }
 
-async function getProviderConfig(account: 1 | 2 = 1): Promise<ProviderConfig> {
-  const supabase = createServiceClient()
-  const { data } = await supabase
-    .from('app_config')
-    .select('email_provider, gmail_user, gmail_app_password, email_provider_2, gmail_user_2, gmail_app_password_2')
-    .eq('id', 1)
-    .single()
-  if (account === 2) {
-    return {
-      provider: (data?.email_provider_2 as EmailProvider) ?? 'gmail_smtp',
-      gmailUser: data?.gmail_user_2 ?? null,
-      gmailAppPassword: data?.gmail_app_password_2 ?? null,
-    }
-  }
+async function getProviderConfig(): Promise<ProviderConfig> {
   return {
-    provider: (data?.email_provider as EmailProvider) ?? 'gmail_smtp',
-    gmailUser: data?.gmail_user ?? null,
-    gmailAppPassword: data?.gmail_app_password ?? null,
+    provider: 'gmail_smtp',
+    gmailUser: process.env.GMAIL_USER ?? null,
+    gmailAppPassword: process.env.GMAIL_APP_PASSWORD ?? null,
   }
 }
 
@@ -96,6 +83,8 @@ async function sendEmail({ to, subject, html, attachments = [], cfg }: SendParam
     } catch (e) {
       console.error('Failed to log email', e)
     }
+  } else {
+    throw new Error(`Nieobsługiwany dostawca email: ${cfg.provider}`)
   }
 }
 
@@ -115,7 +104,7 @@ export async function sendRentEmail(
   subjectTemplate?: string | null,
   bodyTemplate?: string | null,
 ) {
-  const cfg = await getProviderConfig(senderAccount)
+  const cfg = await getProviderConfig()
   const vars: Record<string, string> = {
     najemca: tenantName,
     numer_rachunku: invoiceNumber || '',
@@ -152,7 +141,7 @@ export async function sendMediaEmail(
   bodyTemplate?: string | null,
   senderAccount: 1 | 2 = 1,
 ) {
-  const cfg = await getProviderConfig(senderAccount)
+  const cfg = await getProviderConfig()
   const vars: Record<string, string> = {
     imie: tenantName,
     numer_rachunku: invoiceNumber,
@@ -203,7 +192,7 @@ export async function sendPrivateMonthlyReminder(
   bodyTemplate: string,
   senderAccount: 1 | 2 = 1,
 ) {
-  const cfg = await getProviderConfig(senderAccount)
+  const cfg = await getProviderConfig()
   const subject = applyReminderTemplate(subjectTemplate, tenantName, month, year, rentAmount)
   const html = applyReminderTemplate(bodyTemplate, tenantName, month, year, rentAmount)
     .split('\n')
@@ -221,7 +210,7 @@ export async function sendStatementEmail(
   subjectTemplate?: string,
   bodyTemplate?: string,
 ) {
-  const cfg = await getProviderConfig(senderAccount)
+  const cfg = await getProviderConfig()
   const vars: Record<string, string> = {
     imie: tenantName,
     saldo: formatAmount(balance),

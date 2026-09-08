@@ -5,8 +5,8 @@ import { logAudit } from '@/lib/audit'
 
 export async function processLateReminders() {
   const now = new Date()
-  if (now.getDate() <= 10) {
-    return { sent: 0, skipped: 0, reason: 'Before 11th' }
+  if (now.getDate() <= 14) {
+    return { sent: 0, skipped: 0, reason: 'Before 15th' }
   }
 
   const supabase = createServiceClient()
