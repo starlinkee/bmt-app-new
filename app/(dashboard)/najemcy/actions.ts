@@ -8,7 +8,7 @@ export async function getTenants() {
   const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('tenants')
-    .select('*, properties(name), contracts(id, is_active, has_media_invoice)')
+    .select('*, properties(name), contracts(id, is_active, has_media_invoice, rent_amount)')
     .order('last_name')
   if (error) throw error
   return data

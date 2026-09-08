@@ -9,9 +9,9 @@ import fs from 'fs/promises'
 import path from 'path'
 import crypto from 'crypto'
 
-export async function importCsvTransactions(csvContent: string) {
+export async function importCsvTransactions(csvContent: string, fileName: string = 'unknown.csv') {
   const supabase = createServiceClient()
-  const { bank, transactions, skipped } = parseCsv(csvContent)
+  const { bank, transactions, skipped, skippedTransactions } = parseCsv(csvContent)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (supabase as any).from('transaction_staging').delete().neq('id', 0)
@@ -25,6 +25,31 @@ export async function importCsvTransactions(csvContent: string) {
   let duplicates = 0
   let minDate = '9999-12-31'
   let maxDate = '0000-01-01'
+
+  const { data: config } = await supabase.from('app_config').select('ignored_source_accounts').eq('id', 1).single()
+  const ignoredAccountsList = config?.ignored_source_accounts
+    ? config.ignored_source_accounts.split('\n').map((a: string) => a.trim().replace(/\s/g, '')).filter(Boolean)
+    : []
+
+  if (skippedTransactions && skippedTransactions.length > 0) {
+    const toInsertSkipped = skippedTransactions.map(tx => {
+      const txAccountNorm = tx.bankAccount ? tx.bankAccount.replace(/\s/g, '') : ''
+      const isIgnored = txAccountNorm && ignoredAccountsList.some((acc: string) => txAccountNorm.includes(acc) || acc.includes(txAccountNorm))
+      
+      return {
+        date: tx.date,
+        title: tx.title,
+        amount: tx.amount,
+        bank_account: tx.bankAccount ?? '',
+        type: 'BANK',
+        tenant_id: null,
+        status: isIgnored ? 'REJECTED_OWN_TRANSFER' : 'SKIPPED',
+        category: null,
+        raw_data: tx.rawData,
+      }
+    })
+    await supabase.from('transactions').insert(toInsertSkipped)
+  }
 
   for (const tx of transactions) {
     if (tx.date < minDate) minDate = tx.date
@@ -41,7 +66,17 @@ export async function importCsvTransactions(csvContent: string) {
     const isDuplicate = (count ?? 0) > 0
     if (isDuplicate) duplicates++
 
-    const tenant = matchTransaction(tx.bankAccount, tenants ?? [])
+    const txAccountNorm = tx.bankAccount ? tx.bankAccount.replace(/\s/g, '') : ''
+    let suggestedTenantId = null
+
+    if (txAccountNorm && ignoredAccountsList.some((acc: string) => txAccountNorm.includes(acc) || acc.includes(txAccountNorm))) {
+      suggestedTenantId = -1
+    } else {
+      const tenant = matchTransaction(tx.bankAccount, tenants ?? [])
+      if (tenant) {
+        suggestedTenantId = tenant.id
+      }
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any).from('transaction_staging').insert({
@@ -50,25 +85,25 @@ export async function importCsvTransactions(csvContent: string) {
       title: tx.title,
       bank_account: tx.bankAccount,
       raw_data: tx.rawData ?? null,
-      suggested_tenant_id: tenant ? tenant.id : null,
+      suggested_tenant_id: suggestedTenantId,
       is_duplicate: isDuplicate,
     })
 
-    if (tenant) {
+    if (suggestedTenantId !== null) {
       withSuggestion++
     } else {
       withoutSuggestion++
     }
   }
 
-  // Zapis pliku na VPS
   const attachDir = path.join(process.cwd(), 'data', 'attachments')
   await fs.mkdir(attachDir, { recursive: true })
-  const savedFileName = `import_${crypto.randomUUID()}.csv`
+  const safeName = fileName.replace(/[^a-zA-Z0-9.\-_]/g, '_')
+  const savedFileName = `${crypto.randomUUID()}_${safeName}`
   const filePath = path.join(attachDir, savedFileName)
   await fs.writeFile(filePath, csvContent, 'utf-8')
 
-  const summary = { bank, total: transactions.length, withSuggestion, withoutSuggestion, skipped, duplicates, minDate: minDate === '9999-12-31' ? null : minDate, maxDate: maxDate === '0000-01-01' ? null : maxDate, savedFileName }
+  const summary = { bank, total: transactions.length, withSuggestion, withoutSuggestion, skipped, duplicates, minDate: minDate === '9999-12-31' ? null : minDate, maxDate: maxDate === '0000-01-01' ? null : maxDate, savedFileName, originalFileName: fileName }
   await logAudit({
     actionName: 'importCsvTransactions',
     tableName: 'transaction_staging',
@@ -95,10 +130,37 @@ export async function getLastImportInfo() {
     .single()
     
   if (error || !data) return null
-  return data.after_data as {
-    minDate?: string | null
-    maxDate?: string | null
-    savedFileName?: string
+  return {
+    ...data.after_data as {
+      minDate?: string | null
+      maxDate?: string | null
+      savedFileName?: string
+      originalFileName?: string
+    },
+    created_at: data.created_at
+  }
+}
+
+export async function getImportHistoryList() {
+  const supabase = createServiceClient()
+  const { data, error } = await supabase
+    .from('audit_log')
+    .select('id, after_data, created_at')
+    .eq('action_name', 'importCsvTransactions')
+    .order('created_at', { ascending: false })
+    
+  if (error) throw error
+  return data
+}
+
+export async function getFileContent(fileName: string) {
+  try {
+    const filePath = path.join(process.cwd(), 'data', 'attachments', fileName)
+    const content = await fs.readFile(filePath, 'utf-8')
+    return content
+  } catch (error) {
+    console.error('Error reading file:', error)
+    return null
   }
 }
 
@@ -211,10 +273,24 @@ export async function reconcileMany(
   revalidatePath('/import/reconcile')
 }
 
-export async function dismissTransaction(txId: number) {
+export async function dismissTransaction(txId: number, reason: 'REJECTED_OWN_TRANSFER' | 'REJECTED_OTHER' = 'REJECTED_OTHER') {
   const supabase = createServiceClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: before } = await (supabase as any).from('transaction_staging').select('*').eq('id', txId).single()
+  if (!before) return
+
+  await supabase.from('transactions').insert({
+    date: before.date,
+    title: before.title,
+    amount: before.amount,
+    bank_account: before.bank_account,
+    type: 'BANK',
+    tenant_id: null,
+    status: reason,
+    category: null,
+    raw_data: before.raw_data,
+  })
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (supabase as any).from('transaction_staging').delete().eq('id', txId)
   await logAudit({
@@ -223,6 +299,37 @@ export async function dismissTransaction(txId: number) {
     operation: 'DISMISS',
     recordId: txId,
     beforeData: before,
+  })
+  revalidatePath('/import/reconcile')
+}
+
+export async function dismissAllTransactions() {
+  const supabase = createServiceClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: allStaging } = await (supabase as any).from('transaction_staging').select('*')
+  
+  if (allStaging && allStaging.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const toInsert = allStaging.map((staging: any) => ({
+      date: staging.date,
+      title: staging.title,
+      amount: staging.amount,
+      bank_account: staging.bank_account,
+      type: 'BANK',
+      tenant_id: null,
+      status: 'REJECTED_OTHER',
+      category: null,
+      raw_data: staging.raw_data,
+    }))
+    await supabase.from('transactions').insert(toInsert)
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any).from('transaction_staging').delete().neq('id', 0)
+  await logAudit({
+    actionName: 'dismissAllTransactions',
+    tableName: 'transaction_staging',
+    operation: 'DISMISS',
   })
   revalidatePath('/import/reconcile')
 }

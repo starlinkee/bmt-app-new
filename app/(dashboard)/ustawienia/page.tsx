@@ -12,6 +12,7 @@ export default function SettingsPage() {
   const [form, setForm] = useState({
     late_reminder_subject: 'Rozliczenie wpłat i rachunków - BMT',
     late_reminder_body: 'Szanowny/a {imie},\n\nPrzesyłamy w załączeniu aktualne podsumowanie Państwa konta. Saldo na dzień dzisiejszy wynosi: {saldo}.\n\nProsimy o uregulowanie należności.\n\nPozdrawiamy,\nBMT',
+    ignored_source_accounts: '',
   })
   const [pending, startTransition] = useTransition()
 
@@ -22,6 +23,7 @@ export default function SettingsPage() {
         setForm({
           late_reminder_subject: (config as Record<string, unknown>).late_reminder_subject as string ?? 'Rozliczenie wpłat i rachunków - BMT',
           late_reminder_body: (config as Record<string, unknown>).late_reminder_body as string ?? 'Szanowny/a {imie},\n\nPrzesyłamy w załączeniu aktualne podsumowanie Państwa konta. Saldo na dzień dzisiejszy wynosi: {saldo}.\n\nProsimy o uregulowanie należności.\n\nPozdrawiamy,\nBMT',
+          ignored_source_accounts: (config as Record<string, unknown>).ignored_source_accounts as string ?? '',
         })
       }
     })
@@ -33,6 +35,7 @@ export default function SettingsPage() {
         await upsertAppConfig({
           late_reminder_subject: form.late_reminder_subject,
           late_reminder_body: form.late_reminder_body,
+          ignored_source_accounts: form.ignored_source_accounts,
         })
         toast.success('Ustawienia zapisane.')
       } catch (e) {
@@ -75,6 +78,20 @@ export default function SettingsPage() {
             value={form.late_reminder_body}
             onChange={(e) => setForm({ ...form, late_reminder_body: e.target.value })}
             rows={6}
+          />
+        </div>
+
+        <div className="space-y-1 mt-6">
+          <h2 className="text-lg font-semibold">Ignorowane rachunki źródłowe</h2>
+          <p className="text-sm text-muted-foreground mt-1 mb-3">
+            Podaj rachunki źródłowe (jeden na linię), z których przelewy to Twoje własne środki (przelewy od Ciebie do Ciebie).
+            Przy imporcie wyciągów z CSV, system automatycznie rozpozna takie wpłaty i oznaczy je jako własne.
+          </p>
+          <Textarea
+            value={form.ignored_source_accounts}
+            onChange={(e) => setForm({ ...form, ignored_source_accounts: e.target.value })}
+            rows={4}
+            placeholder="Np. 12345678901234567890123456"
           />
         </div>
 

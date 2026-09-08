@@ -15,6 +15,5 @@ This version has breaking changes — APIs, conventions, and file structure may 
 <!-- BEGIN:bmt-todos -->
 # TODOs / Reminders
 
-1. **Import CSV (Wyciągi z banku) - Zakres dat**: Obecnie daty wgrywanego wyciągu (od kiedy do kiedy) są wyliczane na podstawie dat pojedynczych transakcji w pliku. DOCELOWO: Należy pobierać te informacje bezpośrednio z meta-danych (nagłówka/stopki) pliku CSV wgranego z banku.
-   - *Zadanie*: Zawsze pamiętaj, żeby przypomnieć użytkownikowi o konieczności sprawdzenia w jakim formacie bank faktycznie zapisuje okres wyciągu w samym pliku CSV.
+Brak aktywnych przypomnień na ten moment.
 <!-- END:bmt-todos -->

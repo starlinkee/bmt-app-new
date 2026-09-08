@@ -16,10 +16,13 @@ export async function GET(
 
   const supabase = createServiceClient()
   
+  const searchParams = request.nextUrl.searchParams
+  const shouldDownload = searchParams.get('download') === '1'
+  
   // Try finding it in 'emails/' folder
   const { data, error } = await supabase.storage
     .from('invoices')
-    .createSignedUrl(`emails/${filename}`, 60, { download: true })
+    .createSignedUrl(`emails/${filename}`, 60, { download: shouldDownload })
 
   if (error || !data) {
     return new NextResponse('File not found', { status: 404 })

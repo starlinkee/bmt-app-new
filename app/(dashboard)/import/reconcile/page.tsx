@@ -7,12 +7,13 @@ import {
   getUnmatchedTransactions,
   reconcileMany,
   dismissTransaction,
+  dismissAllTransactions,
 } from '../actions'
 import { getTenants } from '@/app/(dashboard)/najemcy/actions'
 import { Button } from '@/components/ui/button'
 import { SearchSelect } from '@/components/ui/search-select'
 import { formatAmount, formatDate } from '@/lib/utils'
-import { AlertTriangle, X } from 'lucide-react'
+import { AlertTriangle, X, Check } from 'lucide-react'
 
 type Transaction = Awaited<ReturnType<typeof getUnmatchedTransactions>>[number]
 type Tenant = Awaited<ReturnType<typeof getTenants>>[number]
@@ -37,39 +38,67 @@ export default function ReconcilePage() {
       setTenants(ts)
       setBannerDismissed(false)
       const suggestions: Record<number, string> = {}
+      const catSuggestions: Record<number, Category> = {}
+
       for (const tx of txs) {
         if (tx.suggested_tenant_id != null) {
           suggestions[tx.id] = String(tx.suggested_tenant_id)
+          if (tx.suggested_tenant_id !== -1) {
+            const tenant = ts.find((t) => t.id === tx.suggested_tenant_id)
+            if (tenant && Array.isArray(tenant.contracts)) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const activeContract = tenant.contracts.find((c: any) => c.is_active)
+              if (activeContract && activeContract.rent_amount != null) {
+                if (Number(tx.amount) === Number(activeContract.rent_amount)) {
+                  catSuggestions[tx.id] = 'RENT'
+                } else {
+                  catSuggestions[tx.id] = 'MEDIA'
+                }
+              }
+            }
+          }
         }
       }
       setSelectedTenants(suggestions)
-      setSelectedCategories({})
+      setSelectedCategories(catSuggestions)
     })
   }
 
   useEffect(() => { load() }, [])
 
   const readyCount = transactions.filter(
-    (tx) => selectedTenants[tx.id] && selectedCategories[tx.id],
+    (tx) => selectedTenants[tx.id] && (selectedCategories[tx.id] || selectedTenants[tx.id] === '-1'),
   ).length
   const duplicateCount = transactions.filter((tx) => tx.is_duplicate).length
 
   function handleBulkConfirm() {
-    const items = transactions
-      .filter((tx) => selectedTenants[tx.id] && selectedCategories[tx.id])
+    const selectedTxs = transactions.filter(
+      (tx) => selectedTenants[tx.id] && (selectedCategories[tx.id] || selectedTenants[tx.id] === '-1')
+    )
+    if (selectedTxs.length === 0) return
+
+    const toReconcile = selectedTxs
+      .filter((tx) => selectedTenants[tx.id] !== '-1')
       .map((tx) => ({
         txId: tx.id,
         tenantId: Number(selectedTenants[tx.id]),
         category: selectedCategories[tx.id],
       }))
-
-    if (items.length === 0) return
+    
+    const toDismiss = selectedTxs
+      .filter((tx) => selectedTenants[tx.id] === '-1')
+      .map((tx) => tx.id)
 
     startTransition(async () => {
-      await reconcileMany(items)
-      toast.success(`Przypisano ${items.length} transakcji.`)
+      if (toReconcile.length > 0) {
+        await reconcileMany(toReconcile)
+      }
+      for (const txId of toDismiss) {
+        await dismissTransaction(txId, 'REJECTED_OWN_TRANSFER')
+      }
+      toast.success(`Przetworzono ${selectedTxs.length} transakcji.`)
       
-      if (items.length === transactions.length) {
+      if (selectedTxs.length === transactions.length) {
         router.push('/kontrola-platnosci')
       } else {
         load()
@@ -79,9 +108,18 @@ export default function ReconcilePage() {
 
   function handleDismiss(txId: number) {
     startTransition(async () => {
-      await dismissTransaction(txId)
+      await dismissTransaction(txId, 'REJECTED_OTHER')
       toast.success('Transakcja odrzucona.')
       load()
+    })
+  }
+
+  function handleDismissAll() {
+    if (!window.confirm('Czy na pewno chcesz odrzucić wszystkie niezatwierdzone transakcje i anulować ten import?')) return
+    startTransition(async () => {
+      await dismissAllTransactions()
+      toast.success('Anulowano import. Niezatwierdzone transakcje zostały usunięte.')
+      router.push('/import')
     })
   }
 
@@ -93,6 +131,16 @@ export default function ReconcilePage() {
       Zatwierdź wybrane{readyCount > 0 ? ` (${readyCount})` : ''}
     </Button>
   )
+
+  const dismissAllButton = transactions.length > 0 ? (
+    <Button
+      variant="outline"
+      onClick={handleDismissAll}
+      disabled={pending}
+    >
+      Odrzuć wszystkie (anuluj)
+    </Button>
+  ) : null
 
   return (
     <div className="p-6 space-y-4 max-w-4xl">
@@ -116,12 +164,16 @@ export default function ReconcilePage() {
         <h1 className="text-2xl font-semibold">Przypisywanie transakcji</h1>
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted-foreground">{transactions.length} niedopasowanych</span>
+          {dismissAllButton}
           {confirmButton}
         </div>
       </div>
 
       {transactions.length === 0 && (
-        <p className="text-center text-muted-foreground py-16">Brak niedopasowanych transakcji</p>
+        <div className="flex flex-col items-center justify-center py-16 space-y-4">
+          <p className="text-muted-foreground">Brak niedopasowanych transakcji</p>
+          <Button onClick={() => router.push('/import')}>Wgraj nowy plik CSV</Button>
+        </div>
       )}
 
       <div className="space-y-3">
@@ -174,51 +226,79 @@ export default function ReconcilePage() {
 
               <div className="flex gap-2 pt-1 border-t">
                 <div className="flex-1 space-y-2">
-                  {tx.suggested_tenant_id != null && selectedTenants[tx.id] === String(tx.suggested_tenant_id) && (
+                  {tx.suggested_tenant_id != null && tx.suggested_tenant_id !== -1 && selectedTenants[tx.id] === String(tx.suggested_tenant_id) && (
                     <p className="text-xs text-muted-foreground">Sugestia wg kwoty i historii — wymaga potwierdzenia</p>
                   )}
+                  {tx.suggested_tenant_id === -1 && selectedTenants[tx.id] === '-1' && (
+                    <p className="text-xs text-muted-foreground">Przelew własny rozpoznany po rachunku źródłowym</p>
+                  )}
                   <SearchSelect
-                    options={tenants.map((t) => ({
+                    options={[
+                      { value: '-1', label: '❌ Odrzuć (przelew własny / ignoruj)' },
+                      ...tenants.map((t) => ({
                       value: String(t.id),
                       label: `${t.first_name} ${t.last_name}`,
                       description: (t.properties as unknown as { name: string } | null)?.name,
-                    }))}
+                    }))]}
                     value={selectedTenants[tx.id] ?? ''}
-                    onValueChange={(v) =>
+                    onValueChange={(v) => {
                       setSelectedTenants((prev) => ({ ...prev, [tx.id]: v }))
-                    }
+                      if (v !== '-1' && v !== '') {
+                        const tenant = tenants.find((t) => String(t.id) === v)
+                        if (tenant && Array.isArray(tenant.contracts)) {
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          const activeContract = tenant.contracts.find((c: any) => c.is_active)
+                          if (activeContract && activeContract.rent_amount != null) {
+                            setSelectedCategories((prev) => ({
+                              ...prev,
+                              [tx.id]: Number(tx.amount) === Number(activeContract.rent_amount) ? 'RENT' : 'MEDIA'
+                            }))
+                          }
+                        }
+                      } else {
+                        setSelectedCategories((prev) => {
+                          const next = { ...prev }
+                          delete next[tx.id]
+                          return next
+                        })
+                      }
+                    }}
                     placeholder="Wyszukaj najemcę..."
                   />
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs text-muted-foreground mr-1">Rodzaj:</span>
+                  {selectedTenants[tx.id] !== '-1' && (
+                  <div className="flex items-center gap-2 mt-1.5 p-1.5 bg-muted/40 rounded-md border">
+                    <span className="text-xs font-semibold text-muted-foreground min-w-[50px] pl-1">Rodzaj:</span>
                     <button
                       onClick={() =>
                         setSelectedCategories((prev) => ({ ...prev, [tx.id]: 'RENT' }))
                       }
-                      className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
+                      className={`flex-1 px-3 py-1.5 rounded text-xs font-bold border-2 transition-all flex items-center justify-center gap-1.5 ${
                         category === 'RENT'
-                          ? 'bg-primary text-primary-foreground border-primary'
-                          : 'bg-background text-muted-foreground border-border hover:bg-muted'
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-sm ring-1 ring-blue-600 ring-offset-1 ring-offset-background'
+                          : 'bg-background text-muted-foreground border-border hover:border-blue-300 hover:text-blue-600'
                       }`}
                     >
-                      Czynsz
+                      {category === 'RENT' && <Check className="w-3.5 h-3.5" />}
+                      CZYNSZ
                     </button>
                     <button
                       onClick={() =>
                         setSelectedCategories((prev) => ({ ...prev, [tx.id]: 'MEDIA' }))
                       }
-                      className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
+                      className={`flex-1 px-3 py-1.5 rounded text-xs font-bold border-2 transition-all flex items-center justify-center gap-1.5 ${
                         category === 'MEDIA'
-                          ? 'bg-primary text-primary-foreground border-primary'
-                          : 'bg-background text-muted-foreground border-border hover:bg-muted'
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm ring-1 ring-emerald-600 ring-offset-1 ring-offset-background'
+                          : 'bg-background text-muted-foreground border-border hover:border-emerald-300 hover:text-emerald-600'
                       }`}
                     >
-                      Media
+                      {category === 'MEDIA' && <Check className="w-3.5 h-3.5" />}
+                      MEDIA
                     </button>
                     {!category && (
-                      <span className="text-xs text-muted-foreground ml-1 italic">wymagane</span>
+                      <span className="text-xs font-bold text-red-500 ml-1 uppercase animate-pulse">Wybierz!</span>
                     )}
                   </div>
+                  )}
                 </div>
                 <Button
                   size="sm"
@@ -235,7 +315,8 @@ export default function ReconcilePage() {
       </div>
 
       {transactions.length > 0 && (
-        <div className="flex justify-end pt-2">
+        <div className="flex justify-end gap-3 pt-2">
+          {dismissAllButton}
           {confirmButton}
         </div>
       )}

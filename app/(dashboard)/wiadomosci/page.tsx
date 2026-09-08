@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getEmailLogs } from './actions'
-import { formatDate } from '@/lib/utils'
+import { formatDate, formatDateTime } from '@/lib/utils'
 import {
   Table,
   TableBody,
@@ -124,7 +124,7 @@ export default function WiadomosciPage() {
                 onClick={() => setSelectedLog(log)}
               >
                 <TableCell className="whitespace-nowrap">
-                  {formatDate(log.sent_at)}
+                  {formatDateTime(log.sent_at)}
                 </TableCell>
                 <TableCell>{log.to_email}</TableCell>
                 <TableCell className="font-medium">{log.subject}</TableCell>
@@ -144,23 +144,32 @@ export default function WiadomosciPage() {
               Do: <span className="font-medium text-foreground">{selectedLog?.to_email}</span>
             </div>
             <div className="text-muted-foreground">
-              Data: <span className="font-medium text-foreground">{selectedLog && formatDate(selectedLog.sent_at)}</span>
+              Data: <span className="font-medium text-foreground">{selectedLog && formatDateTime(selectedLog.sent_at)}</span>
             </div>
             {selectedLog?.attachments && Array.isArray(selectedLog.attachments) && selectedLog.attachments.length > 0 && (
               <div className="text-muted-foreground flex items-center gap-2">
                 Załączniki: 
                 <div className="flex flex-wrap gap-2">
                   {(selectedLog.attachments as { path: string; name: string }[]).map((att: { path: string; name: string }, i: number) => (
-                    <a
-                      key={i}
-                      href={`/api/attachments/${att.path}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-paperclip"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-                      {att.name}
-                    </a>
+                    <div key={i} className="inline-flex items-center bg-primary/5 border rounded-md overflow-hidden">
+                      <a
+                        href={`/api/attachments/${att.path}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-primary hover:bg-primary/10 transition-colors"
+                        title="Otwórz w przeglądarce"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-paperclip"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                        {att.name}
+                      </a>
+                      <a
+                        href={`/api/attachments/${att.path}?download=1`}
+                        className="inline-flex items-center justify-center px-2 py-1 text-primary hover:bg-primary/10 transition-colors border-l"
+                        title="Pobierz plik"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-download"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                      </a>
+                    </div>
                   ))}
                 </div>
               </div>
