@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Beaker, AlertTriangle, CheckCircle2, FileText } from 'lucide-react'
 import { getSettlementGroups } from '@/app/(dashboard)/media/actions'
-import { generateTestMediaCharge } from './actions'
+import { generateTestMediaCharge, getGroupDetailsForTest } from './actions'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 export default function TestowaniePage() {
@@ -18,13 +18,36 @@ export default function TestowaniePage() {
   
   const [groups, setGroups] = useState<{ id: number; name: string }[]>([])
   const [selectedGroup, setSelectedGroup] = useState<string>('')
-  const [mediaAmount, setMediaAmount] = useState<string>('100.00')
+  
+  const [groupDetails, setGroupDetails] = useState<{ properties: any[], tenants: any[] } | null>(null)
+  const [tenantAmounts, setTenantAmounts] = useState<Record<string, string>>({})
+
   const [mediaLoading, setMediaLoading] = useState(false)
   const [mediaResult, setMediaResult] = useState<{ success?: boolean; generated?: number; error?: string } | null>(null)
+
+  const [mediaMonth, setMediaMonth] = useState(new Date().getMonth() + 1)
+  const [mediaYear, setMediaYear] = useState(new Date().getFullYear())
 
   useEffect(() => {
     getSettlementGroups().then(setGroups).catch(console.error)
   }, [])
+
+  useEffect(() => {
+    if (selectedGroup) {
+      getGroupDetailsForTest(parseInt(selectedGroup)).then(details => {
+        setGroupDetails(details)
+        // Inicjalizujemy puste kwoty dla wszystkich najemców
+        const initialAmounts: Record<string, string> = {}
+        details?.tenants.forEach((t: any) => {
+          initialAmounts[t.id] = ''
+        })
+        setTenantAmounts(initialAmounts)
+      }).catch(console.error)
+    } else {
+      setGroupDetails(null)
+      setTenantAmounts({})
+    }
+  }, [selectedGroup])
 
   const handleTestCron = async () => {
     setLoading(true)
@@ -46,15 +69,33 @@ export default function TestowaniePage() {
   }
 
   const handleTestMediaCharge = async () => {
-    if (!selectedGroup || !mediaAmount) return
+    if (!selectedGroup) return
     setMediaLoading(true)
     setMediaResult(null)
     try {
+      // Konwersja tekstowych kwot na liczby (tylko dla tych, gdzie cokolwiek wpisano)
+      const parsedAmounts: Record<string, number> = {}
+      let hasAnyAmount = false
+      
+      Object.entries(tenantAmounts).forEach(([tenantId, amountStr]) => {
+        if (amountStr.trim() !== '') {
+          const val = parseFloat(amountStr.replace(',', '.'))
+          if (!isNaN(val)) {
+            parsedAmounts[tenantId] = val
+            hasAnyAmount = true
+          }
+        }
+      })
+
+      if (!hasAnyAmount) {
+        throw new Error('Musisz podać kwotę dla co najmniej jednego najemcy.')
+      }
+
       const res = await generateTestMediaCharge(
         parseInt(selectedGroup),
-        parseFloat(mediaAmount.replace(',', '.')),
-        month,
-        year
+        parsedAmounts,
+        mediaMonth,
+        mediaYear
       )
       setMediaResult({ success: true, generated: res.count })
     } catch (err: any) {
@@ -142,73 +183,6 @@ export default function TestowaniePage() {
         </CardContent>
       </Card>
 
-      <Card className="border-purple-500/50 shadow-sm">
-        <CardHeader className="bg-purple-50/50 dark:bg-purple-950/20 border-b border-purple-100 dark:border-purple-900/50">
-          <CardTitle className="text-purple-800 dark:text-purple-500 flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Wystaw testowe obciążenie (Media)
-          </CardTitle>
-          <CardDescription>
-            Tworzy notę obciążeniową w bazie dla wszystkich przypisanych najemców z wybranej grupy.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pt-6 space-y-4">
-          <div className="space-y-2">
-            <Label>Grupa rozliczeniowa</Label>
-            <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-              <SelectTrigger>
-                <SelectValue placeholder="Wybierz grupę..." />
-              </SelectTrigger>
-              <SelectContent>
-                {groups.map(g => (
-                  <SelectItem key={g.id} value={g.id.toString()}>{g.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <div className="space-y-2">
-            <Label>Kwota obciążenia (dla każdego najemcy)</Label>
-            <Input 
-              type="number" 
-              step="0.01"
-              value={mediaAmount}
-              onChange={e => setMediaAmount(e.target.value)}
-            />
-          </div>
-
-          <Button 
-            onClick={handleTestMediaCharge} 
-            disabled={mediaLoading || !selectedGroup}
-            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold mt-2"
-          >
-            {mediaLoading ? 'Wystawianie...' : `Wystaw obciążenia dla ${month}/${year}`}
-          </Button>
-
-          {mediaResult && (
-            <div className={`p-4 rounded-md mt-4 flex items-start gap-3 ${mediaResult.success ? 'bg-green-50 text-green-900 border border-green-200' : 'bg-red-50 text-red-900 border border-red-200'}`}>
-              {mediaResult.success ? (
-                <>
-                  <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
-                  <div>
-                    <p className="font-medium">Sukces!</p>
-                    <p className="text-sm text-green-800">Wystawiono testowe obciążenia dla {mediaResult.generated} najemców.</p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
-                  <div>
-                    <p className="font-medium">Błąd</p>
-                    <p className="text-sm text-red-800">{mediaResult.error}</p>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
       <Card className="border-blue-500/50 shadow-sm">
         <CardHeader className="bg-blue-50/50 dark:bg-blue-950/20 border-b border-blue-100 dark:border-blue-900/50">
           <CardTitle className="text-blue-800 dark:text-blue-500 flex items-center gap-2">
@@ -242,6 +216,129 @@ export default function TestowaniePage() {
           >
             Zresetuj do prawdziwej daty
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="border-purple-500/50 shadow-sm">
+        <CardHeader className="bg-purple-50/50 dark:bg-purple-950/20 border-b border-purple-100 dark:border-purple-900/50">
+          <CardTitle className="text-purple-800 dark:text-purple-500 flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Wystaw testowe obciążenie (Media)
+          </CardTitle>
+          <CardDescription>
+            Tworzy notę obciążeniową w bazie dla wszystkich aktualnych najemców w lokalach z wybranej grupy.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="mediaMonth">Miesiąc (1-12)</Label>
+              <Input 
+                id="mediaMonth" 
+                type="number" 
+                min={1} 
+                max={12} 
+                value={mediaMonth} 
+                onChange={(e) => setMediaMonth(parseInt(e.target.value))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="mediaYear">Rok</Label>
+              <Input 
+                id="mediaYear" 
+                type="number" 
+                min={2000} 
+                value={mediaYear} 
+                onChange={(e) => setMediaYear(parseInt(e.target.value))}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Grupa rozliczeniowa</Label>
+            <Select value={selectedGroup} onValueChange={(v) => setSelectedGroup(v || '')}>
+              <SelectTrigger>
+                <SelectValue placeholder="Wybierz grupę..." />
+              </SelectTrigger>
+              <SelectContent>
+                {groups.map(g => (
+                  <SelectItem key={g.id} value={g.id.toString()}>{g.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          {groupDetails && (
+            <div className="space-y-4 border-t border-purple-100 pt-4 mt-4">
+              <div>
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider mb-2 block">
+                  Najemcy z aktywną umową ({groupDetails.tenants.length})
+                </Label>
+                {groupDetails.tenants.length > 0 ? (
+                  <div className="space-y-2">
+                    {groupDetails.tenants.map(tenant => (
+                      <div key={tenant.id} className="flex items-center gap-3 bg-secondary/30 p-2 rounded-md">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-sm">
+                            <span className="font-semibold truncate" title={tenant.propertyName}>{tenant.propertyName}</span>
+                            <span className="text-muted-foreground hidden sm:inline">&bull;</span>
+                            <span className="truncate font-medium text-purple-900 dark:text-purple-300" title={tenant.name}>{tenant.name}</span>
+                          </div>
+                          <div className="text-xs text-muted-foreground truncate" title={tenant.propertyAddress}>
+                            {tenant.propertyAddress || 'Brak adresu'}
+                          </div>
+                        </div>
+                        <div className="w-28 shrink-0">
+                          <Input 
+                            type="number" 
+                            step="0.01"
+                            placeholder="Kwota"
+                            value={tenantAmounts[tenant.id.toString()] ?? ''}
+                            onChange={e => setTenantAmounts(prev => ({
+                              ...prev,
+                              [tenant.id.toString()]: e.target.value
+                            }))}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-red-500 italic">Nie znaleziono żadnych najemców z aktywną umową w tych lokalach.</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          <Button 
+            onClick={handleTestMediaCharge} 
+            disabled={mediaLoading || !selectedGroup || !groupDetails || groupDetails.tenants.length === 0}
+            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold mt-2"
+          >
+            {mediaLoading ? 'Wystawianie...' : `Wystaw obciążenia dla ${mediaMonth}/${mediaYear}`}
+          </Button>
+
+          {mediaResult && (
+            <div className={`p-4 rounded-md mt-4 flex items-start gap-3 ${mediaResult.success ? 'bg-green-50 text-green-900 border border-green-200' : 'bg-red-50 text-red-900 border border-red-200'}`}>
+              {mediaResult.success ? (
+                <>
+                  <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
+                  <div>
+                    <p className="font-medium">Sukces!</p>
+                    <p className="text-sm text-green-800">Wystawiono testowe obciążenia dla {mediaResult.generated} najemców.</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
+                  <div>
+                    <p className="font-medium">Błąd</p>
+                    <p className="text-sm text-red-800">{mediaResult.error}</p>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -481,43 +481,6 @@ export default function TenantsPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label>Konto nadawcy e-mail</Label>
-              <Select
-                value={form.sender_account}
-                onValueChange={(v) => setForm({ ...form, sender_account: v ?? '1' })}
-              >
-                <SelectTrigger>
-                  <SelectValue>
-                    {(v: string | null) => {
-                      if (v === '2') return (appConfig as Record<string, unknown>)?.gmail_user_2 ? `Konto 2 (${(appConfig as Record<string, unknown>).gmail_user_2 as string})` : 'Konto 2 (nie skonfigurowano)'
-                      return appConfig?.gmail_user ? `Konto 1 (${appConfig.gmail_user})` : 'Konto 1 (nie skonfigurowano)'
-                    }}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">
-                    {appConfig?.gmail_user
-                      ? `Konto 1 (${appConfig.gmail_user})`
-                      : 'Konto 1 (nie skonfigurowano)'}
-                  </SelectItem>
-                  <SelectItem value="2">
-                    {(appConfig as Record<string, unknown> | null)?.gmail_user_2
-                      ? `Konto 2 (${(appConfig as Record<string, unknown>).gmail_user_2 as string})`
-                      : 'Konto 2 (nie skonfigurowano)'}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              {(!appConfig?.gmail_user || !(appConfig as Record<string, unknown>)?.gmail_user_2) && (
-                <p className="text-xs text-muted-foreground">
-                  Brakujące konta skonfiguruj w{' '}
-                  <Link href="/settings" className="underline underline-offset-2">
-                    Ustawieniach
-                  </Link>
-                  .
-                </p>
-              )}
-            </div>
-            <div className="space-y-1">
               <Label>Telefon</Label>
               <Input
                 value={form.phone}

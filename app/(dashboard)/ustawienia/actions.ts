@@ -26,12 +26,6 @@ export async function upsertAppConfig(data: {
   late_reminder_body?: string
   rent_email_subject?: string | null
   rent_email_body?: string | null
-  email_provider?: string
-  gmail_user?: string | null
-  gmail_app_password?: string | null
-  email_provider_2?: string
-  gmail_user_2?: string | null
-  gmail_app_password_2?: string | null
 }) {
   const supabase = createServiceClient()
   const { data: before } = await supabase.from('app_config').select('*').eq('id', 1).single()

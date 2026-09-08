@@ -4,22 +4,66 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { getSettlementGroup } from '@/app/(dashboard)/media/actions'
 import { tenantDisplayName } from '@/lib/utils'
 
+export async function getGroupDetailsForTest(groupId: number) {
+  const supabase = createServiceClient()
+  
+  const group = await getSettlementGroup(groupId)
+  if (!group) return null
+
+  const properties = (group.settlement_group_properties as any[])?.map(p => ({
+    id: p.property_id,
+    name: p.properties?.name || 'Nieznana nazwa',
+    address: [p.properties?.address1, p.properties?.address2].filter(Boolean).join(', ')
+  })) || []
+
+  const propertyIds = properties.map(p => p.id)
+  
+  if (propertyIds.length === 0) {
+    return { properties, tenants: [] }
+  }
+
+  const { data: tenants } = await supabase
+    .from('tenants')
+    .select('*, contracts(*)')
+    .in('property_id', propertyIds)
+
+  const activeTenants = (tenants || [])
+    .filter(t => (t.contracts as any[])?.some(c => c.is_active))
+    .map(t => {
+      const prop = properties.find(p => p.id === t.property_id)
+      return {
+        id: t.id,
+        name: tenantDisplayName(t as any),
+        property_id: t.property_id,
+        propertyName: prop?.name || 'Nieznany lokal',
+        propertyAddress: prop?.address || ''
+      }
+    })
+
+  return { properties, tenants: activeTenants }
+}
+
 export async function generateTestMediaCharge(
   groupId: number,
-  amount: number,
+  tenantAmounts: Record<string, number>,
   month: number,
   year: number
 ) {
   const supabase = createServiceClient()
 
-  // Pobierz grupę i mapowanie
+  // Pobierz grupę i powiązane nieruchomości
   const group = await getSettlementGroup(groupId)
   if (!group) throw new Error('Nie znaleziono grupy')
 
-  const outputEntries = (group.output_mapping_json as { range: string; tenant_id: number; type: string }[]) || []
+  const propertyIds = (group.settlement_group_properties as any[])?.map(p => p.property_id) || []
   
-  if (outputEntries.length === 0) {
-    throw new Error('Grupa nie ma przypisanych żadnych najemców w output_mapping_json')
+  if (propertyIds.length === 0) {
+    throw new Error('Grupa nie ma przypisanych żadnych nieruchomości (lokali)')
+  }
+
+  const validTenantIds = Object.keys(tenantAmounts).map(id => parseInt(id)).filter(id => !isNaN(id))
+  if (validTenantIds.length === 0) {
+    throw new Error('Nie podano żadnych kwot dla najemców')
   }
 
   // Upewnijmy się, że jest jakieś rozliczenie (settlement) żeby podpiąć faktury
@@ -48,30 +92,30 @@ export async function generateTestMediaCharge(
     settlement = newSettlement
   }
 
-  const tenantIds = [...new Set(outputEntries.map((e) => e.tenant_id))]
+  // Pobieramy podanych najemców
   const { data: tenants } = await supabase
     .from('tenants')
     .select('*, contracts(*)')
-    .in('id', tenantIds)
+    .in('id', validTenantIds)
 
-  const tenantMap = Object.fromEntries((tenants ?? []).map((t) => [t.id, t]))
+  if (!tenants || tenants.length === 0) {
+    throw new Error('Nie znaleziono podanych najemców w bazie')
+  }
 
   let generatedCount = 0
 
-  for (const entry of outputEntries) {
-    const tenant = tenantMap[entry.tenant_id]
-    if (!tenant) continue
-
-    const activeContract = (tenant.contracts as { is_active: boolean; contract_type: string; has_media_invoice: boolean; id: number }[] | undefined)?.find(
-      (c) => c.is_active && c.has_media_invoice
-    )
+  for (const tenant of tenants) {
+    const activeContract = (tenant.contracts as any[])?.find(c => c.is_active)
 
     if (!activeContract) continue
+
+    const amount = tenantAmounts[tenant.id.toString()]
+    if (amount === undefined) continue
 
     // Tworzenie obciążenia w bazie
     const { error } = await supabase.from('invoices').upsert(
       {
-        type: entry.type || 'MEDIA',
+        type: 'MEDIA',
         number: null,
         amount,
         month,
@@ -84,11 +128,15 @@ export async function generateTestMediaCharge(
     )
     
     if (error) {
-      console.error('Błąd dodawania testowej noty', error)
-      throw new Error('Błąd podczas zapisywania w bazie')
+      console.error('Błąd dodawania testowej noty dla najemca ' + tenant.id, error)
+      throw new Error('Błąd podczas zapisywania w bazie dla najemcy ' + tenantDisplayName(tenant as any))
     }
     
     generatedCount++
+  }
+
+  if (generatedCount === 0) {
+    throw new Error('Żaden ze wskazanych najemców nie ma aktualnie aktywnej umowy.')
   }
 
   return { success: true, count: generatedCount }
