@@ -148,7 +148,11 @@ export default function BazaDanychPage() {
             <TableHeader>
               <TableRow>
                 {data.columns.map((col) => (
-                  <TableHead key={col} className="font-mono text-xs">
+                  <TableHead
+                    key={col}
+                    className="font-mono text-xs"
+                    style={col === 'id' ? { minWidth: '4rem' } : undefined}
+                  >
                     {col}
                   </TableHead>
                 ))}
@@ -158,8 +162,18 @@ export default function BazaDanychPage() {
               {data.rows.map((row, i) => (
                 <TableRow key={i}>
                   {data.columns.map((col) => (
-                    <TableCell key={col} className="align-top max-w-xs">
-                      <pre className="m-0 whitespace-pre-wrap break-all font-mono text-xs">
+                    <TableCell
+                      key={col}
+                      className={col === 'id' ? 'align-top' : 'align-top max-w-xs'}
+                      style={col === 'id' ? { minWidth: '4rem' } : undefined}
+                    >
+                      <pre
+                        className={
+                          col === 'id'
+                            ? 'm-0 whitespace-nowrap font-mono text-xs'
+                            : 'm-0 whitespace-pre-wrap break-all font-mono text-xs'
+                        }
+                      >
                         {formatCellValue(row[col])}
                       </pre>
                     </TableCell>
