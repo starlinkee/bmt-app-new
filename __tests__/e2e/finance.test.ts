@@ -1,18 +1,13 @@
 import { test, expect } from '@playwright/test'
 
-// Wymagane: aplikacja działa na localhost:3000 i jesteś zalogowany
-// Uruchom: npm run dev, potem: npm run test:e2e
+// Wymagane: aplikacja działa (lokalnie `npm run dev` albo przez PLAYWRIGHT_BASE_URL
+// wskazujący na Vercel Preview). Uruchom: npm run test:e2e
+//
+// Logowanie odbywa się raz, w projekcie 'setup' (patrz auth.setup.ts +
+// playwright.config.ts) - sesja jest odtwarzana ze storageState, więc każdy
+// test poniżej startuje już zalogowany.
 
 test.describe('Generowanie czynszów', () => {
-  test.beforeEach(async ({ page }) => {
-    // Zaloguj się przed każdym testem
-    await page.goto('/login')
-    await page.getByLabel(/e-mail|login/i).fill(process.env.TEST_EMAIL ?? 'test@example.com')
-    await page.getByLabel(/hasło|password/i).fill(process.env.TEST_PASSWORD ?? 'password')
-    await page.getByRole('button', { name: /zaloguj/i }).click()
-    await page.waitForURL('/')
-  })
-
   test('strona finansów ładuje się poprawnie', async ({ page }) => {
     await page.goto('/finance')
     await expect(page.getByRole('heading')).toBeVisible()
@@ -27,14 +22,6 @@ test.describe('Generowanie czynszów', () => {
 })
 
 test.describe('Import transakcji', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/login')
-    await page.getByLabel(/e-mail|login/i).fill(process.env.TEST_EMAIL ?? 'test@example.com')
-    await page.getByLabel(/hasło|password/i).fill(process.env.TEST_PASSWORD ?? 'password')
-    await page.getByRole('button', { name: /zaloguj/i }).click()
-    await page.waitForURL('/')
-  })
-
   test('strona importu CSV ładuje się', async ({ page }) => {
     await page.goto('/import')
     await expect(page.getByRole('main')).toBeVisible()
@@ -47,14 +34,6 @@ test.describe('Import transakcji', () => {
 })
 
 test.describe('Kontrola płatności', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/login')
-    await page.getByLabel(/e-mail|login/i).fill(process.env.TEST_EMAIL ?? 'test@example.com')
-    await page.getByLabel(/hasło|password/i).fill(process.env.TEST_PASSWORD ?? 'password')
-    await page.getByRole('button', { name: /zaloguj/i }).click()
-    await page.waitForURL('/')
-  })
-
   test('lista najemców z saldami się ładuje', async ({ page }) => {
     await page.goto('/kontrola-platnosci')
     await expect(page.getByRole('main')).toBeVisible()

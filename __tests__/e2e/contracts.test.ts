@@ -1,24 +1,19 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 
 // Wymagane: aplikacja działa (lokalnie `npm run dev` albo przez PLAYWRIGHT_BASE_URL
 // wskazujący na Vercel Preview) i istnieje konto testowe podane w TEST_EMAIL/TEST_PASSWORD.
 // Uruchom: npm run test:e2e
 //
+// Logowanie odbywa się raz, w projekcie 'setup' (patrz auth.setup.ts +
+// playwright.config.ts) - sesja jest odtwarzana ze storageState, więc tutaj
+// zakładamy, że każdy test startuje już zalogowany.
+//
 // Testy oznaczone "@destructive" tworzą własną, jednorazową umowę (i najemcę,
 // jeśli trzeba) i SPRZĄTAJĄ po sobie (usuwają umowę na końcu) - nie ruszają
 // cudzych/istniejących danych poza jednym wyjątkiem opisanym w teście rewaluacji.
 
-async function login(page: Page) {
-  await page.goto('/login')
-  await page.getByLabel(/e-mail|login/i).fill(process.env.TEST_EMAIL ?? 'test@example.com')
-  await page.getByLabel(/hasło|password/i).fill(process.env.TEST_PASSWORD ?? 'password')
-  await page.getByRole('button', { name: /zaloguj/i }).click()
-  await page.waitForURL('/')
-}
-
 test.describe('Umowy - podstawy', () => {
   test.beforeEach(async ({ page }) => {
-    await login(page)
     await page.goto('/umowy')
   })
 
@@ -67,7 +62,6 @@ test.describe('Umowy - podstawy', () => {
 
 test.describe('Umowy - CRUD @destructive', () => {
   test.beforeEach(async ({ page }) => {
-    await login(page)
     await page.goto('/umowy')
   })
 
@@ -141,7 +135,6 @@ test.describe('Umowy - CRUD @destructive', () => {
 
 test.describe('Umowy - rewaluacja zbiorcza @destructive', () => {
   test.beforeEach(async ({ page }) => {
-    await login(page)
     await page.goto('/umowy')
   })
 
