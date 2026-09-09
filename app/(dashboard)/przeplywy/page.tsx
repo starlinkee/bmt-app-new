@@ -32,13 +32,10 @@ const TYPE_LABELS: Record<string, string> = {
   OTHER: 'Inny',
 }
 
-const TENANT_TYPE_LABELS: Record<string, string> = {
-  PRIVATE: 'Prywatny',
-  BUSINESS: 'Firma',
-}
+
 
 type Entry = Awaited<ReturnType<typeof getAllFlows>>[number]
-type SortKey = 'date' | 'type' | 'tenant' | 'tenantType' | 'description' | 'amount'
+type SortKey = 'id' | 'date' | 'type' | 'tenant' | 'tenantType' | 'description' | 'amount'
 type SortDir = 'asc' | 'desc'
 
 function getTypeLabel(entry: Entry): string {
@@ -55,7 +52,10 @@ function sortEntries(entries: Entry[], key: SortKey, dir: SortDir): Entry[] {
   return [...entries].sort((a, b) => {
     let va: string | number = ''
     let vb: string | number = ''
-    if (key === 'date') {
+    if (key === 'id') {
+      va = a.id
+      vb = b.id
+    } else if (key === 'date') {
       va = a.date
       vb = b.date
     } else if (key === 'type') {
@@ -95,11 +95,7 @@ const CATEGORY_OPTIONS = [
   { value: 'transaction', label: 'Wpłaty' },
 ] as const
 
-const TENANT_TYPE_OPTIONS = [
-  { value: 'all', label: 'Wszyscy' },
-  { value: 'PRIVATE', label: 'Prywatni' },
-  { value: 'BUSINESS', label: 'Firmy' },
-] as const
+
 
 function SortIcon({ col, sortKey, sortDir }: { col: SortKey, sortKey: SortKey, sortDir: SortDir }) {
   if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
@@ -135,7 +131,6 @@ export default function PrzeplywyPage() {
     }
   }
 
-  const [tenantTypes, setTenantTypes] = useState<Set<string>>(new Set())
   const [categories, setCategories] = useState<Set<string>>(new Set())
   const [selectedTenants, setSelectedTenants] = useState<Set<string>>(new Set())
 
@@ -145,12 +140,7 @@ export default function PrzeplywyPage() {
     return categories.has(cat)
   })
   
-  const tenantFiltered = categoryFiltered.filter((e) => {
-    if (tenantTypes.size === 0) return true
-    return e.tenantType && tenantTypes.has(e.tenantType)
-  })
-
-  const selectedTenantsFiltered = tenantFiltered.filter((e) => {
+  const selectedTenantsFiltered = categoryFiltered.filter((e) => {
     if (selectedTenants.size === 0) return true
     return e.tenantName && selectedTenants.has(e.tenantName)
   })
@@ -205,12 +195,7 @@ export default function PrzeplywyPage() {
           selectedValues={categories}
           onSelectedChange={setCategories}
         />
-        <FacetedFilter
-          title="Typ najemcy"
-          options={TENANT_TYPE_OPTIONS.filter(o => o.value !== 'all')}
-          selectedValues={tenantTypes}
-          onSelectedChange={setTenantTypes}
-        />
+
         <FacetedFilter
           title="Najemca"
           options={uniqueTenants.map(t => ({ label: t, value: t }))}
@@ -222,6 +207,9 @@ export default function PrzeplywyPage() {
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-16 cursor-pointer select-none" onClick={() => handleSort('id' as any)}>
+              ID<SortIcon col={'id' as any} sortKey={sortKey} sortDir={sortDir} />
+            </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('date')}>
               Data<SortIcon col="date" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
@@ -230,9 +218,6 @@ export default function PrzeplywyPage() {
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('tenant')}>
               Najemca<SortIcon col="tenant" sortKey={sortKey} sortDir={sortDir} />
-            </TableHead>
-            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('tenantType')}>
-              Typ najemcy<SortIcon col="tenantType" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('description')}>
               Opis<SortIcon col="description" sortKey={sortKey} sortDir={sortDir} />
@@ -245,20 +230,21 @@ export default function PrzeplywyPage() {
         <TableBody>
           {isLoading && (
             <TableRow>
-              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                 Ładowanie…
               </TableCell>
             </TableRow>
           )}
           {!isLoading && visible.length === 0 && (
             <TableRow>
-              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                 {filterText ? 'Brak wyników dla podanego filtra' : `Brak operacji dla ${year}`}
               </TableCell>
             </TableRow>
           )}
           {visible.map((entry) => (
             <TableRow key={entry.id}>
+              <TableCell className="text-muted-foreground">{entry.id}</TableCell>
               <TableCell className="text-sm whitespace-nowrap">
                 {formatDate(entry.date)}
               </TableCell>
@@ -274,15 +260,6 @@ export default function PrzeplywyPage() {
                 )}
               </TableCell>
               <TableCell className="text-sm">{entry.tenantName}</TableCell>
-              <TableCell>
-                {entry.tenantType ? (
-                  <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${entry.tenantType === 'BUSINESS' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
-                    {TENANT_TYPE_LABELS[entry.tenantType] ?? entry.tenantType}
-                  </span>
-                ) : (
-                  <span className="text-muted-foreground text-xs">—</span>
-                )}
-              </TableCell>
               <TableCell className="text-sm text-muted-foreground">{entry.description}</TableCell>
               <TableCell
                 className={`text-right text-sm font-medium ${

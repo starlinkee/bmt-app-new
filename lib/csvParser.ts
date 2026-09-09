@@ -123,8 +123,9 @@ export function parseCsv(csvContent: string): CsvImportResult {
       rawData,
     }
 
-    // Importujemy tylko przychodzące wpłaty (amount > 0); wychodzące pomijamy
-    if (isNaN(amount) || amount <= 0) {
+    // Importujemy wszystkie transakcje, łącznie z wychodzącymi (amount <= 0)
+    // Zostaną one domyślnie oznaczone jako "do odrzucenia" w UI
+    if (isNaN(amount)) {
       skipped++
       skippedTransactions.push(tx)
       continue

@@ -109,7 +109,7 @@ export default function TestowaniePage() {
     <div className="p-6 space-y-6 max-w-2xl">
       <div>
         <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-          <Beaker className="h-8 w-8 text-yellow-500" />
+          <Beaker className="h-8 w-8" />
           Narzędzia Testowe
         </h1>
         <p className="text-muted-foreground mt-2">
@@ -117,9 +117,9 @@ export default function TestowaniePage() {
         </p>
       </div>
 
-      <Card className="border-yellow-500/50 shadow-sm">
-        <CardHeader className="bg-yellow-50/50 dark:bg-yellow-950/20 border-b border-yellow-100 dark:border-yellow-900/50">
-          <CardTitle className="text-yellow-800 dark:text-yellow-500 flex items-center gap-2">
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
             Wymuś generowanie czynszów (Cron Job)
           </CardTitle>
           <CardDescription>
@@ -151,30 +151,30 @@ export default function TestowaniePage() {
             </div>
           </div>
           
-          <Button 
-            onClick={handleTestCron} 
+          <Button
+            onClick={handleTestCron}
             disabled={loading}
-            className="w-full bg-yellow-500 hover:bg-yellow-600 text-yellow-950 font-semibold mt-2"
+            className="w-full mt-2"
           >
             {loading ? 'Generowanie...' : `Wygeneruj czynsze dla ${month}/${year}`}
           </Button>
 
           {result && (
-            <div className={`p-4 rounded-md mt-4 flex items-start gap-3 ${result.success ? 'bg-green-50 text-green-900 border border-green-200' : 'bg-red-50 text-red-900 border border-red-200'}`}>
+            <div className={`p-4 rounded-md mt-4 flex items-start gap-3 border ${result.success ? 'border-primary/20 bg-primary/5' : 'border-red-200 dark:border-red-900/50'}`}>
               {result.success ? (
                 <>
-                  <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
+                  <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-500 mt-0.5" />
                   <div>
                     <p className="font-medium">Sukces!</p>
-                    <p className="text-sm text-green-800">Pomyślnie wygenerowano {result.generated} czynszów.</p>
+                    <p className="text-sm text-muted-foreground">Pomyślnie wygenerowano {result.generated} czynszów.</p>
                   </div>
                 </>
               ) : (
                 <>
-                  <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
+                  <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-500 mt-0.5" />
                   <div>
                     <p className="font-medium">Błąd</p>
-                    <p className="text-sm text-red-800">{result.error}</p>
+                    <p className="text-sm text-red-600 dark:text-red-400">{result.error}</p>
                   </div>
                 </>
               )}
@@ -183,9 +183,9 @@ export default function TestowaniePage() {
         </CardContent>
       </Card>
 
-      <Card className="border-blue-500/50 shadow-sm">
-        <CardHeader className="bg-blue-50/50 dark:bg-blue-950/20 border-b border-blue-100 dark:border-blue-900/50">
-          <CardTitle className="text-blue-800 dark:text-blue-500 flex items-center gap-2">
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
             Zmień datę dla linków najemców (Media)
           </CardTitle>
           <CardDescription>
@@ -206,9 +206,9 @@ export default function TestowaniePage() {
               }}
             />
           </div>
-          <Button 
+          <Button
             variant="outline"
-            className="w-full text-blue-600 border-blue-200 hover:bg-blue-50"
+            className="w-full"
             onClick={() => {
               document.cookie = "bmt_test_date=; path=/; max-age=0"
               alert('Symulacja daty wyłączona. System wrócił do prawdziwego czasu.')
@@ -219,9 +219,9 @@ export default function TestowaniePage() {
         </CardContent>
       </Card>
 
-      <Card className="border-purple-500/50 shadow-sm">
-        <CardHeader className="bg-purple-50/50 dark:bg-purple-950/20 border-b border-purple-100 dark:border-purple-900/50">
-          <CardTitle className="text-purple-800 dark:text-purple-500 flex items-center gap-2">
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
             Wystaw testowe obciążenie (Media)
           </CardTitle>
@@ -269,7 +269,7 @@ export default function TestowaniePage() {
           </div>
           
           {groupDetails && (
-            <div className="space-y-4 border-t border-purple-100 pt-4 mt-4">
+            <div className="space-y-4 border-t pt-4 mt-4">
               <div>
                 <Label className="text-xs text-muted-foreground uppercase tracking-wider mb-2 block">
                   Najemcy z aktywną umową ({groupDetails.tenants.length})
@@ -282,7 +282,7 @@ export default function TestowaniePage() {
                           <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-sm">
                             <span className="font-semibold truncate" title={tenant.propertyName}>{tenant.propertyName}</span>
                             <span className="text-muted-foreground hidden sm:inline">&bull;</span>
-                            <span className="truncate font-medium text-purple-900 dark:text-purple-300" title={tenant.name}>{tenant.name}</span>
+                            <span className="truncate font-medium" title={tenant.name}>{tenant.name}</span>
                           </div>
                           <div className="text-xs text-muted-foreground truncate" title={tenant.propertyAddress}>
                             {tenant.propertyAddress || 'Brak adresu'}
@@ -304,36 +304,36 @@ export default function TestowaniePage() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-red-500 italic">Nie znaleziono żadnych najemców z aktywną umową w tych lokalach.</p>
+                  <p className="text-sm text-red-600 dark:text-red-400 italic">Nie znaleziono żadnych najemców z aktywną umową w tych lokalach.</p>
                 )}
               </div>
             </div>
           )}
 
-          <Button 
-            onClick={handleTestMediaCharge} 
+          <Button
+            onClick={handleTestMediaCharge}
             disabled={mediaLoading || !selectedGroup || !groupDetails || groupDetails.tenants.length === 0}
-            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold mt-2"
+            className="w-full mt-2"
           >
             {mediaLoading ? 'Wystawianie...' : `Wystaw obciążenia dla ${mediaMonth}/${mediaYear}`}
           </Button>
 
           {mediaResult && (
-            <div className={`p-4 rounded-md mt-4 flex items-start gap-3 ${mediaResult.success ? 'bg-green-50 text-green-900 border border-green-200' : 'bg-red-50 text-red-900 border border-red-200'}`}>
+            <div className={`p-4 rounded-md mt-4 flex items-start gap-3 border ${mediaResult.success ? 'border-primary/20 bg-primary/5' : 'border-red-200 dark:border-red-900/50'}`}>
               {mediaResult.success ? (
                 <>
-                  <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
+                  <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-500 mt-0.5" />
                   <div>
                     <p className="font-medium">Sukces!</p>
-                    <p className="text-sm text-green-800">Wystawiono testowe obciążenia dla {mediaResult.generated} najemców.</p>
+                    <p className="text-sm text-muted-foreground">Wystawiono testowe obciążenia dla {mediaResult.generated} najemców.</p>
                   </div>
                 </>
               ) : (
                 <>
-                  <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
+                  <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-500 mt-0.5" />
                   <div>
                     <p className="font-medium">Błąd</p>
-                    <p className="text-sm text-red-800">{mediaResult.error}</p>
+                    <p className="text-sm text-red-600 dark:text-red-400">{mediaResult.error}</p>
                   </div>
                 </>
               )}

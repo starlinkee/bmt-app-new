@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { getContracts, createContract, updateContract, deleteContract, revaluateContract, getContractStats } from './actions'
 import { getTenants } from '@/app/(dashboard)/najemcy/actions'
 import { QUERY_KEYS } from '@/lib/queryKeys'
+import { ConfirmEditDialog } from '@/components/ui/confirm-edit-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -42,7 +43,7 @@ import { formatAmount, formatDate } from '@/lib/utils'
 
 type Contract = Awaited<ReturnType<typeof getContracts>>[number]
 type Tenant = Awaited<ReturnType<typeof getTenants>>[number]
-type SortKey = 'tenant' | 'property' | 'type' | 'amount' | 'from' | 'to' | 'active' | 'media'
+type SortKey = 'id' | 'tenant' | 'property' | 'type' | 'amount' | 'from' | 'to' | 'active' | 'media'
 type SortDir = 'asc' | 'desc'
 
 
@@ -61,7 +62,10 @@ function sortContracts(contracts: Contract[], key: SortKey, dir: SortDir): Contr
     const tb = getTenantData(b)
     let va: string | number = ''
     let vb: string | number = ''
-    if (key === 'tenant') {
+    if (key === 'id') {
+      va = a.id
+      vb = b.id
+    } else if (key === 'tenant') {
       va = `${ta?.last_name ?? ''} ${ta?.first_name ?? ''}`.toLowerCase()
       vb = `${tb?.last_name ?? ''} ${tb?.first_name ?? ''}`.toLowerCase()
     } else if (key === 'property') {
@@ -146,8 +150,9 @@ export default function ContractsPage() {
 
   const [tenantNames, setTenantNames] = useState<Set<string>>(new Set())
   const [propertyNames, setPropertyNames] = useState<Set<string>>(new Set())
-  const [contractTypes, setContractTypes] = useState<Set<string>>(new Set())
   const [activeStatuses, setActiveStatuses] = useState<Set<string>>(new Set())
+
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -162,12 +167,10 @@ export default function ContractsPage() {
     const t = getTenantData(c)
     const tName = `${t?.first_name ?? ''} ${t?.last_name ?? ''}`.trim()
     const pName = t?.properties?.name ?? ''
-    const cType = c.contract_type
     const act = c.is_active ? 'Tak' : 'Nie'
 
     if (tenantNames.size > 0 && !tenantNames.has(tName)) return false
     if (propertyNames.size > 0 && !propertyNames.has(pName)) return false
-    if (contractTypes.size > 0 && !contractTypes.has(cType)) return false
     if (activeStatuses.size > 0 && !activeStatuses.has(act)) return false
     return true
   })
@@ -214,6 +217,14 @@ export default function ContractsPage() {
       toast.error('Najemca, kwota i data początku są wymagane.')
       return
     }
+    if (editing) {
+      setConfirmOpen(true)
+    } else {
+      performSave()
+    }
+  }
+
+  function performSave() {
     const payload = {
       contract_type: form.contract_type,
       rent_amount: parseFloat(form.rent_amount),
@@ -233,6 +244,7 @@ export default function ContractsPage() {
         toast.success('Umowa dodana.')
       }
       setOpen(false)
+      setConfirmOpen(false)
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.contracts })
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tenants })
     })
@@ -318,12 +330,7 @@ export default function ContractsPage() {
           selectedValues={propertyNames}
           onSelectedChange={setPropertyNames}
         />
-        <FacetedFilter
-          title="Typ umowy"
-          options={[{ label: 'PRIVATE', value: 'PRIVATE' }, { label: 'BUSINESS', value: 'BUSINESS' }]}
-          selectedValues={contractTypes}
-          onSelectedChange={setContractTypes}
-        />
+
         <FacetedFilter
           title="Aktywna"
           options={[{ label: 'Tak', value: 'Tak' }, { label: 'Nie', value: 'Nie' }]}
@@ -335,14 +342,14 @@ export default function ContractsPage() {
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-16 cursor-pointer select-none" onClick={() => handleSort('id' as any)}>
+              ID<SortIcon col={'id' as any} sortKey={sortKey} sortDir={sortDir} />
+            </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('tenant')}>
               Najemca<SortIcon col="tenant" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('property')}>
               Nieruchomość<SortIcon col="property" sortKey={sortKey} sortDir={sortDir} />
-            </TableHead>
-            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('type')}>
-              Typ<SortIcon col="type" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('amount')}>
               Kwota<SortIcon col="amount" sortKey={sortKey} sortDir={sortDir} />
@@ -367,15 +374,11 @@ export default function ContractsPage() {
             const tenant = getTenantData(c)
             return (
               <TableRow key={c.id}>
+                <TableCell className="text-muted-foreground">{c.id}</TableCell>
                 <TableCell>
                   {tenant?.first_name} {tenant?.last_name}
                 </TableCell>
                 <TableCell>{tenant?.properties?.name}</TableCell>
-                <TableCell>
-                  <Badge variant={c.contract_type === 'BUSINESS' ? 'default' : 'secondary'}>
-                    {c.contract_type}
-                  </Badge>
-                </TableCell>
                 <TableCell>{formatAmount(Number(c.rent_amount))}</TableCell>
                 <TableCell>
                   <Badge variant={(c as Record<string, unknown>).has_media_invoice ? 'default' : 'outline'}>
@@ -585,6 +588,38 @@ export default function ContractsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmEditDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        onConfirm={performSave}
+        pending={pending}
+        originalData={
+          editing
+            ? {
+                contract_type: editing.contract_type,
+                rent_amount: String(editing.rent_amount),
+                has_media_invoice: (editing as Record<string, unknown>).has_media_invoice as boolean ?? false,
+                start_date: editing.start_date,
+                end_date: editing.end_date ?? '',
+                indefinite: !editing.end_date,
+                is_active: editing.is_active,
+                tenant_id: String(editing.tenant_id),
+              }
+            : null
+        }
+        newData={form}
+        labels={{
+          contract_type: 'Typ',
+          rent_amount: 'Kwota czynszu',
+          has_media_invoice: 'Rozliczaj media',
+          start_date: 'Data od',
+          end_date: 'Data do',
+          indefinite: 'Bezterminowa',
+          is_active: 'Aktywna',
+          tenant_id: 'Najemca',
+        }}
+      />
     </div>
   )
 }

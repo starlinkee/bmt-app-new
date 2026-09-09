@@ -78,6 +78,30 @@ export async function getTargetMonthYear() {
   return { month, year }
 }
 
+export async function getPreviousMeterReadings(
+  groupId: number,
+  month: number,
+  year: number,
+  keys: string[],
+): Promise<Record<string, number>> {
+  if (!keys || keys.length === 0) return {}
+  const supabase = createServiceClient()
+  const { data } = await supabase
+    .from('media_meter_readings')
+    .select('key, value, month, year')
+    .eq('group_id', groupId)
+    .in('key', keys)
+    .or(`year.lt.${year},and(year.eq.${year},month.lt.${month})`)
+    .order('year', { ascending: false })
+    .order('month', { ascending: false })
+
+  const result: Record<string, number> = {}
+  for (const row of data ?? []) {
+    if (!(row.key in result)) result[row.key] = Number(row.value)
+  }
+  return result
+}
+
 export async function hasAlreadySubmitted(groupId: number, month: number, year: number, keys: string[]) {
   if (!keys || keys.length === 0) return false
   const supabase = createServiceClient()

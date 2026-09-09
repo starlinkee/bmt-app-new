@@ -10,13 +10,14 @@ import {
   updateSettlementGroup,
   deleteSettlementGroup,
 } from './actions'
-
+import { SkillRunner } from '@/components/skill-runner'
+import { VpsFileBrowser } from '@/components/vps-file-browser'
 import { getProperties } from '@/app/(dashboard)/nieruchomosci/actions'
 import { getTenants } from '@/app/(dashboard)/najemcy/actions'
 import { SearchSelect } from '@/components/ui/search-select'
 import { QUERY_KEYS } from '@/lib/queryKeys'
 import { ConfirmEditDialog } from '@/components/ui/confirm-edit-dialog'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -41,7 +42,7 @@ import { Pencil, Trash2, Plus, ExternalLink, ChevronUp, ChevronDown, ChevronsUpD
 type Group = Awaited<ReturnType<typeof getSettlementGroups>>[number]
 type Property = Awaited<ReturnType<typeof getProperties>>[number]
 type Tenant = Awaited<ReturnType<typeof getTenants>>[number]
-type SortKey = 'id' | 'name' | 'properties' | 'spreadsheet_id' | 'tenants_count'
+type SortKey = 'name' | 'properties' | 'spreadsheet_id' | 'tenants_count'
 type SortDir = 'asc' | 'desc'
 
 function getGroupProperties(g: Group): string {
@@ -59,10 +60,7 @@ function sortGroups(groups: Group[], key: SortKey, dir: SortDir, allTenants: Ten
   return [...groups].sort((a, b) => {
     let va: string | number = ''
     let vb: string | number = ''
-    if (key === 'id') {
-      va = a.id
-      vb = b.id
-    } else if (key === 'name') {
+    if (key === 'name') {
       va = a.name.toLowerCase()
       vb = b.name.toLowerCase()
     } else if (key === 'properties') {
@@ -160,13 +158,13 @@ export default function MediaPage() {
   const [editing, setEditing] = useState<Group | null>(null)
   const [form, setForm] = useState(emptyForm())
   const [jsonError, setJsonError] = useState('')
-  const [confirmOpen, setConfirmOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [filterText, setFilterText] = useState('')
+  const [autoView, setAutoView] = useState<'tasks' | 'files'>('tasks')
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const [initialForm, setInitialForm] = useState<typeof form | null>(null)
-
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -302,10 +300,7 @@ export default function MediaPage() {
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Media i grupy rozliczeniowe</h1>
-        <Button onClick={openCreate} size="sm">
-          <Plus className="h-4 w-4 mr-1" /> Dodaj
-        </Button>
+        <h1 className="text-2xl font-semibold">Rozlicz media</h1>
       </div>
 
       <TableFilterBar
@@ -317,9 +312,6 @@ export default function MediaPage() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-16 cursor-pointer select-none" onClick={() => handleSort('id' as any)}>
-              ID<SortIcon col={'id' as any} sortKey={sortKey} sortDir={sortDir} />
-            </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('name')}>
               Nazwa<SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
@@ -338,7 +330,6 @@ export default function MediaPage() {
         <TableBody>
           {sorted.map((g) => (
             <TableRow key={g.id}>
-              <TableCell className="text-muted-foreground">{g.id}</TableCell>
               <TableCell className="font-medium">{g.name}</TableCell>
               <TableCell>
                 {getGroupProperties(g) || '—'}
@@ -352,23 +343,29 @@ export default function MediaPage() {
               <TableCell>
                 <div className="flex gap-1">
                   {g.spreadsheet_id && (
-                    <a href={`https://docs.google.com/spreadsheets/d/${g.spreadsheet_id}/edit`} target="_blank" rel="noreferrer" className={buttonVariants({ variant: 'ghost', size: 'icon' })} title="Otwórz arkusz w nowej karcie">
+                    <a
+                      href={`https://docs.google.com/spreadsheets/d/${g.spreadsheet_id}/edit`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center justify-center h-8 w-8 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                      title="Otwórz arkusz w nowej karcie"
+                    >
                       <FileSpreadsheet className="h-4 w-4" />
                     </a>
                   )}
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(g)}>
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(g)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <Link
+                    href={`/rozlicz-media/${g.id}`}
+                    className="inline-flex items-center justify-center h-8 w-8 rounded-lg hover:bg-muted transition-colors"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </Link>
                 </div>
               </TableCell>
             </TableRow>
           ))}
           {sorted.length === 0 && (
             <TableRow>
-              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                 {filterText ? 'Brak wyników dla podanego filtra' : 'Brak grup'}
               </TableCell>
             </TableRow>
@@ -376,7 +373,41 @@ export default function MediaPage() {
         </TableBody>
       </Table>
 
+      <div className="pt-10 space-y-6">
+        <div className="border-t pt-8">
+          <h2 className="text-xl font-semibold">Ściągnij dokumenty kosztowe z AI</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Skrypty AI i automatyzacje uruchamiane w tle.
+          </p>
+        </div>
 
+        <div className="flex gap-1 border-b">
+          <button
+            onClick={() => setAutoView('tasks')}
+            className={[
+              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+              autoView === 'tasks'
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
+            ].join(' ')}
+          >
+            Zadania AI
+          </button>
+          <button
+            onClick={() => setAutoView('files')}
+            className={[
+              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+              autoView === 'files'
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
+            ].join(' ')}
+          >
+            Pliki
+          </button>
+        </div>
+
+        {autoView === 'tasks' ? <SkillRunner /> : <VpsFileBrowser />}
+      </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>

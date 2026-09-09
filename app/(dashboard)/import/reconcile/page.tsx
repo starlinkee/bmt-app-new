@@ -41,7 +41,11 @@ export default function ReconcilePage() {
       const catSuggestions: Record<number, Category> = {}
 
       for (const tx of txs) {
-        if (tx.suggested_tenant_id != null) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rawData = (tx.raw_data ?? {}) as any
+        if (rawData._auto_reject) {
+          suggestions[tx.id] = '-1'
+        } else if (tx.suggested_tenant_id != null) {
           suggestions[tx.id] = String(tx.suggested_tenant_id)
           if (tx.suggested_tenant_id !== -1) {
             const tenant = ts.find((t) => t.id === tx.suggested_tenant_id)
@@ -72,6 +76,7 @@ export default function ReconcilePage() {
   const duplicateCount = transactions.filter((tx) => tx.is_duplicate).length
 
   function handleBulkConfirm() {
+    if (!window.confirm('Czy na pewno chcesz zatwierdzić wybrane dopasowania?')) return
     const selectedTxs = transactions.filter(
       (tx) => selectedTenants[tx.id] && (selectedCategories[tx.id] || selectedTenants[tx.id] === '-1')
     )
@@ -107,6 +112,7 @@ export default function ReconcilePage() {
   }
 
   function handleDismiss(txId: number) {
+    if (!window.confirm('Czy na pewno chcesz odrzucić tę transakcję?')) return
     startTransition(async () => {
       await dismissTransaction(txId, 'REJECTED_OTHER')
       toast.success('Transakcja odrzucona.')
@@ -186,11 +192,11 @@ export default function ReconcilePage() {
           return (
             <div
               key={tx.id}
-              className={`rounded-lg border bg-card p-4 space-y-3 ${tx.is_duplicate ? 'border-red-300 dark:border-red-800' : ''}`}
+              className={`rounded-lg border bg-card p-4 space-y-3 ${tx.is_duplicate ? 'border-red-300 dark:border-red-800' : ''} ${selectedTenants[tx.id] === '-1' ? 'opacity-60 bg-muted/30 grayscale-[0.5]' : ''}`}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-xl font-bold text-green-600">
+                  <span className={`text-xl font-bold ${Number(tx.amount) > 0 ? 'text-green-600' : 'text-gray-600 dark:text-gray-400'}`}>
                     {formatAmount(Number(tx.amount))}
                   </span>
                   {tx.is_duplicate && (
@@ -229,8 +235,14 @@ export default function ReconcilePage() {
                   {tx.suggested_tenant_id != null && tx.suggested_tenant_id !== -1 && selectedTenants[tx.id] === String(tx.suggested_tenant_id) && (
                     <p className="text-xs text-muted-foreground">Sugestia wg kwoty i historii — wymaga potwierdzenia</p>
                   )}
-                  {tx.suggested_tenant_id === -1 && selectedTenants[tx.id] === '-1' && (
-                    <p className="text-xs text-muted-foreground">Przelew własny rozpoznany po rachunku źródłowym</p>
+                  {rawData._auto_reject && selectedTenants[tx.id] === '-1' && (
+                    <p className="text-xs text-muted-foreground">
+                      {rawData._auto_reject_reason === 'duplicate' 
+                        ? 'Możliwy duplikat (automatycznie odrzucony)'
+                        : Number(tx.amount) <= 0 
+                          ? 'Transakcja wychodząca (automatycznie odrzucona)' 
+                          : 'Przelew własny (automatycznie odrzucony)'}
+                    </p>
                   )}
                   <SearchSelect
                     options={[

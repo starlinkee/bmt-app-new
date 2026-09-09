@@ -8,6 +8,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -64,28 +65,30 @@ export function FacetedFilter({
         }
       />
       <DropdownMenuContent align="start" className="w-[200px]">
-        <DropdownMenuLabel>{title}</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {options.map((option) => {
-          const isSelected = selectedValues.has(option.value)
-          return (
-            <DropdownMenuCheckboxItem
-              key={option.value}
-              checked={isSelected}
-              onCheckedChange={(checked) => {
-                const newSelected = new Set(selectedValues)
-                if (checked) {
-                  newSelected.add(option.value)
-                } else {
-                  newSelected.delete(option.value)
-                }
-                onSelectedChange(newSelected)
-              }}
-            >
-              {option.label}
-            </DropdownMenuCheckboxItem>
-          )
-        })}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>{title}</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {options.map((option) => {
+            const isSelected = selectedValues.has(option.value)
+            return (
+              <DropdownMenuCheckboxItem
+                key={option.value}
+                checked={isSelected}
+                onCheckedChange={(checked) => {
+                  const newSelected = new Set(selectedValues)
+                  if (checked) {
+                    newSelected.add(option.value)
+                  } else {
+                    newSelected.delete(option.value)
+                  }
+                  onSelectedChange(newSelected)
+                }}
+              >
+                {option.label}
+              </DropdownMenuCheckboxItem>
+            )
+          })}
+        </DropdownMenuGroup>
         {selectedValues.size > 0 && (
           <>
             <DropdownMenuSeparator />

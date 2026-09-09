@@ -56,7 +56,7 @@ export function AddAdjustmentButton({ tenantId }: { tenantId: number }) {
               <Input
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                placeholder="np. 500.00"
+                placeholder="np. 500.00 lub -200.00"
               />
             </div>
             <div className="space-y-1">

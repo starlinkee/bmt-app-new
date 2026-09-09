@@ -55,7 +55,7 @@ export default function WiadomosciPage() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Dziennik Wiadomości</h1>
+        <h1 className="text-2xl font-semibold">Wiadomości</h1>
       </div>
 
       <form onSubmit={handleFilter} className="flex flex-col sm:flex-row gap-4 items-end bg-card p-4 border rounded-md shadow-sm">
@@ -97,6 +97,7 @@ export default function WiadomosciPage() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-16">ID</TableHead>
               <TableHead>Data</TableHead>
               <TableHead>Odbiorca</TableHead>
               <TableHead>Temat</TableHead>
@@ -105,14 +106,14 @@ export default function WiadomosciPage() {
           <TableBody>
             {isLoading && (
               <TableRow>
-                <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                   Ładowanie…
                 </TableCell>
               </TableRow>
             )}
             {!isLoading && logs.length === 0 && (
               <TableRow>
-                <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                   Brak wysłanych wiadomości.
                 </TableCell>
               </TableRow>
@@ -123,6 +124,7 @@ export default function WiadomosciPage() {
                 className="cursor-pointer hover:bg-muted/50"
                 onClick={() => setSelectedLog(log)}
               >
+                <TableCell className="text-muted-foreground">{log.id}</TableCell>
                 <TableCell className="whitespace-nowrap">
                   {formatDateTime(log.sent_at)}
                 </TableCell>

@@ -53,9 +53,9 @@ export default function SettingsPage() {
 
       <div className="space-y-4">
         <div>
-          <h2 className="text-lg font-semibold">Automatyczne ponaglenia (wezwania do zapłaty)</h2>
+          <h2 className="text-lg font-semibold">Mail z rozliczeniem / wyciągiem z konta</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Wiadomość z ponagleniem jest wysyłana automatycznie do najemców, którzy po zaimportowaniu wyciągów (np. 15. dnia miesiąca) wciąż mają niedopłatę na swoim koncie.
+            Ten szablon (temat i treść) jest używany przy wysyłce wyciągu z konta do najemcy — zarówno ręcznie z listy najemców/kontroli płatności, jak i automatycznie do najemców z niedopłatą po zaimportowaniu wyciągów (np. 15. dnia miesiąca).
           </p>
           <p className="text-sm text-muted-foreground mt-1">
             Dostępne zmienne w temacie i treści:{' '}

@@ -5,8 +5,14 @@ let cachedPort: number | null = null
 let cacheExpiry = 0
 
 function getBaseUrl(): string | null {
-  const url = process.env.SKILL_RUNNER_URL
+  let url = process.env.SKILL_RUNNER_URL
   if (!url) return null
+
+  const isVercelCloud = process.env.VERCEL_ENV === 'preview' || process.env.VERCEL_ENV === 'production' || process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview' || process.env.NEXT_PUBLIC_VERCEL_ENV === 'production'
+  if (isVercelCloud && url.includes('localhost')) {
+    url = url.replace('localhost', '89.167.122.243')
+  }
+
   try {
     const parsed = new URL(url)
     return `${parsed.protocol}//${parsed.hostname}`

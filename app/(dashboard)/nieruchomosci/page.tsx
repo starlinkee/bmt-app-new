@@ -10,6 +10,7 @@ import {
   deleteProperty,
 } from './actions'
 import { QUERY_KEYS } from '@/lib/queryKeys'
+import { ConfirmEditDialog } from '@/components/ui/confirm-edit-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -40,7 +41,7 @@ import { FacetedFilter } from '@/components/ui/faceted-filter'
 import { Pencil, Trash2, Plus, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 
 type Property = Awaited<ReturnType<typeof getProperties>>[number]
-type SortKey = 'name' | 'address' | 'type' | 'tenants'
+type SortKey = 'id' | 'name' | 'address' | 'type' | 'tenants'
 type SortDir = 'asc' | 'desc'
 
 const PROPERTY_TYPES = ['Mieszkanie', 'Lokal użytkowy']
@@ -53,7 +54,10 @@ function sortProperties(props: Property[], key: SortKey, dir: SortDir): Property
   return [...props].sort((a, b) => {
     let va: string | number = ''
     let vb: string | number = ''
-    if (key === 'name') {
+    if (key === 'id') {
+      va = a.id
+      vb = b.id
+    } else if (key === 'name') {
       va = a.name?.toLowerCase() ?? ''
       vb = b.name?.toLowerCase() ?? ''
     } else if (key === 'address') {
@@ -107,6 +111,8 @@ export default function PropertiesPage() {
 
   const [propertyTypes, setPropertyTypes] = useState<Set<string>>(new Set())
 
+  const [confirmOpen, setConfirmOpen] = useState(false)
+
   function handleSort(key: SortKey) {
     if (sortKey === key) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -148,6 +154,14 @@ export default function PropertiesPage() {
       toast.error('Adres i typ są wymagane.')
       return
     }
+    if (editing) {
+      setConfirmOpen(true)
+    } else {
+      performSave()
+    }
+  }
+
+  function performSave() {
     startTransition(async () => {
       if (editing) {
         await updateProperty(editing.id, form)
@@ -157,6 +171,7 @@ export default function PropertiesPage() {
         toast.success('Nieruchomość dodana.')
       }
       setOpen(false)
+      setConfirmOpen(false)
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.properties })
     })
   }
@@ -201,6 +216,9 @@ export default function PropertiesPage() {
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-16 cursor-pointer select-none" onClick={() => handleSort('id' as any)}>
+              ID<SortIcon col={'id' as any} sortKey={sortKey} sortDir={sortDir} />
+            </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('name')}>
               Nazwa<SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
@@ -219,6 +237,7 @@ export default function PropertiesPage() {
         <TableBody>
           {sorted.map((p) => (
             <TableRow key={p.id}>
+              <TableCell className="text-muted-foreground">{p.id}</TableCell>
               <TableCell className="font-medium">{p.name}</TableCell>
               <TableCell>
                 {p.address1}
@@ -320,6 +339,30 @@ export default function PropertiesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmEditDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        onConfirm={performSave}
+        pending={pending}
+        originalData={
+          editing
+            ? {
+                name: editing.name,
+                address1: editing.address1,
+                address2: editing.address2 ?? '',
+                type: editing.type,
+              }
+            : null
+        }
+        newData={form}
+        labels={{
+          name: 'Nazwa',
+          address1: 'Adres',
+          address2: 'Adres 2',
+          type: 'Typ',
+        }}
+      />
     </div>
   )
 }

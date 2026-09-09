@@ -126,7 +126,7 @@ export default function KontrolaPlatnosciPage() {
             variant="outline"
             onClick={() => router.push('/wiadomosci')}
           >
-            Dziennik wiadomości
+            Wiadomości
           </Button>
         </div>
       </div>
@@ -201,6 +201,7 @@ export default function KontrolaPlatnosciPage() {
                   size="icon" 
                   onClick={(e) => {
                     e.stopPropagation()
+                    if (!confirm(`Wysłać podsumowanie salda do najemcy "${t.first_name} ${t.last_name}"?`)) return
                     toast.promise(
                       sendStatementToTenant(t.id).then((res) => {
                         if (!res.success) {
