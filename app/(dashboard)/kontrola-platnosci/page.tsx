@@ -126,7 +126,7 @@ export default function KontrolaPlatnosciPage() {
             variant="outline"
             onClick={() => router.push('/wiadomosci')}
           >
-            Wiadomości
+            Historia wiadomości
           </Button>
         </div>
       </div>
@@ -174,7 +174,7 @@ export default function KontrolaPlatnosciPage() {
             <TableRow
               key={t.id}
               className="cursor-pointer hover:bg-muted/50"
-              onClick={() => router.push(`/kontrola-platnosci/${t.id}`)}
+              onClick={() => router.push(`/najemcy/${t.id}`)}
             >
               <TableCell className="font-medium">
                 <div>{t.first_name} {t.last_name}</div>

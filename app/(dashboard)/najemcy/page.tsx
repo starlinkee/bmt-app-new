@@ -359,7 +359,7 @@ export default function TenantsPage() {
                 </Link>
               </TableCell>
               <TableCell>
-                {((t.contracts as unknown as { is_active: boolean; has_media_invoice: boolean }[]) || []).some(c => c.is_active && c.has_media_invoice) ? (
+                {((t.contracts as unknown as { is_active: boolean; has_media_invoice: boolean }[]) || []).some(c => c.is_active && c.has_media_invoice) && ((t as unknown as { reading_keys_count?: number }).reading_keys_count ?? 0) > 0 ? (
                   <Button variant="outline" size="sm" onClick={() => {
                     const url = `${window.location.origin}/odczyty/${(t as Record<string, unknown>).reading_token}`
                     navigator.clipboard.writeText(url)

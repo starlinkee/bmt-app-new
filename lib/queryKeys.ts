@@ -8,6 +8,8 @@ export const QUERY_KEYS = {
   kontrolaPlatnosci: ['kontrola_platnosci'] as const,
   tenantWithBalance: (tenantId: number) => ['tenant_with_balance', tenantId] as const,
   tenantStatement: (tenantId: number) => ['tenant_statement', tenantId] as const,
+  tenantDetail: (tenantId: number) => ['tenant_detail', tenantId] as const,
+  tenantBalance: (tenantId: number) => ['tenant_balance', tenantId] as const,
   auditLog: ['audit_log'] as const,
   globalPaymentStats: ['global_payment_stats'] as const,
 }

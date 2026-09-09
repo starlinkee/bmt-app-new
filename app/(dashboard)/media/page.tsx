@@ -120,6 +120,28 @@ function formatTenantReadingKeysText(entries: TenantReadingEntry[]): string {
     .join(', ')
 }
 
+// Klucze najemcy (tenant_reading_keys) muszą się dokładnie zgadzać z "save_key" pól
+// source:"user" w mapowaniu wejściowym — inaczej odczyt najemcy nigdy się nie pojawi
+// w panelu "Rozlicz Media" (getCurrentMeterReadings/getPreviousMeterReadings szukają
+// po save_key/db_key, a nie po nazwie range). Zbieramy poprawne save_key, żeby
+// wychwycić literówkę/pomyłkę (np. wpisanie nazwy range zamiast save_key) już przy zapisie grupy.
+function extractValidSaveKeys(inputMapping: unknown): Set<string> {
+  const keys = new Set<string>()
+  if (!inputMapping || typeof inputMapping !== 'object') return keys
+  for (const fields of Object.values(inputMapping as Record<string, unknown>)) {
+    if (!fields || typeof fields !== 'object') continue
+    for (const fieldDef of Object.values(fields as Record<string, unknown>)) {
+      if (fieldDef && typeof fieldDef === 'object') {
+        const sk = (fieldDef as { save_key?: unknown }).save_key
+        const dk = (fieldDef as { db_key?: unknown }).db_key
+        if (typeof sk === 'string' && sk) keys.add(sk)
+        if (typeof dk === 'string' && dk) keys.add(dk)
+      }
+    }
+  }
+  return keys
+}
+
 function emptyForm() {
   return {
     name: '',
@@ -226,8 +248,9 @@ export default function MediaPage() {
   }
 
   function handleSave() {
+    let inputMap: unknown
     try {
-      JSON.parse(form.input_mapping_json)
+      inputMap = JSON.parse(form.input_mapping_json)
       JSON.parse(form.output_mapping_json)
       JSON.parse(form.pdf_sheets_json)
     } catch {
@@ -235,6 +258,21 @@ export default function MediaPage() {
       return
     }
     setJsonError('')
+
+    const validSaveKeys = extractValidSaveKeys(inputMap)
+    const unknownKeys = new Set<string>()
+    for (const text of Object.values(form.tenant_reading_keys)) {
+      for (const entry of parseTenantReadingKeysText(text)) {
+        if (!validSaveKeys.has(entry.key)) unknownKeys.add(entry.key)
+      }
+    }
+    if (unknownKeys.size > 0) {
+      toast.error(
+        `Nieznane klucze w "Liczniki do podania przez najemcę": ${[...unknownKeys].join(', ')}. ` +
+        `Klucz musi być identyczny z "save_key" pola w mapowaniu wejściowym (nie z nazwą range) — inaczej odczyt najemcy nigdy się nie pojawi w panelu Rozlicz Media.`
+      )
+      return
+    }
 
     if (editing) {
       setConfirmOpen(true)
@@ -426,11 +464,21 @@ export default function MediaPage() {
                 if (groupTenants.length === 0) {
                   return <p className="text-xs text-orange-600">Brak najemców. Wybierz nieruchomości powyżej.</p>
                 }
-                
+
+                let validSaveKeys: Set<string>
+                try {
+                  validSaveKeys = extractValidSaveKeys(JSON.parse(form.input_mapping_json))
+                } catch {
+                  validSaveKeys = new Set()
+                }
+
                 return groupTenants.map((t) => {
                   const isChecked = form.tenant_reading_keys[t.id.toString()] !== undefined
                   const keysStr = form.tenant_reading_keys[t.id.toString()] || ''
-                  
+                  const unknownKeys = validSaveKeys.size > 0
+                    ? parseTenantReadingKeysText(keysStr).filter((e) => !validSaveKeys.has(e.key)).map((e) => e.key)
+                    : []
+
                   return (
                     <div key={t.id} className="space-y-2 border-b pb-3 last:border-0 last:pb-0">
                       <label className="flex items-center gap-2 text-sm font-medium cursor-pointer select-none">
@@ -454,7 +502,7 @@ export default function MediaPage() {
                       </label>
                       
                       {isChecked && (
-                        <div className="pl-6">
+                        <div className="pl-6 space-y-1">
                           <Input
                             value={keysStr}
                             onChange={(e) => {
@@ -467,8 +515,13 @@ export default function MediaPage() {
                               })
                             }}
                             placeholder="np. jp64_cieplaWodaLokal1:Ciepła woda, jp64_coLokal1:CO"
-                            className="h-8 text-sm"
+                            className={`h-8 text-sm ${unknownKeys.length > 0 ? 'border-destructive focus-visible:ring-destructive' : ''}`}
                           />
+                          {unknownKeys.length > 0 && (
+                            <p className="text-xs text-destructive">
+                              Nieznany klucz: {unknownKeys.join(', ')} — nie występuje jako &quot;save_key&quot; w mapowaniu wejściowym poniżej, więc odczyt najemcy nigdy się nie pojawi w panelu Rozlicz Media.
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>

@@ -10,12 +10,19 @@ import fs from 'fs/promises'
 import path from 'path'
 import crypto from 'crypto'
 
+// Slot dokumentu, dla którego robiony jest import — pozwala rozróżnić, do
+// którego "dokumentu" należy dany zakres dni (dayFrom/dayTo), żeby przy
+// kolejnym imporcie tego samego dokumentu podpowiedzieć poprzednio użyty
+// zakres. 0 = pojedynczy plik CSV (sekcja główna), 1/2 = wyciągi PDF
+// (sekcja "2 wyciągi PDF").
+export type ImportDocSlot = 0 | 1 | 2
+
 export async function importBankStatement(
   content: string,
   fileName: string = 'unknown.csv',
   dayFrom?: number,
   dayTo?: number,
-  pdfSlot?: 1 | 2,
+  docSlot?: ImportDocSlot,
 ) {
   const supabase = createServiceClient()
 
@@ -180,11 +187,12 @@ export async function importBankStatement(
     maxDate: maxDate === '0000-01-01' ? null : maxDate,
     savedFileName,
     originalFileName: fileName,
-    // Zapisujemy wybrany zakres dni (i slot, jeśli to import z sekcji "2 wyciągi PDF"),
-    // żeby przy kolejnym imporcie móc podpowiedzieć, jaki zakres był użyty poprzednio.
+    // Zapisujemy wybrany zakres dni oraz slot dokumentu, żeby przy kolejnym
+    // imporcie tego samego dokumentu móc podpowiedzieć, jaki zakres był
+    // użyty poprzednio.
     dayFrom: dayFrom ?? null,
     dayTo: dayTo ?? null,
-    pdfSlot: pdfSlot ?? null,
+    docSlot: docSlot ?? null,
   }
   await logAudit({
     actionName: 'importBankStatement',
@@ -223,11 +231,11 @@ export async function getLastImportInfo() {
   }
 }
 
-// Zwraca zakres dni (od/do) użyty przy ostatnim imporcie PDF dla danego slotu
-// (1 lub 2) w sekcji "Wgraj 2 wyciągi PDF". Dzięki temu przy kolejnym imporcie
-// (dla bieżącego miesiąca) można podpowiedzieć, jaki zakres wybrano poprzednio
-// dla tego samego dokumentu/konta.
-export async function getLastPdfSlotRange(pdfSlot: 1 | 2) {
+// Zwraca zakres dni (od/do) użyty przy ostatnim imporcie danego dokumentu
+// (slot 0 = plik CSV z sekcji głównej, 1/2 = wyciągi PDF z sekcji "2 wyciągi
+// PDF"). Dzięki temu przy kolejnym imporcie (np. za bieżący miesiąc) można
+// podpowiedzieć, jaki zakres wybrano poprzednio dla tego samego dokumentu/konta.
+export async function getLastImportSlotRange(docSlot: ImportDocSlot) {
   const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('audit_log')
@@ -241,13 +249,17 @@ export async function getLastPdfSlotRange(pdfSlot: 1 | 2) {
   type Summary = {
     dayFrom?: number | null
     dayTo?: number | null
-    pdfSlot?: number | null
+    docSlot?: number | null
+    pdfSlot?: number | null // pole legacy, sprzed wprowadzenia slotu 0 dla CSV
     minDate?: string | null
     maxDate?: string | null
     originalFileName?: string
   }
 
-  const match = data.find((row) => (row.after_data as Summary | null)?.pdfSlot === pdfSlot)
+  const match = data.find((row) => {
+    const s = row.after_data as Summary | null
+    return (s?.docSlot ?? s?.pdfSlot) === docSlot
+  })
   if (!match) return null
 
   const summary = match.after_data as Summary
@@ -258,6 +270,21 @@ export async function getLastPdfSlotRange(pdfSlot: 1 | 2) {
     maxDate: summary.maxDate ?? null,
     originalFileName: summary.originalFileName,
     created_at: match.created_at,
+  }
+}
+
+// Dzień w miesiącu, na którym domyślnie "przecina się" okres wyciągu —
+// konfigurowalny w Ustawieniach (statement_cutoff_day, domyślnie 15).
+// Zwraca też gotową podpowiedź zakresu: od (cutoff+1) dnia poprzedniego
+// miesiąca do (cutoff) dnia bieżącego — np. dla 15: od 16 do 15.
+export async function getStatementCutoffDay() {
+  const supabase = createServiceClient()
+  const { data } = await supabase.from('app_config').select('statement_cutoff_day').eq('id', 1).single()
+  const cutoffDay = data?.statement_cutoff_day ?? 15
+  return {
+    cutoffDay,
+    suggestedDayFrom: cutoffDay + 1 > 31 ? 1 : cutoffDay + 1,
+    suggestedDayTo: cutoffDay,
   }
 }
 

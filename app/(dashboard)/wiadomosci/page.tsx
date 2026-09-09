@@ -55,7 +55,7 @@ export default function WiadomosciPage() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Wiadomości</h1>
+        <h1 className="text-2xl font-semibold">Historia wiadomości</h1>
       </div>
 
       <form onSubmit={handleFilter} className="flex flex-col sm:flex-row gap-4 items-end bg-card p-4 border rounded-md shadow-sm">

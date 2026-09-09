@@ -217,7 +217,16 @@ export async function sendStatementEmail(
   const html = applyVars(bodyText).split('\n').map(l => l ? `<p>${l}</p>` : '<br>').join('')
   
   const attachments = [{ filename: 'Wyciag_z_konta.pdf', content: pdfBuffer }]
-  
+
   await sendEmail({ to, subject, html, attachments, cfg })
+}
+
+export async function sendStatementUploadReminderEmail(to: string | string[]) {
+  const cfg = await getProviderConfig()
+  const subject = 'Przypomnienie: wgraj wyciąg z banku'
+  const bodyText =
+    'Przypomnienie automatyczne z systemu BMT.\n\nDzisiaj 16. dzień miesiąca — czas wgrać wyciąg z konta bankowego do systemu (sekcja Import).\n\nPozdrawiamy,\nBMT'
+  const html = bodyText.split('\n').map((l) => (l ? `<p>${l}</p>` : '<br>')).join('')
+  await sendEmail({ to, subject, html, cfg })
 }
 

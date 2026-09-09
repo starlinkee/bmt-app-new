@@ -75,6 +75,11 @@ Aplikacja używa [cron-job.org](https://cron-job.org) zamiast Vercel Cron (plan 
 
 > Przy zmianie domeny Vercel zaktualizuj URL w cron-job.org — nagłówek i harmonogram zostają bez zmian.
 
+Dodatkowo utwórz drugi cronjob dla przypomnienia o wgraniu wyciągu z banku (wysyłane na `APP_ADMIN_EMAIL` 16. dnia każdego miesiąca):
+   - **URL**: `https://twoja-domena.vercel.app/api/cron/statement-reminder`
+   - **Schedule**: raz dziennie (np. o 8:00) — endpoint sam sprawdza, czy to 16. dzień miesiąca i czy przypomnienie nie zostało już wysłane
+   - **Headers**: `Authorization: Bearer <wartość CRON_SECRET>`
+
 ### 5. Deploy na Vercel
 
 ```bash
