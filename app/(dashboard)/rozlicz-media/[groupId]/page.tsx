@@ -17,7 +17,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { FileSpreadsheet } from 'lucide-react'
 
 type Group = Awaited<ReturnType<typeof getSettlementGroup>>
 type FieldDef = string | { range: string; source: 'user' | 'db' | 'auto'; save_key?: string; db_key?: string; auto_type?: 'billing_period' | 'current_date' | 'previous_date' | 'property_address' }
@@ -66,15 +65,30 @@ function computeAutoValues(month: number, year: number, inputMapping: Record<str
   return auto
 }
 
+function defaultBillingPeriod(): { month: number; year: number } {
+  // Ta sama reguła co po stronie najemcy (app/odczyty/[token]/actions.ts:getTargetMonthYear):
+  // do 15. dnia miesiąca odczyty dotyczą poprzedniego miesiąca, od 16. - bieżącego.
+  const now = new Date()
+  let month = now.getMonth() + 1
+  let year = now.getFullYear()
+  if (now.getDate() <= 15) {
+    month -= 1
+    if (month === 0) {
+      month = 12
+      year -= 1
+    }
+  }
+  return { month, year }
+}
+
 export default function MediaGroupPage({
   params,
 }: {
   params: Promise<{ groupId: string }>
 }) {
   const { groupId } = use(params)
-  const now = new Date()
-  const [month, setMonth] = useState(now.getMonth() + 1)
-  const [year, setYear] = useState(now.getFullYear())
+  const [month, setMonth] = useState(() => defaultBillingPeriod().month)
+  const [year, setYear] = useState(() => defaultBillingPeriod().year)
   const [group, setGroup] = useState<Group | null>(null)
   const [inputValues, setInputValues] = useState<Record<string, string>>({})
   const [previousReadings, setPreviousReadings] = useState<Record<string, number>>({})
@@ -227,13 +241,6 @@ export default function MediaGroupPage({
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Media — {group.name}</h1>
-        {group.spreadsheet_id && (
-          <Button variant="outline" size="sm" asChild>
-            <a href={`https://docs.google.com/spreadsheets/d/${group.spreadsheet_id}/edit`} target="_blank" rel="noreferrer">
-              <FileSpreadsheet className="h-4 w-4 mr-2" /> Otwórz arkusz
-            </a>
-          </Button>
-        )}
       </div>
 
       {noPreviousReadings && (
@@ -283,9 +290,17 @@ export default function MediaGroupPage({
                 ? (saveKey in editedPreviousReadings ? editedPreviousReadings[saveKey] : previousReadings[saveKey] !== undefined ? String(previousReadings[saveKey]) : '')
                 : undefined
               const hasError = getReadingError(range, saveKey)
+              const submittedByTenant = saveKey !== undefined && currentReadings[saveKey] !== undefined
               return (
                 <div key={range} className="space-y-1">
-                  <Label>{fieldLabel}</Label>
+                  <Label className="flex items-center gap-1.5">
+                    {fieldLabel}
+                    {submittedByTenant && (
+                      <span className="rounded-full bg-amber-200 text-amber-900 dark:bg-amber-500/30 dark:text-amber-300 text-[10px] font-medium px-1.5 py-0.5">
+                        podane przez najemcę
+                      </span>
+                    )}
+                  </Label>
                   <div className="flex gap-2 items-center">
                     <div className="flex-1 space-y-1">
                     <Input
@@ -295,7 +310,15 @@ export default function MediaGroupPage({
                       }
                       placeholder={isAuto ? '' : '0'}
                       readOnly={isAuto}
-                      className={isAuto ? 'bg-muted text-muted-foreground cursor-default' : hasError ? 'border-destructive focus-visible:ring-destructive' : ''}
+                      className={
+                        isAuto
+                          ? 'bg-muted text-muted-foreground cursor-default'
+                          : hasError
+                          ? 'border-destructive focus-visible:ring-destructive'
+                          : submittedByTenant
+                          ? 'bg-amber-50 border-amber-400 focus-visible:ring-amber-400 dark:bg-amber-950/20'
+                          : ''
+                      }
                     />
                     {hasError && (
                       <p className="text-xs text-destructive">Aktualny odczyt nie może być mniejszy od poprzedniego.</p>

@@ -31,7 +31,7 @@ const dataItems = [
 
 const historyItems = [
   { href: '/przeplywy', label: 'Przepływy', icon: ArrowLeftRight },
-  { href: '/wiadomosci', label: 'Wiadomości', icon: Mail },
+  { href: '/wiadomosci', label: 'Historia wiadomości', icon: Mail },
   { href: '/historia', label: 'Historia operacji', icon: History },
   { href: '/import/history', label: 'Historia przelewów', icon: Banknote },
 ]

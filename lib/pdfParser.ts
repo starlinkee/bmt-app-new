@@ -3,6 +3,7 @@
 // który przy bundlowaniu przez Turbopack próbuje wczytać przykładowy plik testowy
 // (./test/data/05-versions-space.pdf) i wywala aplikację błędem ENOENT.
 // eslint-disable-next-line @typescript-eslint/no-var-requires
+// @ts-expect-error - brak typów dla 'pdf-parse/lib/pdf-parse.js'
 import pdfParse from 'pdf-parse/lib/pdf-parse.js'
 import type { ParsedTransaction } from '@/types/app'
 
@@ -38,7 +39,7 @@ export async function parsePdf(pdfBuffer: Buffer): Promise<PdfImportResult> {
     }
   })
 
-  const lines = data.text.split('\n').map(l => l.trim())
+  const lines = data.text.split('\n').map((l: string) => l.trim())
   
   const transactions: ParsedTransaction[] = []
   const skippedTransactions: ParsedTransaction[] = []

@@ -4,6 +4,16 @@ import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/service'
 import { logAudit } from '@/lib/audit'
 
+export async function getTenantStatement(tenantId: number) {
+  const { getStatement } = await import('@/lib/statement')
+  return getStatement(tenantId)
+}
+
+export async function getTenantBalance(tenantId: number) {
+  const { calculateBalance } = await import('@/lib/balance')
+  return calculateBalance(tenantId)
+}
+
 export async function addAdjustment(
   tenantId: number,
   amount: number,

@@ -3,11 +3,11 @@
 import { useState, useTransition, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import Link from 'next/link'
-import { importBankStatement, getLastImportInfo, getLastPdfSlotRange } from './actions'
+import { importBankStatement, getLastImportInfo, getLastImportSlotRange, getStatementCutoffDay } from './actions'
 import { formatDateTime } from '@/lib/utils'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
-import { History, AlertTriangle, X, Info, UploadCloud, FileSpreadsheet, CheckCircle2 } from 'lucide-react'
+import { AlertTriangle, X, Info, UploadCloud, FileSpreadsheet, FileText, CheckCircle2 } from 'lucide-react'
 import { ImportHistoryTable } from './import-history-table'
 
 export function UploadForm() {
@@ -40,6 +40,32 @@ export function UploadForm() {
   const [bannerDismissed, setBannerDismissed] = useState(false)
   const [pending, startTransition] = useTransition()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const DAYS_OF_MONTH = Array.from({ length: 31 }, (_, i) => i + 1)
+
+  // Dzień graniczny skonfigurowany w Ustawieniach (domyślnie 15) — używany do
+  // podpowiadania zakresu dni dla dokumentu (zwykle: od 16. dnia poprzedniego
+  // miesiąca do 15. dnia bieżącego).
+  const [cutoffInfo, setCutoffInfo] = useState<{ cutoffDay: number; suggestedDayFrom: number; suggestedDayTo: number } | null>(null)
+
+  // --- Wgrywanie pliku CSV (sekcja główna, slot 0) ---
+  const [csvDayFrom, setCsvDayFrom] = useState<number | ''>('')
+  const [csvDayTo, setCsvDayTo] = useState<number | ''>('')
+  const csvRangeTouched = useRef(false)
+
+  useEffect(() => {
+    getStatementCutoffDay().then((info) => {
+      setCutoffInfo(info)
+      // Podpowiedz domyślny zakres dni na podstawie ustawienia dnia
+      // granicznego, dopóki użytkownik sam nie zmieni pól.
+      if (!csvRangeTouched.current) {
+        setCsvDayFrom(info.suggestedDayFrom)
+        setCsvDayTo(info.suggestedDayTo)
+      }
+    }).catch(console.error)
+  }, [])
+
+  // undefined = jeszcze nie sprawdzono (trwa pobieranie), null = sprawdzono i nie ma historii
+  const [lastCsvRange, setLastCsvRange] = useState<{ dayFrom: number | null; dayTo: number | null; created_at?: string } | null | undefined>(undefined)
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -49,23 +75,19 @@ export function UploadForm() {
     reader.onload = (ev) => {
       const content = ev.target?.result as string
       startTransition(async () => {
-        const res = await importBankStatement(content, file.name)
+        const res = await importBankStatement(content, file.name, csvDayFrom || undefined, csvDayTo || undefined, 0)
         setResult(res)
         setBannerDismissed(false)
         toast.success('Import zakończony.')
-        
+
         // Update last import info after successful import
         getLastImportInfo().then(info => {
           if (info) setLastImport(info)
         }).catch(console.error)
+        getLastImportSlotRange(0).then((info) => setLastCsvRange(info)).catch(console.error)
       })
     }
-    
-    if (file.name.toLowerCase().endsWith('.pdf')) {
-      reader.readAsDataURL(file)
-    } else {
-      reader.readAsText(file, 'UTF-8')
-    }
+    reader.readAsText(file, 'UTF-8')
     e.target.value = ''
   }
 
@@ -79,7 +101,6 @@ export function UploadForm() {
   const [pdfPending, startPdfTransition] = useTransition()
   const fileInput1Ref = useRef<HTMLInputElement>(null)
   const fileInput2Ref = useRef<HTMLInputElement>(null)
-  const DAYS_OF_MONTH = Array.from({ length: 31 }, (_, i) => i + 1)
 
   // Zakres dni użyty poprzednio dla każdego z 2 dokumentów PDF — dla bieżącego
   // miesiąca nie znamy jeszcze zakresu, ale poprzedni import (poprzedni miesiąc)
@@ -89,11 +110,12 @@ export function UploadForm() {
   const [lastPdfRange2, setLastPdfRange2] = useState<{ dayFrom: number | null; dayTo: number | null; created_at?: string } | null | undefined>(undefined)
 
   function refreshLastPdfRanges() {
-    getLastPdfSlotRange(1).then((info) => setLastPdfRange1(info)).catch(console.error)
-    getLastPdfSlotRange(2).then((info) => setLastPdfRange2(info)).catch(console.error)
+    getLastImportSlotRange(1).then((info) => setLastPdfRange1(info)).catch(console.error)
+    getLastImportSlotRange(2).then((info) => setLastPdfRange2(info)).catch(console.error)
   }
 
   useEffect(() => {
+    getLastImportSlotRange(0).then((info) => setLastCsvRange(info)).catch(console.error)
     refreshLastPdfRanges()
   }, [])
 
@@ -196,11 +218,11 @@ export function UploadForm() {
               Wgraj nowy plik
             </CardTitle>
             <CardDescription>
-              Wybierz plik w formacie .csv lub .pdf pobrany z Twojego banku
+              Wybierz plik w formacie .csv pobrany z Twojego banku
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div 
+            <div
               className={`border-2 border-dashed rounded-xl p-8 text-center transition-all ${
                 pending ? 'border-primary/50 bg-primary/5' : 'border-border hover:border-primary/50 hover:bg-muted/50'
               }`}
@@ -212,25 +234,89 @@ export function UploadForm() {
                 {pending ? 'Przetwarzanie pliku...' : 'Wybierz plik z dysku'}
               </h3>
               <p className="text-sm text-muted-foreground mb-6">
-                Obsługiwane formaty: CSV, PDF
+                Obsługiwany format: CSV
               </p>
-              
-              <Button 
+
+              <Button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={pending}
                 className="w-full sm:w-auto"
               >
-                {pending ? 'Importowanie...' : 'Wybierz plik CSV / PDF'}
+                {pending ? 'Importowanie...' : 'Wybierz plik CSV'}
               </Button>
               <input
                 ref={fileInputRef}
                 id="csv-file"
                 type="file"
-                accept=".csv,.pdf"
+                accept=".csv"
                 onChange={handleFile}
                 disabled={pending}
                 className="hidden"
               />
+            </div>
+
+            <div className="space-y-2 rounded-lg border border-border/50 p-4">
+              <p className="text-sm font-medium">Zakres dni brany z pliku</p>
+              <p className="text-xs text-muted-foreground">
+                Opcjonalnie ogranicz zakres do dni miesiąca — przydatne, gdy okres rozliczeniowy
+                nie pokrywa się z pełnym miesiącem kalendarzowym (np. od 16. do 15.).
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="space-y-1">
+                  <span className="text-xs text-muted-foreground">Od dnia</span>
+                  <select
+                    value={csvDayFrom}
+                    disabled={pending}
+                    onChange={(e) => {
+                      csvRangeTouched.current = true
+                      setCsvDayFrom(e.target.value ? Number(e.target.value) : '')
+                    }}
+                    className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                  >
+                    <option value="">—</option>
+                    {DAYS_OF_MONTH.map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-1">
+                  <span className="text-xs text-muted-foreground">Do dnia</span>
+                  <select
+                    value={csvDayTo}
+                    disabled={pending}
+                    onChange={(e) => {
+                      csvRangeTouched.current = true
+                      setCsvDayTo(e.target.value ? Number(e.target.value) : '')
+                    }}
+                    className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                  >
+                    <option value="">—</option>
+                    {DAYS_OF_MONTH.map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              {lastCsvRange === null ? (
+                <p className="text-xs text-muted-foreground/60 italic px-0.5">
+                  Brak wcześniejszego importu dla tego dokumentu — nie wgrywano go jeszcze.
+                </p>
+              ) : lastCsvRange ? (
+                lastCsvRange.dayFrom || lastCsvRange.dayTo ? (
+                  <p className="text-xs text-muted-foreground/80 bg-muted/40 rounded-md px-2 py-1.5">
+                    Poprzednio dla tego dokumentu: <strong className="text-foreground font-medium">{lastCsvRange.dayFrom ?? '—'}</strong>
+                    {' '}do{' '}
+                    <strong className="text-foreground font-medium">{lastCsvRange.dayTo ?? '—'}</strong>
+                    {lastCsvRange.created_at && (
+                      <> ({formatDateTime(lastCsvRange.created_at)})</>
+                    )}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground/60 italic px-0.5">
+                    Przy poprzednim imporcie tego dokumentu nie ograniczano zakresu dni.
+                  </p>
+                )
+              ) : null}
             </div>
 
             {lastImport?.created_at && (
@@ -343,7 +429,9 @@ export function UploadForm() {
           <CardDescription>
             Dla konta, z którego pobierasz tylko pełne wyciągi miesięczne w PDF, wgraj naraz wyciąg za
             poprzedni i bieżący miesiąc. Możesz opcjonalnie ograniczyć zakres dat brany z każdego pliku
-            (np. poprzedni miesiąc: od 16., bieżący: do 15.), żeby uniknąć nakładających się transakcji.
+            {cutoffInfo ? (
+              <> (np. poprzedni miesiąc: od {cutoffInfo.suggestedDayFrom}., bieżący: do {cutoffInfo.suggestedDayTo}.)</>
+            ) : null}, żeby uniknąć nakładających się transakcji. Dzień graniczny można zmienić w Ustawieniach.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -354,17 +442,29 @@ export function UploadForm() {
             ].map((slot, idx) => (
               <div key={idx} className="space-y-3 rounded-lg border border-border/50 p-4">
                 <p className="text-sm font-medium">{slot.label}</p>
+                <div
+                  onClick={() => !pdfPending && slot.ref.current?.click()}
+                  className={`border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer ${
+                    pdfPending ? 'border-primary/50 bg-primary/5 cursor-not-allowed' : 'border-border hover:border-primary/50 hover:bg-muted/50'
+                  }`}
+                >
+                  <div className="mx-auto w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center mb-2">
+                    <FileText className="h-5 w-5 text-primary" />
+                  </div>
+                  {slot.file ? (
+                    <p className="text-sm font-medium truncate">{slot.file.name}</p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Kliknij, aby wybrać plik PDF</p>
+                  )}
+                </div>
                 <input
                   ref={slot.ref}
                   type="file"
                   accept=".pdf"
                   disabled={pdfPending}
                   onChange={(e) => slot.setFile(e.target.files?.[0] ?? null)}
-                  className="text-sm w-full file:mr-3 file:rounded-md file:border-0 file:bg-primary/10 file:text-primary file:px-3 file:py-1.5 file:text-sm file:font-medium"
+                  className="hidden"
                 />
-                {slot.file && (
-                  <p className="text-xs text-muted-foreground truncate">{slot.file.name}</p>
-                )}
                 <p className="text-xs text-muted-foreground">
                   Opcjonalnie ogranicz zakres do dni miesiąca (Ty wiesz, ile dni ma dany miesiąc)
                 </p>

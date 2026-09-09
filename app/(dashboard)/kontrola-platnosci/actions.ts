@@ -42,11 +42,6 @@ export async function getTenantsWithBalances() {
     .sort((a, b) => a.balance - b.balance)
 }
 
-export async function getTenantStatement(tenantId: number) {
-  const { getStatement } = await import('@/lib/statement')
-  return getStatement(tenantId)
-}
-
 export async function getTenantWithBalance(tenantId: number) {
   const supabase = createServiceClient()
 

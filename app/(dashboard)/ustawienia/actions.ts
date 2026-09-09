@@ -27,6 +27,7 @@ export async function upsertAppConfig(data: {
   rent_email_subject?: string | null
   rent_email_body?: string | null
   ignored_source_accounts?: string
+  statement_cutoff_day?: number
 }) {
   const supabase = createServiceClient()
   const { data: before } = await supabase.from('app_config').select('*').eq('id', 1).single()

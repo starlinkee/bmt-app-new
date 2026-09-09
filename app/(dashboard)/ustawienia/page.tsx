@@ -13,6 +13,7 @@ export default function SettingsPage() {
     late_reminder_subject: 'Rozliczenie wpłat i rachunków - BMT',
     late_reminder_body: 'Szanowny/a {imie},\n\nPrzesyłamy w załączeniu aktualne podsumowanie Państwa konta. Saldo na dzień dzisiejszy wynosi: {saldo}.\n\nProsimy o uregulowanie należności.\n\nPozdrawiamy,\nBMT',
     ignored_source_accounts: '',
+    statement_cutoff_day: 15,
   })
   const [pending, startTransition] = useTransition()
 
@@ -24,6 +25,7 @@ export default function SettingsPage() {
           late_reminder_subject: (config as Record<string, unknown>).late_reminder_subject as string ?? 'Rozliczenie wpłat i rachunków - BMT',
           late_reminder_body: (config as Record<string, unknown>).late_reminder_body as string ?? 'Szanowny/a {imie},\n\nPrzesyłamy w załączeniu aktualne podsumowanie Państwa konta. Saldo na dzień dzisiejszy wynosi: {saldo}.\n\nProsimy o uregulowanie należności.\n\nPozdrawiamy,\nBMT',
           ignored_source_accounts: (config as Record<string, unknown>).ignored_source_accounts as string ?? '',
+          statement_cutoff_day: (config as Record<string, unknown>).statement_cutoff_day as number ?? 15,
         })
       }
     })
@@ -36,6 +38,7 @@ export default function SettingsPage() {
           late_reminder_subject: form.late_reminder_subject,
           late_reminder_body: form.late_reminder_body,
           ignored_source_accounts: form.ignored_source_accounts,
+          statement_cutoff_day: form.statement_cutoff_day,
         })
         toast.success('Ustawienia zapisane.')
       } catch (e) {
@@ -92,6 +95,23 @@ export default function SettingsPage() {
             onChange={(e) => setForm({ ...form, ignored_source_accounts: e.target.value })}
             rows={4}
             placeholder="Np. 12345678901234567890123456"
+          />
+        </div>
+
+        <div className="space-y-1 mt-6">
+          <h2 className="text-lg font-semibold">Okres wyciągu bankowego</h2>
+          <p className="text-sm text-muted-foreground mt-1 mb-3">
+            Dzień miesiąca, na którym domyślnie &bdquo;przecina się&rdquo; okres wyciągu — używany do podpowiadania
+            zakresu dni przy imporcie wyciągów (np. przy 15 zakres to 16. dzień poprzedniego miesiąca
+            do 15. dnia bieżącego).
+          </p>
+          <Input
+            type="number"
+            min={1}
+            max={31}
+            className="w-24"
+            value={form.statement_cutoff_day}
+            onChange={(e) => setForm({ ...form, statement_cutoff_day: Number(e.target.value) || 15 })}
           />
         </div>
 
