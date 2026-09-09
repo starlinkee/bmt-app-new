@@ -66,11 +66,15 @@ export default function KontrolaPlatnosciPage() {
   const { data: tenants = [], isLoading } = useQuery({
     queryKey: QUERY_KEYS.kontrolaPlatnosci,
     queryFn: getTenantsWithBalances,
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
-  
+
   const { data: stats } = useQuery({
     queryKey: QUERY_KEYS.globalPaymentStats,
     queryFn: getGlobalPaymentStats,
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 
   const [sortKey, setSortKey] = useState<SortKey>('name')

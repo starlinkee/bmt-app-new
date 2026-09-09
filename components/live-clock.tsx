@@ -10,28 +10,29 @@ export function LiveClock() {
 
   useEffect(() => {
     setMounted(true)
-    
+
     // Tylko na dev lub gdy dopuszczono test panel
     const isOverrideAllowed = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_ALLOW_TEST_PANEL === 'true'
-    let testDate = null
-    
-    if (isOverrideAllowed) {
+
+    const readTestDate = () => {
+      if (!isOverrideAllowed) return null
       const match = document.cookie.split('; ').find(row => row.startsWith('bmt_test_date='))
-      testDate = match ? match.split('=')[1] : null
+      return match ? match.split('=')[1] : null
     }
 
-    setSimulatedDate(testDate)
-
-    if (testDate) {
-      setNow(new Date(testDate))
-      return
+    // Sidebar (a razem z nim ten komponent) jest trwałym layoutem i nie
+    // remontuje się przy nawigacji klienckiej - dlatego cookie trzeba
+    // sprawdzać cyklicznie, a nie tylko raz przy montowaniu, żeby zmiana
+    // (lub reset) symulowanej daty na /testowanie od razu było widoczne.
+    const tick = () => {
+      const testDate = readTestDate()
+      setSimulatedDate(testDate)
+      setNow(testDate ? new Date(testDate) : new Date())
     }
 
-    setNow(new Date())
-    const interval = setInterval(() => {
-      setNow(new Date())
-    }, 1000)
-    
+    tick()
+    const interval = setInterval(tick, 1000)
+
     return () => clearInterval(interval)
   }, [])
 

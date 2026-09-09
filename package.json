@@ -18,7 +18,8 @@
     "vercel:env": "tsx scripts/vercel-env-push.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "prepare": "husky"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.0",
@@ -59,6 +60,7 @@
     "dotenv-cli": "^8.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.3",
+    "husky": "^9.1.7",
     "supabase": "^2.91.1",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",

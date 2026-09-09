@@ -5,10 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Beaker, AlertTriangle, CheckCircle2, FileText } from 'lucide-react'
+import { Beaker, AlertTriangle, FileText, CheckCircle2, ArrowRight } from 'lucide-react'
 import { getSettlementGroups } from '@/app/(dashboard)/media/actions'
 import { generateTestMediaCharge, getGroupDetailsForTest } from './actions'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { buttonVariants } from '@/components/ui/button'
+import Link from 'next/link'
 
 export default function TestowaniePage() {
   const [month, setMonth] = useState(new Date().getMonth() + 1)
@@ -159,63 +161,15 @@ export default function TestowaniePage() {
             {loading ? 'Generowanie...' : `Wygeneruj czynsze dla ${month}/${year}`}
           </Button>
 
-          {result && (
-            <div className={`p-4 rounded-md mt-4 flex items-start gap-3 border ${result.success ? 'border-primary/20 bg-primary/5' : 'border-red-200 dark:border-red-900/50'}`}>
-              {result.success ? (
-                <>
-                  <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-500 mt-0.5" />
-                  <div>
-                    <p className="font-medium">Sukces!</p>
-                    <p className="text-sm text-muted-foreground">Pomyślnie wygenerowano {result.generated} czynszów.</p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-500 mt-0.5" />
-                  <div>
-                    <p className="font-medium">Błąd</p>
-                    <p className="text-sm text-red-600 dark:text-red-400">{result.error}</p>
-                  </div>
-                </>
-              )}
+          {result?.error && (
+            <div className="p-4 rounded-md mt-4 flex items-start gap-3 border border-red-200 dark:border-red-900/50">
+              <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-500 mt-0.5" />
+              <div>
+                <p className="font-medium">Błąd</p>
+                <p className="text-sm text-red-600 dark:text-red-400">{result.error}</p>
+              </div>
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            Zmień datę dla linków najemców (Media)
-          </CardTitle>
-          <CardDescription>
-            Pozwala &quot;oszukać&quot; serwer i przetestować, co zobaczy najemca wchodzący w link do mediów o danej dacie.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pt-6 space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="overrideDate">Symulowana data (YYYY-MM-DD)</Label>
-            <Input 
-              id="overrideDate" 
-              type="date"
-              onChange={(e) => {
-                if (e.target.value) {
-                  document.cookie = `bmt_test_date=${e.target.value}; path=/; max-age=86400`
-                  alert('Data została nadpisana! Otwórz link do mediów w nowej karcie tej przeglądarki.')
-                }
-              }}
-            />
-          </div>
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => {
-              document.cookie = "bmt_test_date=; path=/; max-age=0"
-              alert('Symulacja daty wyłączona. System wrócił do prawdziwego czasu.')
-            }}
-          >
-            Zresetuj do prawdziwej daty
-          </Button>
         </CardContent>
       </Card>
 
@@ -258,7 +212,9 @@ export default function TestowaniePage() {
             <Label>Grupa rozliczeniowa</Label>
             <Select value={selectedGroup} onValueChange={(v) => setSelectedGroup(v || '')}>
               <SelectTrigger>
-                <SelectValue placeholder="Wybierz grupę..." />
+                <SelectValue placeholder="Wybierz grupę...">
+                  {groups.find(g => g.id.toString() === selectedGroup)?.name}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {groups.map(g => (
@@ -318,27 +274,51 @@ export default function TestowaniePage() {
             {mediaLoading ? 'Wystawianie...' : `Wystaw obciążenia dla ${mediaMonth}/${mediaYear}`}
           </Button>
 
-          {mediaResult && (
-            <div className={`p-4 rounded-md mt-4 flex items-start gap-3 border ${mediaResult.success ? 'border-primary/20 bg-primary/5' : 'border-red-200 dark:border-red-900/50'}`}>
-              {mediaResult.success ? (
-                <>
-                  <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-500 mt-0.5" />
-                  <div>
-                    <p className="font-medium">Sukces!</p>
-                    <p className="text-sm text-muted-foreground">Wystawiono testowe obciążenia dla {mediaResult.generated} najemców.</p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-500 mt-0.5" />
-                  <div>
-                    <p className="font-medium">Błąd</p>
-                    <p className="text-sm text-red-600 dark:text-red-400">{mediaResult.error}</p>
-                  </div>
-                </>
-              )}
+          {mediaResult?.error && (
+            <div className="p-4 rounded-md mt-4 flex items-start gap-3 border border-red-200 dark:border-red-900/50">
+              <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-500 mt-0.5" />
+              <div>
+                <p className="font-medium">Błąd</p>
+                <p className="text-sm text-red-600 dark:text-red-400">{mediaResult.error}</p>
+              </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            Zmień datę dla linków najemców (Media)
+          </CardTitle>
+          <CardDescription>
+            Pozwala &quot;oszukać&quot; serwer i przetestować, co zobaczy najemca wchodzący w link do mediów o danej dacie.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-6 space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="overrideDate">Symulowana data (YYYY-MM-DD)</Label>
+            <Input
+              id="overrideDate"
+              type="date"
+              onChange={(e) => {
+                if (e.target.value) {
+                  document.cookie = `bmt_test_date=${e.target.value}; path=/; max-age=86400`
+                  alert('Data została nadpisana! Otwórz link do mediów w nowej karcie tej przeglądarki.')
+                }
+              }}
+            />
+          </div>
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => {
+              document.cookie = "bmt_test_date=; path=/; max-age=0"
+              alert('Symulacja daty wyłączona. System wrócił do prawdziwego czasu.')
+            }}
+          >
+            Zresetuj do prawdziwej daty
+          </Button>
         </CardContent>
       </Card>
     </div>

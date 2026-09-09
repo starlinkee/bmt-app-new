@@ -78,6 +78,9 @@ export function SearchSelect({ options, value, onValueChange, placeholder = "Wyb
           placeholder={placeholder}
           className="pr-8"
           data-placeholder={!selected && !focused ? "true" : undefined}
+          role="combobox"
+          aria-expanded={open}
+          data-testid="search-select-input"
         />
         <ChevronDownIcon className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
       </div>
@@ -89,6 +92,9 @@ export function SearchSelect({ options, value, onValueChange, placeholder = "Wyb
             filtered.map((opt) => (
               <div
                 key={opt.value}
+                role="option"
+                aria-selected={opt.value === value}
+                data-testid="search-select-option"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => handleSelect(opt)}
                 className={cn(

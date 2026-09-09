@@ -1,0 +1,2 @@
+echo "▶ pre-push: uruchamiam testy jednostkowe (vitest)…"
+npm run test

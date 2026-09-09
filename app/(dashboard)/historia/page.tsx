@@ -200,6 +200,14 @@ function getInlineSummary(log: AuditLog): string | null {
   return sorted.slice(0, 2).map((d) => `${d.label}: ${d.before} → ${d.after}`).join(' · ')
 }
 
+function toLocalDateKey(iso: string) {
+  const d = new Date(iso)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 function formatDateTime(iso: string) {
   const d = new Date(iso)
   return d.toLocaleString('pl-PL', {
@@ -336,6 +344,8 @@ export default function AuditPage() {
   const [filterText, setFilterText]     = useState('')
   const [filterOperation, setFilterOperation] = useState('__all__')
   const [filterTable, setFilterTable]   = useState('__all__')
+  const [dateFrom, setDateFrom]         = useState('')
+  const [dateTo, setDateTo]             = useState('')
   const [expandedId, setExpandedId]     = useState<number | null>(null)
 
   function handleSort(key: SortKey) {
@@ -359,6 +369,11 @@ export default function AuditPage() {
       if (!label.includes(q) && !l.action_name.toLowerCase().includes(q) && !(l.record_id ?? '').includes(q)) return false
     }
     if (l.operation === 'UPDATE' && !l.error_data && computeDiff(l.before_data, l.after_data).length === 0) return false
+    if (dateFrom || dateTo) {
+      const logDate = toLocalDateKey(l.created_at)
+      if (dateFrom && logDate < dateFrom) return false
+      if (dateTo && logDate > dateTo) return false
+    }
     return true
   })
 
@@ -430,6 +445,37 @@ export default function AuditPage() {
             ))}
           </SelectContent>
         </Select>
+
+        <div className="flex items-center gap-1.5">
+          <Input
+            type="date"
+            className="w-40"
+            value={dateFrom}
+            max={dateTo || undefined}
+            onChange={(e) => setDateFrom(e.target.value)}
+            aria-label="Data od"
+          />
+          <span className="text-sm text-muted-foreground">–</span>
+          <Input
+            type="date"
+            className="w-40"
+            value={dateTo}
+            min={dateFrom || undefined}
+            onChange={(e) => setDateTo(e.target.value)}
+            aria-label="Data do"
+          />
+          {(dateFrom || dateTo) && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9"
+              onClick={() => { setDateFrom(''); setDateTo('') }}
+              title="Wyczyść zakres dat"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
       </div>
 
       <Table>

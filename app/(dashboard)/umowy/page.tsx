@@ -6,6 +6,16 @@ import { toast } from 'sonner'
 import { getContracts, createContract, updateContract, deleteContract, revaluateContract, getContractStats } from './actions'
 import { getTenants } from '@/app/(dashboard)/najemcy/actions'
 import { QUERY_KEYS } from '@/lib/queryKeys'
+import {
+  type Contract,
+  type SortKey,
+  type SortDir,
+  getTenantData,
+  sortContracts,
+  matchesContractFilter,
+  computeRevaluedAmount,
+  parseInflationPercent,
+} from '@/lib/contracts'
 import { ConfirmEditDialog } from '@/components/ui/confirm-edit-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -41,70 +51,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Pencil, Trash2, Plus, ChevronUp, ChevronDown, ChevronsUpDown, TrendingUp } from 'lucide-react'
 import { formatAmount, formatDate } from '@/lib/utils'
 
-type Contract = Awaited<ReturnType<typeof getContracts>>[number]
 type Tenant = Awaited<ReturnType<typeof getTenants>>[number]
-type SortKey = 'id' | 'tenant' | 'property' | 'type' | 'amount' | 'from' | 'to' | 'active' | 'media'
-type SortDir = 'asc' | 'desc'
-
-
-
-function getTenantData(c: Contract) {
-  return c.tenants as unknown as {
-    first_name: string
-    last_name: string
-    properties: { name: string }
-  } | null
-}
-
-function sortContracts(contracts: Contract[], key: SortKey, dir: SortDir): Contract[] {
-  return [...contracts].sort((a, b) => {
-    const ta = getTenantData(a)
-    const tb = getTenantData(b)
-    let va: string | number = ''
-    let vb: string | number = ''
-    if (key === 'id') {
-      va = a.id
-      vb = b.id
-    } else if (key === 'tenant') {
-      va = `${ta?.last_name ?? ''} ${ta?.first_name ?? ''}`.toLowerCase()
-      vb = `${tb?.last_name ?? ''} ${tb?.first_name ?? ''}`.toLowerCase()
-    } else if (key === 'property') {
-      va = (ta?.properties?.name ?? '').toLowerCase()
-      vb = (tb?.properties?.name ?? '').toLowerCase()
-    } else if (key === 'type') {
-      va = a.contract_type.toLowerCase()
-      vb = b.contract_type.toLowerCase()
-    } else if (key === 'amount') {
-      va = Number(a.rent_amount)
-      vb = Number(b.rent_amount)
-    } else if (key === 'from') {
-      va = a.start_date
-      vb = b.start_date
-    } else if (key === 'to') {
-      va = a.end_date ?? ''
-      vb = b.end_date ?? ''
-    } else if (key === 'active') {
-      va = a.is_active ? 1 : 0
-      vb = b.is_active ? 1 : 0
-    } else if (key === 'media') {
-      va = ((a as Record<string, unknown>).has_media_invoice ? 1 : 0)
-      vb = ((b as Record<string, unknown>).has_media_invoice ? 1 : 0)
-    }
-    if (va < vb) return dir === 'asc' ? -1 : 1
-    if (va > vb) return dir === 'asc' ? 1 : -1
-    return 0
-  })
-}
-
-function matchesContractFilter(c: Contract, text: string): boolean {
-  const q = text.toLowerCase()
-  const t = getTenantData(c)
-  const tenant = `${t?.first_name ?? ''} ${t?.last_name ?? ''}`.toLowerCase()
-  const property = (t?.properties?.name ?? '').toLowerCase()
-  const type = c.contract_type.toLowerCase()
-  const active = c.is_active ? 'tak' : 'nie'
-  return tenant.includes(q) || property.includes(q) || type.includes(q) || active.includes(q)
-}
 
 function emptyForm() {
   return {
@@ -259,8 +206,8 @@ export default function ContractsPage() {
   }
 
   function handleBulkRevalue() {
-    const pct = parseFloat(inflationInput.replace(',', '.'))
-    if (isNaN(pct) || pct <= 0) {
+    const pct = parseInflationPercent(inflationInput)
+    if (pct === null) {
       toast.error('Podaj prawidłowy procent inflacji.')
       return
     }
@@ -273,7 +220,8 @@ export default function ContractsPage() {
   }
 
   function performBulkRevalue() {
-    const pct = parseFloat(inflationInput.replace(',', '.'))
+    const pct = parseInflationPercent(inflationInput)
+    if (pct === null) return
     const toUpdate = contracts.filter((c) => selectedIds.has(c.id))
     startTransition(async () => {
       for (const c of toUpdate) {
@@ -381,7 +329,7 @@ export default function ContractsPage() {
           {sorted.map((c) => {
             const tenant = getTenantData(c)
             return (
-              <TableRow key={c.id}>
+              <TableRow key={c.id} data-testid="contract-row" data-contract-id={c.id}>
                 <TableCell className="text-muted-foreground">{c.id}</TableCell>
                 <TableCell>
                   {tenant?.first_name} {tenant?.last_name}
@@ -406,10 +354,10 @@ export default function ContractsPage() {
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(c)}>
+                    <Button variant="ghost" size="icon" aria-label="Edytuj umowę" onClick={() => openEdit(c)}>
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(c)}>
+                    <Button variant="ghost" size="icon" aria-label="Usuń umowę" onClick={() => handleDelete(c)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
@@ -443,8 +391,7 @@ export default function ContractsPage() {
               />
             </div>
             {(() => {
-              const pct = parseFloat(inflationInput.replace(',', '.'))
-              const validPct = !isNaN(pct) && pct > 0
+              const pct = parseInflationPercent(inflationInput)
               const activeContracts = contracts.filter((c) => c.is_active)
               const allChecked = activeContracts.every((c) => selectedIds.has(c.id))
               return (
@@ -466,7 +413,7 @@ export default function ContractsPage() {
                     {activeContracts.map((c) => {
                       const tenant = getTenantData(c)
                       const current = Number(c.rent_amount)
-                      const preview = validPct ? Math.round(current * (1 + pct / 100)) : null
+                      const preview = pct !== null ? computeRevaluedAmount(current, pct) : null
                       const checked = selectedIds.has(c.id)
                       return (
                         <div key={c.id} className="flex items-center gap-2 py-1">

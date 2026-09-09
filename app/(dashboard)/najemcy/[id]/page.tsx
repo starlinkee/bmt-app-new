@@ -143,6 +143,8 @@ export default function TenantDetailPage() {
     queryKey: QUERY_KEYS.tenantStatement(tenantId),
     queryFn: () => getTenantStatement(tenantId),
     enabled: Number.isFinite(tenantId),
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 
   function handleSort(key: SortKey) {

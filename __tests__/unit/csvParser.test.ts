@@ -52,16 +52,20 @@ describe('parseCsv - parsowanie kwot', () => {
     expect(transactions[0].amount).toBe(1500)
   })
 
-  test('pomija transakcje wychodzące (kwota ujemna)', () => {
+  // Transakcje wychodzące (ujemne) i zerowe SĄ importowane - odrzucenie/oznaczenie
+  // dzieje się dalej, w UI importu (patrz komentarz w lib/csvParser.ts), a nie tutaj.
+  test('importuje transakcje wychodzące (kwota ujemna), nie pomija ich', () => {
     const { transactions, skipped } = parseCsv(pkoCsv('-500,00'))
-    expect(transactions).toHaveLength(0)
-    expect(skipped).toBe(1)
+    expect(transactions).toHaveLength(1)
+    expect(transactions[0].amount).toBe(-500)
+    expect(skipped).toBe(0)
   })
 
-  test('pomija kwotę zero', () => {
+  test('importuje kwotę zero, nie pomija jej', () => {
     const { transactions, skipped } = parseCsv(pkoCsv('0,00'))
-    expect(transactions).toHaveLength(0)
-    expect(skipped).toBe(1)
+    expect(transactions).toHaveLength(1)
+    expect(transactions[0].amount).toBe(0)
+    expect(skipped).toBe(0)
   })
 })
 

@@ -1,4 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/service'
+import { NON_INCOME_TRANSACTION_STATUSES_FILTER } from '@/lib/transactionStatus'
 
 /**
  * Saldo "Skarbonka": suma wpłat (transactions) minus suma rachunków (invoices).
@@ -12,7 +13,7 @@ export async function calculateBalance(tenantId: number): Promise<number> {
       .from('transactions')
       .select('amount')
       .eq('tenant_id', tenantId)
-      .neq('status', 'DISMISSED'),
+      .not('status', 'in', NON_INCOME_TRANSACTION_STATUSES_FILTER),
     supabase
       .from('invoices')
       .select('amount')
