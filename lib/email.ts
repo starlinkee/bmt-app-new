@@ -30,20 +30,11 @@ type SendParams = {
 }
 
 async function sendEmail({ to, subject, html, attachments = [], cfg }: SendParams) {
-  let finalTo = to;
-  let finalSubject = subject;
-  let finalHtml = html;
-  
+  const finalTo = to;
+  const finalSubject = subject;
+  const finalHtml = html;
+
   const isPreview = process.env.VERCEL_ENV === 'preview' || process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview';
-  if (isPreview) {
-    finalSubject = `[PREVIEW] ${subject}`;
-    const originalRecipients = Array.isArray(to) ? to.join(', ') : to;
-    finalHtml = `<div style="background: #fff3cd; color: #856404; padding: 10px; margin-bottom: 20px; border: 1px solid #ffeeba;">
-      <strong>⚠️ WIADOMOŚĆ ZE ŚRODOWISKA PREVIEW</strong><br>
-      Oryginalni odbiorcy: ${originalRecipients}
-    </div>${html}`;
-    finalTo = cfg.gmailUser || 'test@example.com';
-  }
 
   if (cfg.provider === 'gmail_smtp') {
     if (!cfg.gmailUser || !cfg.gmailAppPassword) {
