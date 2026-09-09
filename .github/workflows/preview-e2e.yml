@@ -45,6 +45,13 @@ jobs:
           node-version: 22
           cache: npm
 
+      # Obraz Playwrighta jest minimalny i nie ma kompilatora. Potrzebny jest
+      # tylko do zbudowania node-pty (zależność workspace'u skill-runner) -
+      # to lekki, stabilny apt-get z repo Ubuntu (nie mirror Google Chrome,
+      # więc nie ma ryzyka "Hash Sum mismatch" jak przy przeglądarkach).
+      - name: Zainstaluj toolchain do budowania natywnych modułów (node-pty)
+        run: apt-get update && apt-get install -y --no-install-recommends python3 make g++
+
       - name: Install dependencies
         run: npm ci
 
