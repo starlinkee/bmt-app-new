@@ -22,6 +22,14 @@ jobs:
   e2e:
     name: Playwright e2e @ Vercel Preview
     runs-on: ubuntu-latest
+    # Oficjalny obraz Playwrighta ma przeglądarki + wszystkie zależności
+    # systemowe już zainstalowane - zero apt-get w trakcie joba (szybciej
+    # i bez ryzyka fluke'ów typu "Hash Sum mismatch" z mirrora Google Chrome).
+    # WAŻNE: tag obrazu musi się zgadzać z wersją "@playwright/test" w
+    # package.json/package-lock.json - inaczej binarki przeglądarek w obrazie
+    # nie będą pasować do zainstalowanego API testowego.
+    container:
+      image: mcr.microsoft.com/playwright:v1.60.0-noble
     # Odpal tylko dla udanych deployów Preview (czyli NIE Production, i nie failed/pending).
     if: |
       github.event.deployment_status.state == 'success' &&
@@ -34,24 +42,11 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Install Playwright browsers
-        # apt-get bywa niestabilny (np. "Hash Sum mismatch" przy pobieraniu
-        # listy pakietów Google Chrome, gdy mirror aktualizuje się w trakcie
-        # fetch'a) - to fluke infrastruktury, nie błąd w kodzie, więc robimy
-        # kilka prób zanim uznamy krok za faktycznie nieudany.
-        run: |
-          for i in 1 2 3; do
-            npx playwright install --with-deps chromium && exit 0
-            echo "Próba $i nieudana, ponawiam za 10s..."
-            sleep 10
-          done
-          exit 1
 
       - name: Uruchom testy e2e przeciwko Preview
         env:
