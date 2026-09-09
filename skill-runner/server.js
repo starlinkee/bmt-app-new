@@ -97,6 +97,27 @@ if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KE
   supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
 }
 
+// Każde środowisko (production / preview / development) ma własny projekt Supabase,
+// żeby zadania i pliki AI uruchamiane z Vercel Preview/Prod nie mieszały się z Dev.
+const SUPABASE_CONFIGS = {
+  production: { url: process.env.SUPABASE_URL_PRODUCTION, key: process.env.SUPABASE_KEY_PRODUCTION },
+  preview: { url: process.env.SUPABASE_URL_PREVIEW, key: process.env.SUPABASE_KEY_PREVIEW },
+  development: { url: process.env.SUPABASE_URL_DEVELOPMENT, key: process.env.SUPABASE_KEY_DEVELOPMENT },
+}
+const supabaseClientsByEnv = new Map()
+
+function getSupabaseClient(env) {
+  const cfg = SUPABASE_CONFIGS[env]
+  if (cfg && cfg.url && cfg.key) {
+    if (!supabaseClientsByEnv.has(env)) {
+      supabaseClientsByEnv.set(env, createClient(cfg.url, cfg.key))
+    }
+    return supabaseClientsByEnv.get(env)
+  }
+  // Brak dedykowanej konfiguracji dla tego środowiska — użyj domyślnego klienta (wsteczna kompatybilność)
+  return supabase
+}
+
 function loadPrompts() {
   try { return JSON.parse(fs.readFileSync(PROMPTS_FILE, 'utf8')) } catch { return {} }
 }
@@ -174,7 +195,8 @@ function findJobOutputDir(job) {
 }
 
 async function uploadJobFilesToSupabase(job, jobId) {
-  if (!supabase) return;
+  const client = getSupabaseClient(job.env)
+  if (!client) return;
   const dir = findJobOutputDir(job);
   if (!dir) return;
 
@@ -185,9 +207,9 @@ async function uploadJobFilesToSupabase(job, jobId) {
       const buffer = fs.readFileSync(fullPath);
       const ext = path.extname(name).toLowerCase();
       const contentType = FILE_MIME_TYPES[ext] || 'application/octet-stream';
-      
+
       const remotePath = `ai-files/${job.skill}/${jobId}/${name}`;
-      const { error } = await supabase.storage.from('invoices').upload(remotePath, buffer, {
+      const { error } = await client.storage.from('invoices').upload(remotePath, buffer, {
         contentType,
         upsert: true
       });
@@ -261,14 +283,16 @@ function spawnGemini(workDir) {
 app.post('/run-skill', async (req, res) => {
   if (!requireToken(req, res)) return
 
-  const { skill } = req.body || {}
+  const { skill, env: rawEnv } = req.body || {}
   if (!skill) {
     return res.status(400).json({ error: `Skill not found: ${skill}` })
   }
+  const env = SUPABASE_CONFIGS[rawEnv] ? rawEnv : 'development'
+  const client = getSupabaseClient(env)
 
   let content = '';
-  if (supabase) {
-    const { data } = await supabase.from('skill_prompts').select('prompt').eq('id', skill).single();
+  if (client) {
+    const { data } = await client.from('skill_prompts').select('prompt').eq('id', skill).single();
     if (data) content = data.prompt;
   } else {
     const prompts = loadPrompts();
@@ -280,7 +304,7 @@ app.post('/run-skill', async (req, res) => {
   }
 
   const jobId = crypto.randomUUID()
-  jobs.set(jobId, { status: 'running', startedAt: new Date().toISOString(), skill, output: '', proc: null })
+  jobs.set(jobId, { status: 'running', startedAt: new Date().toISOString(), skill, env, output: '', proc: null })
   res.json({ jobId, status: 'started', skill })
 
   applyPrompt(skill, content)
