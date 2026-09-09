@@ -1,13 +1,23 @@
 'use client'
 
 import { use, useEffect, useState, useTransition } from 'react'
-import { getTenantReadingsContext, getTargetMonthYear, hasAlreadySubmitted, saveReadings } from './actions'
+import { getTenantReadingsContext, getTargetMonthYear, hasAlreadySubmitted, getPreviousMeterReadings, saveReadings } from './actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { LiveClock } from '@/components/live-clock'
 
 const MONTHS = ['Stycznia', 'Lutego', 'Marca', 'Kwietnia', 'Maja', 'Czerwca', 'Lipca', 'Sierpnia', 'Września', 'Października', 'Listopada', 'Grudnia']
+
+type TenantReadingEntry = { key: string; label: string }
+
+// Wspiera stary format (klucze jako string[]) obok nowego ({key,label}[]).
+function normalizeReadingEntries(raw: unknown): TenantReadingEntry[] {
+  if (!Array.isArray(raw)) return []
+  return raw.map((e) =>
+    typeof e === 'string' ? { key: e, label: e.replace(/_/g, ' ') } : { key: e.key, label: e.label || e.key.replace(/_/g, ' ') }
+  )
+}
 
 export default function TenantReadingsPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
@@ -18,6 +28,7 @@ export default function TenantReadingsPage({ params }: { params: Promise<{ token
   const [loading, setLoading] = useState(true)
   const [pending, startTransition] = useTransition()
   const [values, setValues] = useState<Record<number, Record<string, string>>>({})
+  const [previousReadings, setPreviousReadings] = useState<Record<number, Record<string, number>>>({})
 
   useEffect(() => {
     async function load() {
@@ -29,17 +40,21 @@ export default function TenantReadingsPage({ params }: { params: Promise<{ token
       if (data && data.groups) {
         const statuses: Record<number, boolean> = {}
         const initVals: Record<number, Record<string, string>> = {}
+        const prevReadings: Record<number, Record<string, number>> = {}
         for (const g of data.groups) {
-          const trk = (g.tenant_reading_keys as Record<string, string[]>) || {}
-          const keys = trk[data.tenant.id.toString()] || []
+          const trk = (g.tenant_reading_keys as Record<string, unknown>) || {}
+          const entries = normalizeReadingEntries(trk[data.tenant.id.toString()])
+          const keys = entries.map((e) => e.key)
           statuses[g.id] = await hasAlreadySubmitted(g.id, d.month, d.year, keys)
+          prevReadings[g.id] = await getPreviousMeterReadings(g.id, d.month, d.year, keys)
           initVals[g.id] = {}
-          for (const key of keys) {
-            initVals[g.id][key] = ''
+          for (const entry of entries) {
+            initVals[g.id][entry.key] = ''
           }
         }
         setSubmittedGroups(statuses)
         setValues(initVals)
+        setPreviousReadings(prevReadings)
       }
       setLoading(false)
     }
@@ -115,25 +130,33 @@ export default function TenantReadingsPage({ params }: { params: Promise<{ token
               <h3 className="font-semibold border-b pb-3">{group.name}</h3>
               
               <div className="space-y-4">
-                {(((group.tenant_reading_keys as Record<string, string[]>) || {})[ctx.tenant.id.toString()] || []).map((key: string) => (
-                  <div key={key} className="space-y-2">
-                    <Label className="text-sm font-medium">{key.replace(/_/g, ' ')}</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={values[group.id]?.[key] || ''}
-                      onChange={e => setValues({
-                        ...values,
-                        [group.id]: {
-                          ...values[group.id],
-                          [key]: e.target.value
-                        }
-                      })}
-                      className="text-lg"
-                    />
-                  </div>
-                ))}
+                {normalizeReadingEntries((group.tenant_reading_keys as Record<string, unknown>)?.[ctx.tenant.id.toString()]).map((entry) => {
+                  const prevValue = previousReadings[group.id]?.[entry.key]
+                  return (
+                    <div key={entry.key} className="space-y-2">
+                      <Label className="text-sm font-medium">{entry.label}</Label>
+                      <p className="text-xs text-muted-foreground">
+                        {prevValue !== undefined
+                          ? `Poprzedni odczyt: ${prevValue}`
+                          : 'Brak poprzedniego odczytu w systemie'}
+                      </p>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={values[group.id]?.[entry.key] || ''}
+                        onChange={e => setValues({
+                          ...values,
+                          [group.id]: {
+                            ...values[group.id],
+                            [entry.key]: e.target.value
+                          }
+                        })}
+                        className="text-lg"
+                      />
+                    </div>
+                  )
+                })}
               </div>
 
               <Button 

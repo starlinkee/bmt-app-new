@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { updateTransaction, getTransactionAmendments } from './actions'
+import { ConfirmEditDialog } from '@/components/ui/confirm-edit-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -41,6 +42,7 @@ export function EditTransactionButton({
   hasAmendments: boolean
 }) {
   const [editOpen, setEditOpen] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [amount, setAmount] = useState(String(currentAmount))
   const [title, setTitle] = useState(currentTitle)
@@ -72,10 +74,16 @@ export function EditTransactionButton({
       toast.error('Nieprawidłowa kwota.')
       return
     }
+    setConfirmOpen(true)
+  }
+
+  function performSave() {
+    const num = parseFloat(amount.replace(',', '.'))
     startTransition(async () => {
       await updateTransaction(txId, tenantId, { amount: num, title, date }, note || undefined)
       toast.success('Transakcja zaktualizowana.')
       setEditOpen(false)
+      setConfirmOpen(false)
       router.refresh()
     })
   }
@@ -144,6 +152,28 @@ export function EditTransactionButton({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmEditDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        onConfirm={performSave}
+        pending={pending}
+        originalData={{
+          amount: currentAmount,
+          title: currentTitle,
+          date: currentDate,
+        }}
+        newData={{
+          amount: parseFloat(amount.replace(',', '.')),
+          title,
+          date,
+        }}
+        labels={{
+          amount: 'Kwota',
+          title: 'Tytuł / opis',
+          date: 'Data',
+        }}
+      />
 
       <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
         <DialogContent className="max-w-lg">

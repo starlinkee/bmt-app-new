@@ -9,7 +9,8 @@ import { getTenants, createTenant, updateTenant, deleteTenant } from './actions'
 import { getProperties } from '@/app/(dashboard)/nieruchomosci/actions'
 import { getAppConfig } from '@/app/(dashboard)/ustawienia/actions'
 import { QUERY_KEYS } from '@/lib/queryKeys'
-import { Button } from '@/components/ui/button'
+import { ConfirmEditDialog } from '@/components/ui/confirm-edit-dialog'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -36,14 +37,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
 import { Pencil, Trash2, Plus, ExternalLink, ChevronUp, ChevronDown, ChevronsUpDown, Link2 } from 'lucide-react'
 import { TableFilterBar } from '@/components/ui/table-filter-bar'
 import { FacetedFilter } from '@/components/ui/faceted-filter'
 
 type Tenant = Awaited<ReturnType<typeof getTenants>>[number]
 type Property = Awaited<ReturnType<typeof getProperties>>[number]
-type SortKey = 'name' | 'property' | 'type' | 'email' | 'phone' | 'contracts'
+type SortKey = 'id' | 'name' | 'property' | 'type' | 'email' | 'phone' | 'contracts'
 type SortDir = 'asc' | 'desc'
 
 function matchesTenantFilter(t: Tenant, text: string): boolean {
@@ -60,7 +60,10 @@ function sortTenants(tenants: Tenant[], key: SortKey, dir: SortDir): Tenant[] {
   return [...tenants].sort((a, b) => {
     let va: string | number = ''
     let vb: string | number = ''
-    if (key === 'name') {
+    if (key === 'id') {
+      va = a.id
+      vb = b.id
+    } else if (key === 'name') {
       va = `${a.last_name} ${a.first_name}`.toLowerCase()
       vb = `${b.last_name} ${b.first_name}`.toLowerCase()
     } else if (key === 'property') {
@@ -128,13 +131,12 @@ export default function TenantsPage() {
   const [editing, setEditing] = useState<Tenant | null>(null)
   const [form, setForm] = useState(emptyForm())
   const [pending, startTransition] = useTransition()
-  const [sortKey, setSortKey] = useState<SortKey>('type')
+  const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [filterText, setFilterText] = useState('')
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   const [propertyNames, setPropertyNames] = useState<Set<string>>(new Set())
-  const [tenantTypes, setTenantTypes] = useState<Set<string>>(new Set())
-
   useEffect(() => {
     const sk = sessionStorage.getItem('tenants_sortKey') as SortKey | null
     const sd = sessionStorage.getItem('tenants_sortDir') as SortDir | null
@@ -161,10 +163,8 @@ export default function TenantsPage() {
 
   const facetedTenants = tenants.filter(t => {
     const pName = (t.properties as unknown as { name: string } | null)?.name ?? ''
-    const tType = t.tenant_type
 
     if (propertyNames.size > 0 && !propertyNames.has(pName)) return false
-    if (tenantTypes.size > 0 && !tenantTypes.has(tType)) return false
     return true
   })
 
@@ -211,6 +211,14 @@ export default function TenantsPage() {
       return
     }
 
+    if (editing) {
+      setConfirmOpen(true)
+    } else {
+      performSave()
+    }
+  }
+
+  function performSave() {
     const payload = {
       tenant_type: form.tenant_type,
       first_name: form.first_name,
@@ -236,6 +244,7 @@ export default function TenantsPage() {
         toast.success('Najemca dodany.')
       }
       setOpen(false)
+      setConfirmOpen(false)
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tenants })
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.contracts })
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.properties })
@@ -279,25 +288,20 @@ export default function TenantsPage() {
           selectedValues={propertyNames}
           onSelectedChange={setPropertyNames}
         />
-        <FacetedFilter
-          title="Typ"
-          options={[{ label: 'PRIVATE', value: 'PRIVATE' }, { label: 'BUSINESS', value: 'BUSINESS' }]}
-          selectedValues={tenantTypes}
-          onSelectedChange={setTenantTypes}
-        />
+
       </div>
 
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-16 cursor-pointer select-none" onClick={() => handleSort('id' as any)}>
+              ID<SortIcon col={'id' as any} sortKey={sortKey} sortDir={sortDir} />
+            </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('name')}>
               Imię i nazwisko<SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('property')}>
               Nieruchomość<SortIcon col="property" sortKey={sortKey} sortDir={sortDir} />
-            </TableHead>
-            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('type')}>
-              Typ<SortIcon col="type" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('email')}>
               E-mail<SortIcon col="email" sortKey={sortKey} sortDir={sortDir} />
@@ -308,12 +312,15 @@ export default function TenantsPage() {
             <TableHead className="cursor-pointer select-none text-center" onClick={() => handleSort('contracts')}>
               Umowy<SortIcon col="contracts" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
+            <TableHead>Rozliczenia</TableHead>
+            <TableHead>Odczyty</TableHead>
             <TableHead className="w-24" />
           </TableRow>
         </TableHeader>
         <TableBody>
           {sortedTenants.map((t) => (
             <TableRow key={t.id}>
+              <TableCell className="text-muted-foreground">{t.id}</TableCell>
               <TableCell className="font-medium">
                 <div>{t.first_name} {t.last_name}</div>
                 {(t as unknown as { company_name?: string | null }).company_name && (
@@ -326,38 +333,47 @@ export default function TenantsPage() {
                 {(t.properties as unknown as { name: string } | null)?.name}
               </TableCell>
               <TableCell>
-                <Badge variant={t.tenant_type === 'BUSINESS' ? 'default' : 'secondary'}>
-                  {t.tenant_type}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                {t.email}
-                {(t as unknown as { email2?: string | null }).email2 && (
-                  <span className="text-muted-foreground">, {(t as unknown as { email2: string }).email2}</span>
-                )}
+                <div className="flex items-center gap-1.5">
+                  <span>{t.email}</span>
+                  {(t as unknown as { email2?: string | null }).email2 && (
+                    <span 
+                      className="inline-flex items-center justify-center rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground cursor-help"
+                      title={(t as unknown as { email2: string }).email2}
+                    >
+                      +1
+                    </span>
+                  )}
+                </div>
               </TableCell>
               <TableCell>{t.phone}</TableCell>
               <TableCell className="text-center">
                 {(t.contracts as unknown as unknown[])?.length ?? 0}
               </TableCell>
               <TableCell>
-                <div className="flex gap-1">
-                  <Link
-                    href={`/najemcy/${t.id}`}
-                    className="inline-flex items-center justify-center h-8 w-8 rounded-lg hover:bg-muted transition-colors"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                  </Link>
-                  {((t.contracts as unknown as { is_active: boolean; has_media_invoice: boolean }[]) || []).some(c => c.is_active && c.has_media_invoice) && (
-                    <Button variant="ghost" size="icon" onClick={() => {
-                      const url = `${window.location.origin}/odczyty/${(t as Record<string, unknown>).reading_token}`
-                      navigator.clipboard.writeText(url)
-                      toast.success('Link do odczytów skopiowany!')
-                    }} title="Kopiuj link do odczytów">
-                      <Link2 className="h-4 w-4" />
-                    </Button>
-                  )}
-
+                <Link
+                  href={`/najemcy/${t.id}`}
+                  className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                >
+                  <ExternalLink className="h-4 w-4 mr-1" />
+                  Historia
+                </Link>
+              </TableCell>
+              <TableCell>
+                {((t.contracts as unknown as { is_active: boolean; has_media_invoice: boolean }[]) || []).some(c => c.is_active && c.has_media_invoice) ? (
+                  <Button variant="outline" size="sm" onClick={() => {
+                    const url = `${window.location.origin}/odczyty/${(t as Record<string, unknown>).reading_token}`
+                    navigator.clipboard.writeText(url)
+                    toast.success('Link do odczytów skopiowany!')
+                  }}>
+                    <Link2 className="h-4 w-4 mr-1" />
+                    Kopiuj link
+                  </Button>
+                ) : (
+                  <span className="text-muted-foreground text-xs">nie podaje</span>
+                )}
+              </TableCell>
+              <TableCell>
+                <div className="flex gap-1 justify-end">
                   <Button variant="ghost" size="icon" onClick={() => openEdit(t)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
@@ -508,6 +524,48 @@ export default function TenantsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmEditDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        onConfirm={performSave}
+        pending={pending}
+        originalData={
+          editing
+            ? {
+                tenant_type: editing.tenant_type,
+                first_name: editing.first_name,
+                last_name: editing.last_name,
+                company_name: (editing as unknown as { company_name?: string | null }).company_name ?? '',
+                email: editing.email ?? '',
+                email2: (editing as unknown as { email2?: string | null }).email2 ?? '',
+                phone: editing.phone ?? '',
+                bank_accounts_as_text: editing.bank_accounts_as_text,
+                nip: editing.nip ?? '',
+                address1: editing.address1 ?? '',
+                address2: editing.address2 ?? '',
+                property_id: String(editing.property_id),
+                sender_account: String((editing as unknown as { sender_account?: number | null }).sender_account ?? 1),
+              }
+            : null
+        }
+        newData={form}
+        labels={{
+          tenant_type: 'Typ najemcy',
+          first_name: 'Imię',
+          last_name: 'Nazwisko',
+          company_name: 'Nazwa firmy',
+          email: 'E-mail',
+          email2: 'E-mail 2',
+          phone: 'Telefon',
+          bank_accounts_as_text: 'Konta bankowe',
+          nip: 'NIP',
+          address1: 'Adres',
+          address2: 'Adres 2',
+          property_id: 'Nieruchomość',
+          sender_account: 'Konto nadawcy',
+        }}
+      />
     </div>
   )
 }

@@ -3,18 +3,51 @@
 import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/service'
 import { parseCsv } from '@/lib/csvParser'
+import { parsePdf } from '@/lib/pdfParser'
 import { matchTransaction } from '@/lib/matcher'
 import { logAudit } from '@/lib/audit'
 import fs from 'fs/promises'
 import path from 'path'
 import crypto from 'crypto'
 
-export async function importCsvTransactions(csvContent: string, fileName: string = 'unknown.csv') {
+export async function importBankStatement(
+  content: string,
+  fileName: string = 'unknown.csv',
+  dayFrom?: number,
+  dayTo?: number,
+  pdfSlot?: 1 | 2,
+) {
   const supabase = createServiceClient()
-  const { bank, transactions, skipped, skippedTransactions } = parseCsv(csvContent)
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (supabase as any).from('transaction_staging').delete().neq('id', 0)
+  let parseResult;
+  if (fileName.toLowerCase().endsWith('.pdf')) {
+    // If it's a base64 string from readAsDataURL, strip the prefix
+    const base64Data = content.replace(/^data:application\/pdf;base64,/, '');
+    const buffer = Buffer.from(base64Data, 'base64');
+    parseResult = await parsePdf(buffer);
+  } else {
+    parseResult = parseCsv(content);
+  }
+
+  const { bank } = parseResult
+  let { transactions, skippedTransactions, skipped } = parseResult
+
+  // Opcjonalne przycięcie do dnia miesiąca — pozwala wgrać dwa pokrywające się
+  // wyciągi (np. cały poprzedni i cały bieżący miesiąc) bez duplikowania tych
+  // samych transakcji: jeden plik ogranicza się np. od 16. dnia, drugi do 15.
+  // Zakres dotyczy dnia miesiąca (1-31), nie konkretnej daty — użytkownik sam
+  // wie, ile dni ma dany miesiąc.
+  if (dayFrom || dayTo) {
+    const dayOf = (d: string) => Number(d.slice(8, 10))
+    const inRange = (d: string) => {
+      const day = dayOf(d)
+      return (!dayFrom || day >= dayFrom) && (!dayTo || day <= dayTo)
+    }
+    const outOfRangeCount = transactions.filter((tx) => !inRange(tx.date)).length
+    transactions = transactions.filter((tx) => inRange(tx.date))
+    skippedTransactions = skippedTransactions.filter((tx) => inRange(tx.date))
+    skipped += outOfRangeCount
+  }
 
   const { data: tenants } = await supabase
     .from('tenants')
@@ -63,14 +96,27 @@ export async function importCsvTransactions(csvContent: string, fileName: string
       .eq('type', 'BANK')
       .eq('bank_account', tx.bankAccount ?? '')
 
-    const isDuplicate = (count ?? 0) > 0
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { count: stagingCount } = await (supabase as any)
+      .from('transaction_staging')
+      .select('*', { count: 'exact', head: true })
+      .eq('date', tx.date)
+      .eq('amount', tx.amount)
+      .eq('bank_account', tx.bankAccount ?? '')
+
+    const isDuplicate = (count ?? 0) > 0 || (stagingCount ?? 0) > 0
     if (isDuplicate) duplicates++
 
     const txAccountNorm = tx.bankAccount ? tx.bankAccount.replace(/\s/g, '') : ''
     let suggestedTenantId = null
+    let autoReject = false
 
-    if (txAccountNorm && ignoredAccountsList.some((acc: string) => txAccountNorm.includes(acc) || acc.includes(txAccountNorm))) {
-      suggestedTenantId = -1
+    if (tx.amount <= 0) {
+      autoReject = true
+    } else if (txAccountNorm && ignoredAccountsList.some((acc: string) => txAccountNorm.includes(acc) || acc.includes(txAccountNorm))) {
+      autoReject = true
+    } else if (isDuplicate) {
+      autoReject = true
     } else {
       const tenant = matchTransaction(tx.bankAccount, tenants ?? [])
       if (tenant) {
@@ -78,16 +124,30 @@ export async function importCsvTransactions(csvContent: string, fileName: string
       }
     }
 
+    const rawDataWithFlag = tx.rawData ? { ...tx.rawData } : {}
+    if (autoReject) {
+      // @ts-ignore
+      rawDataWithFlag._auto_reject = true
+      if (isDuplicate) {
+        // @ts-ignore
+        rawDataWithFlag._auto_reject_reason = 'duplicate'
+      }
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any).from('transaction_staging').insert({
+    const { error: insertError } = await (supabase as any).from('transaction_staging').insert({
       amount: tx.amount,
       date: tx.date,
       title: tx.title,
       bank_account: tx.bankAccount,
-      raw_data: tx.rawData ?? null,
+      raw_data: Object.keys(rawDataWithFlag).length > 0 ? rawDataWithFlag : null,
       suggested_tenant_id: suggestedTenantId,
       is_duplicate: isDuplicate,
     })
+    
+    if (insertError) {
+      console.error('Failed to insert tx into staging:', insertError)
+    }
 
     if (suggestedTenantId !== null) {
       withSuggestion++
@@ -101,11 +161,33 @@ export async function importCsvTransactions(csvContent: string, fileName: string
   const safeName = fileName.replace(/[^a-zA-Z0-9.\-_]/g, '_')
   const savedFileName = `${crypto.randomUUID()}_${safeName}`
   const filePath = path.join(attachDir, savedFileName)
-  await fs.writeFile(filePath, csvContent, 'utf-8')
+  
+  if (fileName.toLowerCase().endsWith('.pdf')) {
+    const base64Data = content.replace(/^data:application\/pdf;base64,/, '');
+    await fs.writeFile(filePath, Buffer.from(base64Data, 'base64'));
+  } else {
+    await fs.writeFile(filePath, content, 'utf-8')
+  }
 
-  const summary = { bank, total: transactions.length, withSuggestion, withoutSuggestion, skipped, duplicates, minDate: minDate === '9999-12-31' ? null : minDate, maxDate: maxDate === '0000-01-01' ? null : maxDate, savedFileName, originalFileName: fileName }
+  const summary = {
+    bank,
+    total: transactions.length,
+    withSuggestion,
+    withoutSuggestion,
+    skipped,
+    duplicates,
+    minDate: minDate === '9999-12-31' ? null : minDate,
+    maxDate: maxDate === '0000-01-01' ? null : maxDate,
+    savedFileName,
+    originalFileName: fileName,
+    // Zapisujemy wybrany zakres dni (i slot, jeśli to import z sekcji "2 wyciągi PDF"),
+    // żeby przy kolejnym imporcie móc podpowiedzieć, jaki zakres był użyty poprzednio.
+    dayFrom: dayFrom ?? null,
+    dayTo: dayTo ?? null,
+    pdfSlot: pdfSlot ?? null,
+  }
   await logAudit({
-    actionName: 'importCsvTransactions',
+    actionName: 'importBankStatement',
     tableName: 'transaction_staging',
     operation: 'IMPORT',
     afterData: summary,
@@ -124,7 +206,7 @@ export async function getLastImportInfo() {
   const { data, error } = await supabase
     .from('audit_log')
     .select('after_data, created_at')
-    .eq('action_name', 'importCsvTransactions')
+    .eq('action_name', 'importBankStatement')
     .order('created_at', { ascending: false })
     .limit(1)
     .single()
@@ -141,12 +223,50 @@ export async function getLastImportInfo() {
   }
 }
 
+// Zwraca zakres dni (od/do) użyty przy ostatnim imporcie PDF dla danego slotu
+// (1 lub 2) w sekcji "Wgraj 2 wyciągi PDF". Dzięki temu przy kolejnym imporcie
+// (dla bieżącego miesiąca) można podpowiedzieć, jaki zakres wybrano poprzednio
+// dla tego samego dokumentu/konta.
+export async function getLastPdfSlotRange(pdfSlot: 1 | 2) {
+  const supabase = createServiceClient()
+  const { data, error } = await supabase
+    .from('audit_log')
+    .select('after_data, created_at')
+    .eq('action_name', 'importBankStatement')
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  if (error || !data) return null
+
+  type Summary = {
+    dayFrom?: number | null
+    dayTo?: number | null
+    pdfSlot?: number | null
+    minDate?: string | null
+    maxDate?: string | null
+    originalFileName?: string
+  }
+
+  const match = data.find((row) => (row.after_data as Summary | null)?.pdfSlot === pdfSlot)
+  if (!match) return null
+
+  const summary = match.after_data as Summary
+  return {
+    dayFrom: summary.dayFrom ?? null,
+    dayTo: summary.dayTo ?? null,
+    minDate: summary.minDate ?? null,
+    maxDate: summary.maxDate ?? null,
+    originalFileName: summary.originalFileName,
+    created_at: match.created_at,
+  }
+}
+
 export async function getImportHistoryList() {
   const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('audit_log')
     .select('id, after_data, created_at')
-    .eq('action_name', 'importCsvTransactions')
+    .eq('action_name', 'importBankStatement')
     .order('created_at', { ascending: false })
     
   if (error) throw error

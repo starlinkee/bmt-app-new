@@ -30,6 +30,21 @@ type SendParams = {
 }
 
 async function sendEmail({ to, subject, html, attachments = [], cfg }: SendParams) {
+  let finalTo = to;
+  let finalSubject = subject;
+  let finalHtml = html;
+  
+  const isPreview = process.env.VERCEL_ENV === 'preview' || process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview';
+  if (isPreview) {
+    finalSubject = `[PREVIEW] ${subject}`;
+    const originalRecipients = Array.isArray(to) ? to.join(', ') : to;
+    finalHtml = `<div style="background: #fff3cd; color: #856404; padding: 10px; margin-bottom: 20px; border: 1px solid #ffeeba;">
+      <strong>⚠️ WIADOMOŚĆ ZE ŚRODOWISKA PREVIEW</strong><br>
+      Oryginalni odbiorcy: ${originalRecipients}
+    </div>${html}`;
+    finalTo = cfg.gmailUser || 'test@example.com';
+  }
+
   if (cfg.provider === 'gmail_smtp') {
     if (!cfg.gmailUser || !cfg.gmailAppPassword) {
       throw new Error('Gmail SMTP skonfigurowany ale brak adresu lub hasła aplikacji.')
@@ -42,24 +57,25 @@ async function sendEmail({ to, subject, html, attachments = [], cfg }: SendParam
     })
     await transporter.sendMail({
       from: cfg.gmailUser,
-      to,
-      subject,
-      html,
+      to: finalTo,
+      subject: finalSubject,
+      html: finalHtml,
       attachments: attachments.map((a) => ({ filename: a.filename, content: a.content })),
     })
 
     try {
       const supabase = createServiceClient()
-      const recipients = Array.isArray(to) ? to.join(', ') : to
+      const recipientsStr = Array.isArray(finalTo) ? finalTo.join(', ') : finalTo
       
       const savedAttachments = []
       if (attachments && attachments.length > 0) {
         for (const a of attachments) {
           const uniqueName = crypto.randomUUID() + '_' + a.filename
+          const uploadPath = isPreview ? `preview/emails/${uniqueName}` : `emails/${uniqueName}`
           
           const { error: uploadError } = await supabase.storage
             .from('invoices')
-            .upload(`emails/${uniqueName}`, a.content, { 
+            .upload(uploadPath, a.content, { 
               contentType: a.filename.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream' 
             })
           
@@ -75,9 +91,9 @@ async function sendEmail({ to, subject, html, attachments = [], cfg }: SendParam
       }
 
       await supabase.from('email_logs').insert({
-        to_email: recipients,
-        subject,
-        body: html,
+        to_email: recipientsStr,
+        subject: finalSubject,
+        body: finalHtml,
         attachments: savedAttachments.length > 0 ? savedAttachments : null,
       })
     } catch (e) {
@@ -86,6 +102,11 @@ async function sendEmail({ to, subject, html, attachments = [], cfg }: SendParam
   } else {
     throw new Error(`Nieobsługiwany dostawca email: ${cfg.provider}`)
   }
+}
+
+function withTypeLabel(subject: string, typeLabel: string, propertyName?: string | null) {
+  const prefix = propertyName ? `${propertyName} – ${typeLabel}` : typeLabel
+  return `${prefix}: ${subject}`
 }
 
 const DEFAULT_RENT_EMAIL_SUBJECT = 'Faktura czynszu {numer_rachunku}'
@@ -103,6 +124,7 @@ export async function sendRentEmail(
   senderAccount: 1 | 2 = 1,
   subjectTemplate?: string | null,
   bodyTemplate?: string | null,
+  propertyName?: string | null,
 ) {
   const cfg = await getProviderConfig()
   const vars: Record<string, string> = {
@@ -113,7 +135,7 @@ export async function sendRentEmail(
     rok: String(year),
   }
   const applyVars = (tpl: string) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '')
-  const subject = applyVars(subjectTemplate || DEFAULT_RENT_EMAIL_SUBJECT)
+  const subject = withTypeLabel(applyVars(subjectTemplate || DEFAULT_RENT_EMAIL_SUBJECT), 'Czynsz', propertyName)
   const bodyText = applyVars(bodyTemplate || DEFAULT_RENT_EMAIL_BODY)
   const html = bodyText.split('\n').map(l => `<p>${l}</p>`).join('')
   const attachments = pdfBuffer
@@ -140,6 +162,7 @@ export async function sendMediaEmail(
   subjectTemplate?: string | null,
   bodyTemplate?: string | null,
   senderAccount: 1 | 2 = 1,
+  propertyName?: string | null,
 ) {
   const cfg = await getProviderConfig()
   const vars: Record<string, string> = {
@@ -149,9 +172,11 @@ export async function sendMediaEmail(
     miesiac: String(month),
     rok: String(year),
   }
-  const subject = subjectTemplate
-    ? applyMediaTemplate(subjectTemplate, vars)
-    : `Faktura media ${invoiceNumber}`
+  const subject = withTypeLabel(
+    subjectTemplate ? applyMediaTemplate(subjectTemplate, vars) : `Faktura media ${invoiceNumber}`,
+    'Media',
+    propertyName,
+  )
   const bodyText = bodyTemplate
     ? applyMediaTemplate(bodyTemplate, vars)
     : `Szanowny/a ${tenantName},\nW załączeniu rozliczenie mediów nr ${invoiceNumber} za ${month}/${year} na kwotę ${formatAmount(amount)}.\n\nPozdrawiamy,\nBMT`
@@ -168,39 +193,6 @@ export async function sendMediaEmail(
   })
 }
 
-function applyReminderTemplate(
-  template: string,
-  tenantName: string,
-  month: number,
-  year: number,
-  rentAmount: number,
-): string {
-  return template
-    .replace(/\{imie\}/gi, tenantName)
-    .replace(/\{miesiac\}/gi, String(month))
-    .replace(/\{rok\}/gi, String(year))
-    .replace(/\{kwota\}/gi, formatAmount(rentAmount))
-}
-
-export async function sendPrivateMonthlyReminder(
-  to: string | string[],
-  tenantName: string,
-  month: number,
-  year: number,
-  rentAmount: number,
-  subjectTemplate: string,
-  bodyTemplate: string,
-  senderAccount: 1 | 2 = 1,
-) {
-  const cfg = await getProviderConfig()
-  const subject = applyReminderTemplate(subjectTemplate, tenantName, month, year, rentAmount)
-  const html = applyReminderTemplate(bodyTemplate, tenantName, month, year, rentAmount)
-    .split('\n')
-    .map((line) => `<p>${line}</p>`)
-    .join('')
-  await sendEmail({ to, subject, html, cfg })
-}
-
 export async function sendStatementEmail(
   to: string | string[],
   tenantName: string,
@@ -209,6 +201,7 @@ export async function sendStatementEmail(
   senderAccount: 1 | 2 = 1,
   subjectTemplate?: string,
   bodyTemplate?: string,
+  propertyName?: string | null,
 ) {
   const cfg = await getProviderConfig()
   const vars: Record<string, string> = {
@@ -216,11 +209,11 @@ export async function sendStatementEmail(
     saldo: formatAmount(balance),
   }
   const applyVars = (tpl: string) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '')
-  
+
   const subjectText = subjectTemplate || 'Rozliczenie wpłat i rachunków - BMT'
   const bodyText = bodyTemplate || 'Szanowny/a {imie},\n\nPrzesyłamy w załączeniu aktualne podsumowanie Państwa konta. Saldo na dzień dzisiejszy wynosi: {saldo}.\n\nProsimy o uregulowanie należności.\n\nPozdrawiamy,\nBMT'
 
-  const subject = applyVars(subjectText)
+  const subject = withTypeLabel(applyVars(subjectText), 'Rozliczenie salda', propertyName)
   const html = applyVars(bodyText).split('\n').map(l => l ? `<p>${l}</p>` : '<br>').join('')
   
   const attachments = [{ filename: 'Wyciag_z_konta.pdf', content: pdfBuffer }]

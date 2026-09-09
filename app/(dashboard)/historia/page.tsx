@@ -25,7 +25,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 type AuditLog = Awaited<ReturnType<typeof getAuditLogs>>[number]
-type SortKey = 'created_at' | 'action_name' | 'table_name' | 'operation'
+type SortKey = 'id' | 'created_at' | 'action_name' | 'table_name' | 'operation'
 type SortDir = 'asc' | 'desc'
 
 const OPERATION_LABELS: Record<string, string> = {
@@ -66,7 +66,7 @@ const ACTION_LABELS: Record<string, string> = {
   revaluateContract:         'Waloryzuj umowę',
   reconcileTransaction:      'Powiąż transakcję',
   dismissTransaction:        'Odrzuć transakcję',
-  importCsvTransactions:     'Import CSV',
+  importBankStatement:       'Import wyciągu',
   updateTransactionCategory: 'Zmień kategorię',
   upsertAppConfig:           'Edytuj ustawienia',
   createSettlementGroup:     'Dodaj grupę mediów',
@@ -363,9 +363,10 @@ export default function AuditPage() {
   })
 
   const sorted = [...filtered].sort((a, b) => {
-    let va = ''
-    let vb = ''
-    if (sortKey === 'created_at')  { va = a.created_at; vb = b.created_at }
+    let va: string | number = ''
+    let vb: string | number = ''
+    if (sortKey === 'id')          { va = a.id; vb = b.id }
+    else if (sortKey === 'created_at')  { va = a.created_at; vb = b.created_at }
     else if (sortKey === 'action_name') { va = (ACTION_LABELS[a.action_name] ?? a.action_name).toLowerCase(); vb = (ACTION_LABELS[b.action_name] ?? b.action_name).toLowerCase() }
     else if (sortKey === 'table_name')  { va = (TABLE_LABELS[a.table_name ?? ''] ?? a.table_name ?? '').toLowerCase(); vb = (TABLE_LABELS[b.table_name ?? ''] ?? b.table_name ?? '').toLowerCase() }
     else if (sortKey === 'operation')   { va = a.operation; vb = b.operation }
@@ -434,6 +435,9 @@ export default function AuditPage() {
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="cursor-pointer select-none w-16" onClick={() => handleSort('id')}>
+              ID<SortIcon col="id" sortKey={sortKey} sortDir={sortDir} />
+            </TableHead>
             <TableHead className="cursor-pointer select-none w-44" onClick={() => handleSort('created_at')}>
               Czas<SortIcon col="created_at" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
@@ -453,12 +457,12 @@ export default function AuditPage() {
         <TableBody>
           {isLoading && (
             <TableRow>
-              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">Ładowanie…</TableCell>
+              <TableCell colSpan={7} className="text-center text-muted-foreground py-8">Ładowanie…</TableCell>
             </TableRow>
           )}
           {!isLoading && sorted.length === 0 && (
             <TableRow>
-              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">Brak wpisów</TableCell>
+              <TableCell colSpan={7} className="text-center text-muted-foreground py-8">Brak wpisów</TableCell>
             </TableRow>
           )}
           {sorted.map((log) => {
@@ -471,6 +475,7 @@ export default function AuditPage() {
                   className={cn('cursor-pointer', isExpanded ? 'bg-muted/50' : 'hover:bg-muted/30')}
                   onClick={() => setExpandedId(isExpanded ? null : log.id)}
                 >
+                  <TableCell className="font-mono text-xs text-muted-foreground">{log.id}</TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">
                     {formatDateTime(log.created_at)}
                   </TableCell>
@@ -495,7 +500,7 @@ export default function AuditPage() {
                 </TableRow>
                 {isExpanded && (
                   <TableRow className="bg-muted/20 hover:bg-muted/20">
-                    <TableCell colSpan={6} className="px-6 pb-4 pt-2">
+                    <TableCell colSpan={7} className="px-6 pb-4 pt-2">
                       <DetailPanel log={log} />
                     </TableCell>
                   </TableRow>

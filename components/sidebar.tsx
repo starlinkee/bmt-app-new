@@ -15,6 +15,8 @@ import {
   History,
   Mail,
   Beaker,
+  Banknote,
+  Database,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { logoutAction } from '@/app/login/actions'
@@ -24,14 +26,19 @@ const dataItems = [
   { href: '/umowy', label: 'Umowy', icon: FileText },
   { href: '/nieruchomosci', label: 'Nieruchomości', icon: Building2 },
   { href: '/najemcy', label: 'Najemcy', icon: Users },
+  { href: '/media', label: 'Media i grupy rozliczeniowe', icon: Gauge },
+]
+
+const historyItems = [
   { href: '/przeplywy', label: 'Przepływy', icon: ArrowLeftRight },
-  { href: '/wiadomosci', label: 'Dziennik wiadomości', icon: Mail },
+  { href: '/wiadomosci', label: 'Wiadomości', icon: Mail },
   { href: '/historia', label: 'Historia operacji', icon: History },
+  { href: '/import/history', label: 'Historia przelewów', icon: Banknote },
 ]
 
 const actionItems = [
   { href: '/kontrola-platnosci', label: 'Kontrola płatności', icon: ClipboardList },
-  { href: '/media', label: 'Rozlicz media', icon: Gauge },
+  { href: '/rozlicz-media', label: 'Rozlicz media', icon: Gauge },
   { href: '/import', label: 'Import CSV', icon: Upload },
 ]
 
@@ -78,8 +85,16 @@ export function Sidebar() {
         <div className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
           Dane
         </div>
-        <ul className="space-y-0.5 px-2">
+        <ul className="space-y-0.5 px-2 mb-4">
           {dataItems.map((item) => (
+            <NavItem key={item.href} {...item} pathname={pathname} />
+          ))}
+        </ul>
+        <div className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          Historia
+        </div>
+        <ul className="space-y-0.5 px-2">
+          {historyItems.map((item) => (
             <NavItem key={item.href} {...item} pathname={pathname} />
           ))}
         </ul>
@@ -91,14 +106,26 @@ export function Sidebar() {
             className={cn(
               'flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors',
               pathname.startsWith('/testowanie')
-                ? 'bg-yellow-500 text-yellow-950 font-medium'
-                : 'text-yellow-600/90 hover:bg-yellow-500/20 hover:text-yellow-700',
+                ? 'bg-primary text-primary-foreground font-medium'
+                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
             )}
           >
             <Beaker className="h-4 w-4 shrink-0" />
             Testowanie
           </Link>
         )}
+        <Link
+          href="/baza-danych"
+          className={cn(
+            'flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors',
+            pathname.startsWith('/baza-danych')
+              ? 'bg-primary text-primary-foreground'
+              : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+          )}
+        >
+          <Database className="h-4 w-4 shrink-0" />
+          Baza danych
+        </Link>
         <Link
           href="/ustawienia"
           className={cn(

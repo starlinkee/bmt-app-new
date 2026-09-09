@@ -17,6 +17,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { FileSpreadsheet } from 'lucide-react'
 
 type Group = Awaited<ReturnType<typeof getSettlementGroup>>
 type FieldDef = string | { range: string; source: 'user' | 'db' | 'auto'; save_key?: string; db_key?: string; auto_type?: 'billing_period' | 'current_date' | 'previous_date' | 'property_address' }
@@ -224,9 +225,15 @@ export default function MediaGroupPage({
 
   return (
     <div className="p-6 space-y-6">
-      <div>
+      <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Media — {group.name}</h1>
-        <span className="text-xs font-mono text-muted-foreground">ID: {group.id}</span>
+        {group.spreadsheet_id && (
+          <Button variant="outline" size="sm" asChild>
+            <a href={`https://docs.google.com/spreadsheets/d/${group.spreadsheet_id}/edit`} target="_blank" rel="noreferrer">
+              <FileSpreadsheet className="h-4 w-4 mr-2" /> Otwórz arkusz
+            </a>
+          </Button>
+        )}
       </div>
 
       {noPreviousReadings && (
