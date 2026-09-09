@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, type KeyboardEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import Link from 'next/link'
@@ -37,6 +37,23 @@ import {
 } from '@/components/ui/table'
 import { TableFilterBar } from '@/components/ui/table-filter-bar'
 import { Pencil, Trash2, Plus, ExternalLink, ChevronUp, ChevronDown, ChevronsUpDown, FileSpreadsheet } from 'lucide-react'
+
+// W polach JSON klawisz Tab wstawia wcięcie (2 spacje) w miejscu kursora,
+// zamiast przenosić fokus do następnego pola formularza.
+function handleJsonTextareaTab(
+  e: KeyboardEvent<HTMLTextAreaElement>,
+  setValue: (v: string) => void
+) {
+  if (e.key !== 'Tab') return
+  e.preventDefault()
+  const el = e.currentTarget
+  const { selectionStart, selectionEnd, value } = el
+  const next = value.slice(0, selectionStart) + '  ' + value.slice(selectionEnd)
+  setValue(next)
+  requestAnimationFrame(() => {
+    el.selectionStart = el.selectionEnd = selectionStart + 2
+  })
+}
 
 type Group = Awaited<ReturnType<typeof getSettlementGroups>>[number]
 type Property = Awaited<ReturnType<typeof getProperties>>[number]
@@ -249,14 +266,22 @@ export default function MediaPage() {
 
   function handleSave() {
     let inputMap: unknown
-    try {
-      inputMap = JSON.parse(form.input_mapping_json)
-      JSON.parse(form.output_mapping_json)
-      JSON.parse(form.pdf_sheets_json)
-    } catch {
-      setJsonError('Nieprawidłowy JSON.')
-      return
+    const jsonFields: { label: string; value: string }[] = [
+      { label: 'Mapowanie wejściowe', value: form.input_mapping_json },
+      { label: 'Mapowanie wyjściowe', value: form.output_mapping_json },
+      { label: 'Arkusze PDF', value: form.pdf_sheets_json },
+    ]
+    for (const field of jsonFields) {
+      try {
+        JSON.parse(field.value)
+      } catch (e) {
+        const msg = `Nieprawidłowy JSON w polu "${field.label}": ${e instanceof Error ? e.message : String(e)}`
+        setJsonError(msg)
+        toast.error(msg)
+        return
+      }
     }
+    inputMap = JSON.parse(form.input_mapping_json)
     setJsonError('')
 
     const validSaveKeys = extractValidSaveKeys(inputMap)
@@ -534,6 +559,7 @@ export default function MediaPage() {
               <Textarea
                 value={form.input_mapping_json}
                 onChange={(e) => setForm({ ...form, input_mapping_json: e.target.value })}
+                onKeyDown={(e) => handleJsonTextareaTab(e, (v) => setForm({ ...form, input_mapping_json: v }))}
                 rows={12}
                 className="font-mono text-xs"
               />
@@ -543,6 +569,7 @@ export default function MediaPage() {
               <Textarea
                 value={form.output_mapping_json}
                 onChange={(e) => setForm({ ...form, output_mapping_json: e.target.value })}
+                onKeyDown={(e) => handleJsonTextareaTab(e, (v) => setForm({ ...form, output_mapping_json: v }))}
                 rows={8}
                 className="font-mono text-xs"
               />
@@ -582,6 +609,7 @@ export default function MediaPage() {
               <Textarea
                 value={form.pdf_sheets_json}
                 onChange={(e) => setForm({ ...form, pdf_sheets_json: e.target.value })}
+                onKeyDown={(e) => handleJsonTextareaTab(e, (v) => setForm({ ...form, pdf_sheets_json: v }))}
                 rows={5}
                 className="font-mono text-xs"
                 placeholder={'[\n  { "tab": "Zakładka", "name": "etykieta", "range": "A1:H30", "portrait": true }\n]'}

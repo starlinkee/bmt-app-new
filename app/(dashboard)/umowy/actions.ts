@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/service'
 import { logAudit } from '@/lib/audit'
+import { computeRevaluedAmount } from '@/lib/contracts'
 
 export async function getContracts() {
   const supabase = createServiceClient()
@@ -75,7 +76,7 @@ export async function revaluateContract(id: number, inflationPercent: number) {
     .eq('id', id)
     .single()
   if (fetchError) throw fetchError
-  const newRent = Math.round(Number(before.rent_amount) * (1 + inflationPercent / 100))
+  const newRent = computeRevaluedAmount(Number(before.rent_amount), inflationPercent)
   const { data: after, error } = await supabase
     .from('contracts')
     .update({ rent_amount: newRent })

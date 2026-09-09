@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatAmount } from '@/lib/utils'
+import { AlertTriangle } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -63,6 +64,25 @@ function computeAutoValues(month: number, year: number, inputMapping: Record<str
     }
   }
   return auto
+}
+
+// Zbiera wszystkie klucze (save_key), które dla KTÓREGOKOLWIEK najemcy w tej grupie
+// są skonfigurowane jako "do podania przez najemcę" (tenant_reading_keys, patrz zakładka
+// Media i grupy rozliczeniowe). Używane do pokazania ostrzeżenia, gdy takie pole
+// teoretycznie mogło zostać wypełnione przez najemcę, a nie zostało.
+function extractTenantExpectedKeys(tenantReadingKeys: unknown): Set<string> {
+  const keys = new Set<string>()
+  if (!tenantReadingKeys || typeof tenantReadingKeys !== 'object') return keys
+  for (const entries of Object.values(tenantReadingKeys as Record<string, unknown>)) {
+    if (!Array.isArray(entries)) continue
+    for (const entry of entries) {
+      if (typeof entry === 'string') keys.add(entry)
+      else if (entry && typeof entry === 'object' && typeof (entry as { key?: unknown }).key === 'string') {
+        keys.add((entry as { key: string }).key)
+      }
+    }
+  }
+  return keys
 }
 
 function defaultBillingPeriod(): { month: number; year: number } {
@@ -150,6 +170,7 @@ export default function MediaGroupPage({
   }, [month, year, group, currentReadings, readingsLoaded])
 
   const inputMapping = (group?.input_mapping_json as Record<string, Record<string, FieldDef>>) ?? {}
+  const tenantExpectedKeys = extractTenantExpectedKeys((group as Record<string, unknown> | null)?.tenant_reading_keys)
 
   const hasMeterFields = Object.values(inputMapping).some(fields =>
     Object.values(fields).some(f => typeof f !== 'string' && (f as { source: string }).source === 'user' && !!(f as { save_key?: string }).save_key)
@@ -291,6 +312,8 @@ export default function MediaGroupPage({
                 : undefined
               const hasError = getReadingError(range, saveKey)
               const submittedByTenant = saveKey !== undefined && currentReadings[saveKey] !== undefined
+              const expectedFromTenant = saveKey !== undefined && tenantExpectedKeys.has(saveKey)
+              const missingFromTenant = readingsLoaded && expectedFromTenant && !submittedByTenant
               return (
                 <div key={range} className="space-y-1">
                   <Label className="flex items-center gap-1.5">
@@ -298,6 +321,15 @@ export default function MediaGroupPage({
                     {submittedByTenant && (
                       <span className="rounded-full bg-amber-200 text-amber-900 dark:bg-amber-500/30 dark:text-amber-300 text-[10px] font-medium px-1.5 py-0.5">
                         podane przez najemcę
+                      </span>
+                    )}
+                    {missingFromTenant && (
+                      <span
+                        title="Ten odczyt może być podawany przez najemcę (jest do tego skonfigurowany), ale za ten miesiąc jeszcze go nie podał — uzupełnij ręcznie."
+                        className="inline-flex items-center gap-1 rounded-full bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-400 text-[10px] font-medium px-1.5 py-0.5"
+                      >
+                        <AlertTriangle className="h-3 w-3" />
+                        najemca nie podał
                       </span>
                     )}
                   </Label>

@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import type { StatementEntry } from '@/types/app'
+import { NON_INCOME_TRANSACTION_STATUSES_FILTER } from '@/lib/transactionStatus'
 
 /**
  * Łączy rachunki i transakcje w chronologiczny wyciąg z bieżącym saldem.
@@ -19,7 +20,7 @@ export async function getStatement(tenantId: number): Promise<StatementEntry[]> 
       .from('transactions')
       .select('*')
       .eq('tenant_id', tenantId)
-      .neq('status', 'DISMISSED')
+      .not('status', 'in', NON_INCOME_TRANSACTION_STATUSES_FILTER)
       .order('date', { ascending: true }),
   ])
 

@@ -1,6 +1,7 @@
 'use server'
 
 import { createServiceClient } from '@/lib/supabase/service'
+import { NON_INCOME_TRANSACTION_STATUSES_FILTER } from '@/lib/transactionStatus'
 
 export type FlowEntry = {
   id: string
@@ -25,7 +26,7 @@ export async function getAllFlows(year: number): Promise<FlowEntry[]> {
     supabase
       .from('transactions')
       .select('*, tenants(first_name, last_name, company_name, tenant_type)')
-      .neq('status', 'DISMISSED')
+      .not('status', 'in', NON_INCOME_TRANSACTION_STATUSES_FILTER)
       .gte('date', `${year}-01-01`)
       .lte('date', `${year}-12-31`),
   ])
@@ -72,7 +73,7 @@ export async function getFirstTransactionDate(): Promise<string | null> {
   const { data } = await supabase
     .from('transactions')
     .select('date')
-    .neq('status', 'DISMISSED')
+    .not('status', 'in', NON_INCOME_TRANSACTION_STATUSES_FILTER)
     .order('date', { ascending: true })
     .limit(1)
     .single()

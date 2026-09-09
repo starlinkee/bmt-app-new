@@ -1,6 +1,7 @@
 'use server'
 
 import { createServiceClient } from '@/lib/supabase/service'
+import { NON_INCOME_TRANSACTION_STATUSES_FILTER } from '@/lib/transactionStatus'
 
 export async function getTenantsWithBalances() {
   const supabase = createServiceClient()
@@ -13,7 +14,7 @@ export async function getTenantsWithBalances() {
       supabase
         .from('transactions')
         .select('tenant_id, amount')
-        .neq('status', 'DISMISSED'),
+        .not('status', 'in', NON_INCOME_TRANSACTION_STATUSES_FILTER),
       supabase.from('invoices').select('tenant_id, amount'),
     ])
 
@@ -51,7 +52,7 @@ export async function getTenantWithBalance(tenantId: number) {
       .select('id, first_name, last_name, company_name, properties(name, address1)')
       .eq('id', tenantId)
       .single(),
-    supabase.from('transactions').select('amount').eq('tenant_id', tenantId).neq('status', 'DISMISSED'),
+    supabase.from('transactions').select('amount').eq('tenant_id', tenantId).not('status', 'in', NON_INCOME_TRANSACTION_STATUSES_FILTER),
     supabase.from('invoices').select('amount').eq('tenant_id', tenantId),
   ])
 
@@ -107,7 +108,7 @@ export async function sendBulkStatements() {
 export async function getGlobalPaymentStats() {
   const supabase = createServiceClient()
   const [{ data: txs }, { data: invs }] = await Promise.all([
-    supabase.from('transactions').select('date, amount').neq('status', 'DISMISSED'),
+    supabase.from('transactions').select('date, amount').not('status', 'in', NON_INCOME_TRANSACTION_STATUSES_FILTER),
     supabase.from('invoices').select('amount')
   ])
 

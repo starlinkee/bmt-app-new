@@ -2,7 +2,14 @@ export type TenantType = 'PRIVATE' | 'BUSINESS'
 export type ContractType = 'PRIVATE' | 'BUSINESS'
 export type InvoiceType = 'RENT' | 'MEDIA' | 'OTHER'
 export type TransactionType = 'BANK' | 'CASH' | 'ADJUSTMENT'
-export type TransactionStatus = 'MATCHED' | 'UNMATCHED' | 'MANUAL' | 'DISMISSED'
+export type TransactionStatus =
+  | 'MATCHED'
+  | 'UNMATCHED'
+  | 'MANUAL'
+  | 'DISMISSED'
+  | 'REJECTED_OWN_TRANSFER'
+  | 'REJECTED_OTHER'
+  | 'SKIPPED'
 export interface StatementEntry {
   id: string
   date: string
