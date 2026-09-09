@@ -153,6 +153,7 @@ export default function ContractsPage() {
   const [activeStatuses, setActiveStatuses] = useState<Set<string>>(new Set())
 
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [bulkRevalConfirmOpen, setBulkRevalConfirmOpen] = useState(false)
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -268,11 +269,18 @@ export default function ContractsPage() {
       toast.error('Zaznacz co najmniej jedną umowę.')
       return
     }
+    setBulkRevalConfirmOpen(true)
+  }
+
+  function performBulkRevalue() {
+    const pct = parseFloat(inflationInput.replace(',', '.'))
+    const toUpdate = contracts.filter((c) => selectedIds.has(c.id))
     startTransition(async () => {
       for (const c of toUpdate) {
         await revaluateContract(c.id, pct)
       }
       toast.success(`Zaktualizowano ${toUpdate.length} ${toUpdate.length === 1 ? 'umowę' : 'umów'}.`)
+      setBulkRevalConfirmOpen(false)
       setBulkRevalOpen(false)
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.contracts })
     })
@@ -496,6 +504,27 @@ export default function ContractsPage() {
             <Button variant="outline" onClick={() => setBulkRevalOpen(false)}>Anuluj</Button>
             <Button onClick={handleBulkRevalue} disabled={pending}>
               Zatwierdź ({selectedIds.size})
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkRevalConfirmOpen} onOpenChange={setBulkRevalConfirmOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Czy na pewno chcesz zatwierdzić rewaluację?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Ta operacja trwale zmieni kwoty czynszu w {selectedIds.size}{' '}
+            {selectedIds.size === 1 ? 'umowie' : 'umowach'} o {inflationInput.replace(',', '.')}%.
+            Tej zmiany nie da się cofnąć automatycznie.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkRevalConfirmOpen(false)} disabled={pending}>
+              Anuluj
+            </Button>
+            <Button onClick={performBulkRevalue} disabled={pending}>
+              Tak, zatwierdź
             </Button>
           </DialogFooter>
         </DialogContent>

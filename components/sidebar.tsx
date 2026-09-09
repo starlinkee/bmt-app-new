@@ -42,8 +42,14 @@ const actionItems = [
   { href: '/import', label: 'Import CSV', icon: Upload },
 ]
 
-function NavItem({ href, label, icon: Icon, pathname }: { href: string, label: string, icon: React.ElementType, pathname: string }) {
-  const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href)
+function getBestMatchingHref(pathname: string, hrefs: string[]): string | undefined {
+  return hrefs
+    .filter((href) => href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(href + '/'))
+    .sort((a, b) => b.length - a.length)[0]
+}
+
+function NavItem({ href, label, icon: Icon, activeHref }: { href: string, label: string, icon: React.ElementType, activeHref?: string }) {
+  const isActive = href === activeHref
   return (
     <li>
       <Link
@@ -62,8 +68,16 @@ function NavItem({ href, label, icon: Icon, pathname }: { href: string, label: s
   )
 }
 
+const bottomHrefs = ['/testowanie', '/baza-danych', '/ustawienia']
+
 export function Sidebar() {
   const pathname = usePathname()
+  const activeHref = getBestMatchingHref(pathname, [
+    ...actionItems.map((i) => i.href),
+    ...dataItems.map((i) => i.href),
+    ...historyItems.map((i) => i.href),
+    ...bottomHrefs,
+  ])
 
   return (
     <aside className="flex h-full w-max min-w-[224px] pr-2 flex-col border-r bg-sidebar" style={{ fontSize: '115%' }}>
@@ -79,7 +93,7 @@ export function Sidebar() {
         </div>
         <ul className="space-y-0.5 px-2 mb-4">
           {actionItems.map((item) => (
-            <NavItem key={item.href} {...item} pathname={pathname} />
+            <NavItem key={item.href} {...item} activeHref={activeHref} />
           ))}
         </ul>
         <div className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -87,7 +101,7 @@ export function Sidebar() {
         </div>
         <ul className="space-y-0.5 px-2 mb-4">
           {dataItems.map((item) => (
-            <NavItem key={item.href} {...item} pathname={pathname} />
+            <NavItem key={item.href} {...item} activeHref={activeHref} />
           ))}
         </ul>
         <div className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -95,7 +109,7 @@ export function Sidebar() {
         </div>
         <ul className="space-y-0.5 px-2">
           {historyItems.map((item) => (
-            <NavItem key={item.href} {...item} pathname={pathname} />
+            <NavItem key={item.href} {...item} activeHref={activeHref} />
           ))}
         </ul>
       </nav>
@@ -105,7 +119,7 @@ export function Sidebar() {
             href="/testowanie"
             className={cn(
               'flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors',
-              pathname.startsWith('/testowanie')
+              activeHref === '/testowanie'
                 ? 'bg-primary text-primary-foreground font-medium'
                 : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
             )}
@@ -118,7 +132,7 @@ export function Sidebar() {
           href="/baza-danych"
           className={cn(
             'flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors',
-            pathname.startsWith('/baza-danych')
+            activeHref === '/baza-danych'
               ? 'bg-primary text-primary-foreground'
               : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
           )}
@@ -130,7 +144,7 @@ export function Sidebar() {
           href="/ustawienia"
           className={cn(
             'flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors',
-            pathname.startsWith('/ustawienia')
+            activeHref === '/ustawienia'
               ? 'bg-primary text-primary-foreground'
               : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
           )}

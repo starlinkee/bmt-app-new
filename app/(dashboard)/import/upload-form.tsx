@@ -215,10 +215,10 @@ export function UploadForm() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <UploadCloud className="h-5 w-5 text-primary" />
-              Wgraj nowy plik
+              Wgraj wyciąg CSV (Pekao SA)
             </CardTitle>
             <CardDescription>
-              Wybierz plik w formacie .csv pobrany z Twojego banku
+              Wybierz plik w formacie .csv pobrany z konta w Pekao SA
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -424,10 +424,10 @@ export function UploadForm() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <UploadCloud className="h-5 w-5 text-primary" />
-            Wgraj 2 wyciągi PDF (drugie konto)
+            Wgraj 2 wyciągi PDF (Millennium)
           </CardTitle>
           <CardDescription>
-            Dla konta, z którego pobierasz tylko pełne wyciągi miesięczne w PDF, wgraj naraz wyciąg za
+            Dla konta w Millennium, z którego pobierasz tylko pełne wyciągi miesięczne w PDF, wgraj naraz wyciąg za
             poprzedni i bieżący miesiąc. Możesz opcjonalnie ograniczyć zakres dat brany z każdego pliku
             {cutoffInfo ? (
               <> (np. poprzedni miesiąc: od {cutoffInfo.suggestedDayFrom}., bieżący: do {cutoffInfo.suggestedDayTo}.)</>
