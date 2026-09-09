@@ -21,11 +21,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Invalid skill id: ${skill}` }, { status: 400 })
   }
 
+  const env = process.env.VERCEL_ENV || process.env.NEXT_PUBLIC_VERCEL_ENV || 'development'
+
   try {
     const res = await fetch(`${vpsUrl}/run-skill`, {
       method: 'POST',
       headers: vpsHeaders(),
-      body: JSON.stringify({ skill }),
+      body: JSON.stringify({ skill, env }),
       signal: AbortSignal.timeout(10_000),
     })
     const data = await res.json()
