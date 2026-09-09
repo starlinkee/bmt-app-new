@@ -41,7 +41,17 @@ jobs:
         run: npm ci
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        # apt-get bywa niestabilny (np. "Hash Sum mismatch" przy pobieraniu
+        # listy pakietów Google Chrome, gdy mirror aktualizuje się w trakcie
+        # fetch'a) - to fluke infrastruktury, nie błąd w kodzie, więc robimy
+        # kilka prób zanim uznamy krok za faktycznie nieudany.
+        run: |
+          for i in 1 2 3; do
+            npx playwright install --with-deps chromium && exit 0
+            echo "Próba $i nieudana, ponawiam za 10s..."
+            sleep 10
+          done
+          exit 1
 
       - name: Uruchom testy e2e przeciwko Preview
         env:
