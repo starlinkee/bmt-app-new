@@ -45,14 +45,29 @@ jobs:
           node-version: 22
           cache: npm
 
+      # actions/setup-node cache:npm cache'uje tylko ~/.npm (paczki pobrane),
+      # nie sam node_modules - node-pty i tak trzeba by przebudować za każdym
+      # razem. Ten cache trzyma gotowy node_modules (włącznie ze zbudowanymi
+      # binarkami natywnymi) kluczowany hashem package-lock.json - przy
+      # niezmienionym lockfile omija i apt-get, i kompilację node-pty.
+      - name: Cache node_modules
+        id: cache-node-modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       # Obraz Playwrighta jest minimalny i nie ma kompilatora. Potrzebny jest
       # tylko do zbudowania node-pty (zależność workspace'u skill-runner) -
       # to lekki, stabilny apt-get z repo Ubuntu (nie mirror Google Chrome,
       # więc nie ma ryzyka "Hash Sum mismatch" jak przy przeglądarkach).
+      # Pomijany, gdy cache node_modules trafił (patrz krok wyżej).
       - name: Zainstaluj toolchain do budowania natywnych modułów (node-pty)
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: apt-get update && apt-get install -y --no-install-recommends python3 make g++
 
       - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: Uruchom testy e2e przeciwko Preview
@@ -60,6 +75,9 @@ jobs:
           PLAYWRIGHT_BASE_URL: ${{ github.event.deployment_status.environment_url || github.event.deployment_status.target_url }}
           TEST_EMAIL: ${{ secrets.TEST_EMAIL }}
           TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+          # Omija ekran Vercel SSO (Deployment Protection) na Preview - patrz
+          # sekret "Protection Bypass for Automation" w Project Settings na Vercelu.
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: npm run test:e2e
 
       - name: Upload raportu Playwright (na wypadek błędów)
