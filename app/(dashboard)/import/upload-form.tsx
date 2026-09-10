@@ -10,6 +10,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { AlertTriangle, X, Info, UploadCloud, FileSpreadsheet, FileText, CheckCircle2 } from 'lucide-react'
 import { ImportHistoryTable } from './import-history-table'
 
+// Wiele polskich wyciągów bankowych w CSV (m.in. Pekao) jest eksportowanych w
+// kodowaniu Windows-1250, a nie UTF-8. Wymuszenie odczytu jako UTF-8 na takim
+// pliku po cichu psuje polskie znaki w nagłówkach (np. "źródłowy" → krzaki),
+// przez co rozpoznawanie formatu banku w parseCsv (dopasowanie nagłówków
+// kolumn) zawodzi dla KAŻDEGO wiersza — cały plik ląduje jako "Pominięte".
+// Próbujemy więc najpierw ściśle zdekodować jako UTF-8 (fatal: true rzuca
+// błąd na nieprawidłowej sekwencji bajtów) i dopiero gdy to się nie uda,
+// wracamy do Windows-1250.
+function decodeFileText(buffer: ArrayBuffer): string {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(buffer)
+  } catch {
+    return new TextDecoder('windows-1250').decode(buffer)
+  }
+}
+
 export function UploadForm() {
   const [result, setResult] = useState<{
     bank: string
@@ -48,19 +64,17 @@ export function UploadForm() {
   const [cutoffInfo, setCutoffInfo] = useState<{ cutoffDay: number; suggestedDayFrom: number; suggestedDayTo: number } | null>(null)
 
   // --- Wgrywanie pliku CSV (sekcja główna, slot 0) ---
+  // Zakres dni NIE jest tu podpowiadany automatycznie — zależy wyłącznie od
+  // tego, jaki zakres użytkownik sam wybrał przy generowaniu pliku CSV w banku.
   const [csvDayFrom, setCsvDayFrom] = useState<number | ''>('')
   const [csvDayTo, setCsvDayTo] = useState<number | ''>('')
-  const csvRangeTouched = useRef(false)
 
   useEffect(() => {
     getStatementCutoffDay().then((info) => {
       setCutoffInfo(info)
-      // Podpowiedz domyślny zakres dni na podstawie ustawienia dnia
-      // granicznego, dopóki użytkownik sam nie zmieni pól.
-      if (!csvRangeTouched.current) {
-        setCsvDayFrom(info.suggestedDayFrom)
-        setCsvDayTo(info.suggestedDayTo)
-      }
+      // Zakres dni dla tego dokumentu NIE jest automatycznie podpowiadany —
+      // zależy od tego, jaki zakres użytkownik sam wygenerował w CSV z banku.
+      // Wskazówka (16.–15.) jest tylko tekstową instrukcją w opisie karty.
     }).catch(console.error)
   }, [])
 
@@ -73,7 +87,7 @@ export function UploadForm() {
 
     const reader = new FileReader()
     reader.onload = (ev) => {
-      const content = ev.target?.result as string
+      const content = decodeFileText(ev.target?.result as ArrayBuffer)
       startTransition(async () => {
         const res = await importBankStatement(content, file.name, csvDayFrom || undefined, csvDayTo || undefined, 0)
         setResult(res)
@@ -87,7 +101,7 @@ export function UploadForm() {
         getLastImportSlotRange(0).then((info) => setLastCsvRange(info)).catch(console.error)
       })
     }
-    reader.readAsText(file, 'UTF-8')
+    reader.readAsArrayBuffer(file)
     e.target.value = ''
   }
 
@@ -259,7 +273,12 @@ export function UploadForm() {
               <p className="text-sm font-medium">Zakres dni brany z pliku</p>
               <p className="text-xs text-muted-foreground">
                 Opcjonalnie ogranicz zakres do dni miesiąca — przydatne, gdy okres rozliczeniowy
-                nie pokrywa się z pełnym miesiącem kalendarzowym (np. od 16. do 15.).
+                nie pokrywa się z pełnym miesiącem kalendarzowym. Wybór zakresu zależy od tego,
+                jaki okres wybrano przy generowaniu pliku CSV w banku.
+              </p>
+              <p className="text-xs text-muted-foreground/80 italic">
+                Zalecany sposób pracy: import rób 16. dnia miesiąca, generując w banku CSV
+                za okres od 16. dnia poprzedniego miesiąca do 15. dnia bieżącego miesiąca.
               </p>
               <div className="grid grid-cols-2 gap-2">
                 <label className="space-y-1">
@@ -267,10 +286,7 @@ export function UploadForm() {
                   <select
                     value={csvDayFrom}
                     disabled={pending}
-                    onChange={(e) => {
-                      csvRangeTouched.current = true
-                      setCsvDayFrom(e.target.value ? Number(e.target.value) : '')
-                    }}
+                    onChange={(e) => setCsvDayFrom(e.target.value ? Number(e.target.value) : '')}
                     className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
                   >
                     <option value="">—</option>
@@ -284,10 +300,7 @@ export function UploadForm() {
                   <select
                     value={csvDayTo}
                     disabled={pending}
-                    onChange={(e) => {
-                      csvRangeTouched.current = true
-                      setCsvDayTo(e.target.value ? Number(e.target.value) : '')
-                    }}
+                    onChange={(e) => setCsvDayTo(e.target.value ? Number(e.target.value) : '')}
                     className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
                   >
                     <option value="">—</option>
