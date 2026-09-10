@@ -1,39 +1,43 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { getTestClockState } from '@/app/(dashboard)/testowanie/actions'
 
 export function LiveClock() {
   const [now, setNow] = useState<Date | null>(null)
   const [mounted, setMounted] = useState(false)
-  const [simulatedDate, setSimulatedDate] = useState<string | null>(null)
+  const [isSimulated, setIsSimulated] = useState(false)
+  const offsetRef = useRef(0)
 
   useEffect(() => {
     setMounted(true)
 
-    // Tylko na dev lub gdy dopuszczono test panel
-    const isOverrideAllowed = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_ALLOW_TEST_PANEL === 'true'
-
-    const readTestDate = () => {
-      if (!isOverrideAllowed) return null
-      const match = document.cookie.split('; ').find(row => row.startsWith('bmt_test_date='))
-      return match ? match.split('=')[1] : null
+    const refreshOffset = () => {
+      getTestClockState()
+        .then(({ allowed, offsetMs }) => {
+          offsetRef.current = allowed ? offsetMs : 0
+          setIsSimulated(allowed && offsetMs !== 0)
+        })
+        .catch(() => {
+          offsetRef.current = 0
+          setIsSimulated(false)
+        })
     }
 
-    // Sidebar (a razem z nim ten komponent) jest trwałym layoutem i nie
-    // remontuje się przy nawigacji klienckiej - dlatego cookie trzeba
-    // sprawdzać cyklicznie, a nie tylko raz przy montowaniu, żeby zmiana
-    // (lub reset) symulowanej daty na /testowanie od razu było widoczne.
-    const tick = () => {
-      const testDate = readTestDate()
-      setSimulatedDate(testDate)
-      setNow(testDate ? new Date(testDate) : new Date())
+    // Zegar ma "tykać" normalnie co sekundę (lokalnie, bez zapytań do
+    // serwera), a przesunięcie (offset) odświeżamy rzadziej - np. gdy
+    // ktoś zmieni je na /testowanie w innej karcie.
+    refreshOffset()
+    const refreshInterval = setInterval(refreshOffset, 15000)
+    const tickInterval = setInterval(() => {
+      setNow(new Date(Date.now() + offsetRef.current))
+    }, 1000)
+
+    return () => {
+      clearInterval(refreshInterval)
+      clearInterval(tickInterval)
     }
-
-    tick()
-    const interval = setInterval(tick, 1000)
-
-    return () => clearInterval(interval)
   }, [])
 
   if (!mounted || !now) return null
@@ -41,7 +45,7 @@ export function LiveClock() {
   const dateStr = now.toLocaleDateString('pl-PL', { year: 'numeric', month: '2-digit', day: '2-digit' })
   const timeStr = now.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 
-  if (simulatedDate) {
+  if (isSimulated) {
     return (
       <div className="bg-blue-100/90 text-blue-800 text-[11px] px-2 py-1 rounded shadow-sm flex w-fit items-center gap-1.5 backdrop-blur-sm">
         <span>⚠️ Symulacja: {dateStr} {timeStr}</span>

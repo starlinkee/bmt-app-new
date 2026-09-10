@@ -3,6 +3,58 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { getSettlementGroup } from '@/app/(dashboard)/media/actions'
 import { tenantDisplayName } from '@/lib/utils'
+import { getTimeOffsetMs, setTimeOffsetMs, isTestClockAllowed } from '@/lib/clock'
+import { processLateReminders } from '@/lib/late-reminders'
+import { processStatementUploadReminder } from '@/lib/statement-reminder'
+
+// Wirtualny zegar (patrz lib/clock.ts) - czas płynie normalnie, tylko
+// przesunięty o `time_offset_ms` zapisane w app_config. Poniższe akcje
+// pozwalają ustawić/zresetować to przesunięcie z panelu testowego oraz
+// ręcznie odpalić crony/automatyzacje pod tym symulowanym czasem.
+
+export async function getTestClockState() {
+  if (!isTestClockAllowed()) {
+    return { allowed: false, offsetMs: 0 }
+  }
+  const offsetMs = await getTimeOffsetMs()
+  return { allowed: true, offsetMs }
+}
+
+// `localDateTime` to wartość z <input type="datetime-local"> (czas lokalny
+// przeglądarki, bez strefy), np. "2026-09-16T08:00".
+export async function setTestClock(localDateTime: string) {
+  if (!isTestClockAllowed()) {
+    throw new Error('Wirtualny zegar jest wyłączony na tym środowisku')
+  }
+  const target = new Date(localDateTime)
+  if (isNaN(target.getTime())) {
+    throw new Error('Nieprawidłowa data/godzina')
+  }
+  const offsetMs = target.getTime() - Date.now()
+  await setTimeOffsetMs(offsetMs)
+  return { offsetMs }
+}
+
+export async function resetTestClock() {
+  if (!isTestClockAllowed()) {
+    throw new Error('Wirtualny zegar jest wyłączony na tym środowisku')
+  }
+  await setTimeOffsetMs(0)
+}
+
+export async function runLateRemindersTest() {
+  if (!isTestClockAllowed()) {
+    throw new Error('Niedozwolone na tym środowisku')
+  }
+  return processLateReminders()
+}
+
+export async function runStatementReminderTest() {
+  if (!isTestClockAllowed()) {
+    throw new Error('Niedozwolone na tym środowisku')
+  }
+  return processStatementUploadReminder()
+}
 
 export async function getGroupDetailsForTest(groupId: number) {
   const supabase = createServiceClient()

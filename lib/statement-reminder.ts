@@ -1,12 +1,13 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { logAudit } from '@/lib/audit'
 import { sendStatementUploadReminderEmail } from '@/lib/email'
+import { getCurrentDate } from '@/lib/clock'
 
 // Wysyła do administratora przypomnienie o wgraniu wyciągu z banku.
 // Wyzwalane 16. dnia miesiąca (cron uderza w endpoint częściej, więc pilnujemy
 // tu, żeby faktycznie wysłać tylko raz w danym miesiącu, dokładnie 16. dnia).
 export async function processStatementUploadReminder() {
-  const now = new Date()
+  const now = await getCurrentDate()
   if (now.getDate() !== 16) {
     return { sent: false, reason: 'Not the 16th' }
   }

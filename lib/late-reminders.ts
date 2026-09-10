@@ -2,9 +2,10 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { getTenantsWithBalances } from '@/app/(dashboard)/kontrola-platnosci/actions'
 import { sendStatementToTenant } from '@/app/(dashboard)/kontrola-platnosci/actions'
 import { logAudit } from '@/lib/audit'
+import { getCurrentDate } from '@/lib/clock'
 
 export async function processLateReminders() {
-  const now = new Date()
+  const now = await getCurrentDate()
   if (now.getDate() <= 14) {
     return { sent: 0, skipped: 0, reason: 'Before 15th' }
   }

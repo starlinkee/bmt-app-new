@@ -7,7 +7,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Beaker, AlertTriangle, FileText, CheckCircle2, ArrowRight } from 'lucide-react'
 import { getSettlementGroups } from '@/app/(dashboard)/media/actions'
-import { generateTestMediaCharge, getGroupDetailsForTest } from './actions'
+import {
+  generateTestMediaCharge,
+  getGroupDetailsForTest,
+  getTestClockState,
+  setTestClock,
+  resetTestClock,
+  runLateRemindersTest,
+  runStatementReminderTest,
+} from './actions'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { buttonVariants } from '@/components/ui/button'
 import Link from 'next/link'
@@ -30,9 +38,102 @@ export default function TestowaniePage() {
   const [mediaMonth, setMediaMonth] = useState(new Date().getMonth() + 1)
   const [mediaYear, setMediaYear] = useState(new Date().getFullYear())
 
+  // Wirtualny zegar - offsetMs trzymany w bazie (app_config.time_offset_ms),
+  // a wyświetlany czas tyka lokalnie co sekundę, żeby było widać, że czas
+  // "płynie", tylko przesunięty (patrz lib/clock.ts).
+  const [clockAllowed, setClockAllowed] = useState(true)
+  const [clockOffsetMs, setClockOffsetMs] = useState(0)
+  const [clockNow, setClockNow] = useState<Date | null>(null)
+  const [clockInput, setClockInput] = useState('')
+  const [clockLoading, setClockLoading] = useState(false)
+  const [clockError, setClockError] = useState<string | null>(null)
+
+  const [lateLoading, setLateLoading] = useState(false)
+  const [lateResult, setLateResult] = useState<{ sent?: number; skipped?: number; reason?: string; error?: string } | null>(null)
+
+  const [stmtLoading, setStmtLoading] = useState(false)
+  const [stmtResult, setStmtResult] = useState<{ sent?: boolean; reason?: string; error?: string } | null>(null)
+
   useEffect(() => {
     getSettlementGroups().then(setGroups).catch(console.error)
   }, [])
+
+  const refreshClockState = () => {
+    getTestClockState().then(({ allowed, offsetMs }) => {
+      setClockAllowed(allowed)
+      setClockOffsetMs(offsetMs)
+    }).catch(console.error)
+  }
+
+  useEffect(() => {
+    refreshClockState()
+    // Odświeżamy offset co jakiś czas (np. gdyby ktoś inny go zmienił),
+    // a co sekundę tylko "dotykamy" lokalnie wyświetlany czas.
+    const refreshInterval = setInterval(refreshClockState, 15000)
+    const tickInterval = setInterval(() => {
+      setClockOffsetMs((offset) => {
+        setClockNow(new Date(Date.now() + offset))
+        return offset
+      })
+    }, 1000)
+    return () => {
+      clearInterval(refreshInterval)
+      clearInterval(tickInterval)
+    }
+  }, [])
+
+  const handleSetClock = async () => {
+    if (!clockInput) return
+    setClockLoading(true)
+    setClockError(null)
+    try {
+      const { offsetMs } = await setTestClock(clockInput)
+      setClockOffsetMs(offsetMs)
+    } catch (err: unknown) {
+      setClockError(err instanceof Error ? err.message : 'Wystąpił błąd')
+    } finally {
+      setClockLoading(false)
+    }
+  }
+
+  const handleResetClock = async () => {
+    setClockLoading(true)
+    setClockError(null)
+    try {
+      await resetTestClock()
+      setClockOffsetMs(0)
+    } catch (err: unknown) {
+      setClockError(err instanceof Error ? err.message : 'Wystąpił błąd')
+    } finally {
+      setClockLoading(false)
+    }
+  }
+
+  const handleRunLateReminders = async () => {
+    setLateLoading(true)
+    setLateResult(null)
+    try {
+      const res = await runLateRemindersTest()
+      setLateResult(res)
+    } catch (err: unknown) {
+      setLateResult({ error: err instanceof Error ? err.message : 'Wystąpił błąd' })
+    } finally {
+      setLateLoading(false)
+    }
+  }
+
+  const handleRunStatementReminder = async () => {
+    setStmtLoading(true)
+    setStmtResult(null)
+    try {
+      const res = await runStatementReminderTest()
+      setStmtResult(res)
+    } catch (err: unknown) {
+      setStmtResult({ error: err instanceof Error ? err.message : 'Wystąpił błąd' })
+    } finally {
+      setStmtLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (selectedGroup) {
@@ -289,36 +390,88 @@ export default function TestowaniePage() {
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            Zmień datę dla linków najemców (Media)
+            Wirtualny zegar
           </CardTitle>
           <CardDescription>
-            Pozwala &quot;oszukać&quot; serwer i przetestować, co zobaczy najemca wchodzący w link do mediów o danej dacie.
+            Przesuwa czas widziany przez całą aplikację (w tym crony i linki do mediów dla najemców).
+            Czas dalej normalnie płynie - tylko przesunięty względem rzeczywistego. Dzięki temu można
+            np. ustawić 16. dzień miesiąca, godz. 8:00 i sprawdzić, czy automatyzacja się odpali.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-6 space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="overrideDate">Symulowana data (YYYY-MM-DD)</Label>
-            <Input
-              id="overrideDate"
-              type="date"
-              onChange={(e) => {
-                if (e.target.value) {
-                  document.cookie = `bmt_test_date=${e.target.value}; path=/; max-age=86400`
-                  alert('Data została nadpisana! Otwórz link do mediów w nowej karcie tej przeglądarki.')
-                }
-              }}
-            />
+          {!clockAllowed ? (
+            <p className="text-sm text-muted-foreground italic">Wirtualny zegar jest wyłączony na tym środowisku.</p>
+          ) : (
+            <>
+              <div className={`p-3 rounded-md text-sm flex items-center gap-2 ${clockOffsetMs !== 0 ? 'bg-blue-100/90 text-blue-800' : 'bg-secondary/40 text-muted-foreground'}`}>
+                {clockOffsetMs !== 0 ? '⚠️ Symulacja aktywna — aktualnie: ' : 'Czas rzeczywisty — aktualnie: '}
+                <span className="font-mono">
+                  {clockNow ? clockNow.toLocaleString('pl-PL') : '...'}
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="clockInput">Ustaw datę i godzinę</Label>
+                <Input
+                  id="clockInput"
+                  type="datetime-local"
+                  value={clockInput}
+                  onChange={(e) => setClockInput(e.target.value)}
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <Button onClick={handleSetClock} disabled={clockLoading || !clockInput} className="flex-1">
+                  {clockLoading ? 'Ustawianie...' : 'Ustaw symulowany czas'}
+                </Button>
+                <Button onClick={handleResetClock} disabled={clockLoading} variant="outline" className="flex-1">
+                  Zresetuj do prawdziwego czasu
+                </Button>
+              </div>
+
+              {clockError && (
+                <p className="text-sm text-red-600 dark:text-red-400">{clockError}</p>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            Odpal automatyzacje pod symulowanym czasem
+          </CardTitle>
+          <CardDescription>
+            Wywołuje logikę cronów bezpośrednio (bez czekania na Vercel Cron), licząc &quot;teraz&quot; z wirtualnego zegara powyżej.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-6 space-y-4">
+          <div>
+            <Button onClick={handleRunStatementReminder} disabled={stmtLoading} variant="outline" className="w-full">
+              {stmtLoading ? 'Wysyłanie...' : 'Odpal: przypomnienie o wgraniu wyciągu (16. dnia)'}
+            </Button>
+            {stmtResult && (
+              <p className="text-sm mt-2 text-muted-foreground">
+                {stmtResult.error ? <span className="text-red-600 dark:text-red-400">{stmtResult.error}</span>
+                  : stmtResult.sent ? <span className="text-green-600 dark:text-green-500 flex items-center gap-1"><CheckCircle2 className="h-4 w-4" /> Wysłano</span>
+                  : `Nie wysłano: ${stmtResult.reason}`}
+              </p>
+            )}
           </div>
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => {
-              document.cookie = "bmt_test_date=; path=/; max-age=0"
-              alert('Symulacja daty wyłączona. System wrócił do prawdziwego czasu.')
-            }}
-          >
-            Zresetuj do prawdziwej daty
-          </Button>
+
+          <div>
+            <Button onClick={handleRunLateReminders} disabled={lateLoading} variant="outline" className="w-full">
+              {lateLoading ? 'Wysyłanie...' : 'Odpal: ponaglenia dla zalegających najemców (od 15. dnia)'}
+            </Button>
+            {lateResult && (
+              <p className="text-sm mt-2 text-muted-foreground">
+                {lateResult.error ? <span className="text-red-600 dark:text-red-400">{lateResult.error}</span>
+                  : lateResult.reason ? `Nie wysłano: ${lateResult.reason}`
+                  : `Wysłano: ${lateResult.sent}, pominięto (już wysłane w tym miesiącu): ${lateResult.skipped}`}
+              </p>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>

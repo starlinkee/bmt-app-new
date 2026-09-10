@@ -1,7 +1,7 @@
 'use server'
 
-import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase/service'
+import { getCurrentDate } from '@/lib/clock'
 
 export async function getTenantReadingsContext(token: string) {
   const supabase = createServiceClient()
@@ -56,11 +56,8 @@ export async function getTenantReadingsContext(token: string) {
 }
 
 export async function getTargetMonthYear() {
-  const cookieStore = await cookies()
-  const isOverrideAllowed = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_ALLOW_TEST_PANEL === 'true'
-  const testDate = isOverrideAllowed ? cookieStore.get('bmt_test_date')?.value : null
-  const now = testDate ? new Date(testDate) : new Date()
-  
+  const now = await getCurrentDate()
+
   const day = now.getDate()
   let month = now.getMonth() + 1
   let year = now.getFullYear()
