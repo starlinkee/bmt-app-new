@@ -36,6 +36,7 @@ export type Database = {
             tenant_reading_keys: Json
             ignored_source_accounts: string
             statement_cutoff_day: number
+            time_offset_ms: number
           }
           Insert: {
           drive_invoices_folder_id?: string
@@ -58,6 +59,7 @@ export type Database = {
             tenant_reading_keys?: Json
             ignored_source_accounts?: string
             statement_cutoff_day?: number
+            time_offset_ms?: number
           }
           Update: {
           drive_invoices_folder_id?: string
@@ -80,6 +82,7 @@ export type Database = {
             tenant_reading_keys?: Json
             ignored_source_accounts?: string
             statement_cutoff_day?: number
+            time_offset_ms?: number
           }
           Relationships: []
       }

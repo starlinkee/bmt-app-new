@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { generateRents } from '@/lib/rents'
+import { getCurrentDate } from '@/lib/clock'
 
 export const maxDuration = 300 // allow up to 5 minutes
 
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
     const queryMonth = searchParams.get('month')
     const queryYear = searchParams.get('year')
 
-    const now = new Date()
+    const now = await getCurrentDate()
     let month = now.getMonth() + 1
     let year = now.getFullYear()
 

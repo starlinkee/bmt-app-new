@@ -17,6 +17,7 @@ import {
   Beaker,
   Banknote,
   Database,
+  BellRing,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { logoutAction } from '@/app/login/actions'
@@ -68,7 +69,7 @@ function NavItem({ href, label, icon: Icon, activeHref }: { href: string, label:
   )
 }
 
-const bottomHrefs = ['/testowanie', '/baza-danych', '/ustawienia']
+const bottomHrefs = ['/testowanie', '/baza-danych', '/automatyzacje', '/ustawienia']
 
 export function Sidebar() {
   const pathname = usePathname()
@@ -139,6 +140,18 @@ export function Sidebar() {
         >
           <Database className="h-4 w-4 shrink-0" />
           Baza danych
+        </Link>
+        <Link
+          href="/automatyzacje"
+          className={cn(
+            'flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors',
+            activeHref === '/automatyzacje'
+              ? 'bg-primary text-primary-foreground'
+              : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+          )}
+        >
+          <BellRing className="h-4 w-4 shrink-0" />
+          Automatyzacje i maile
         </Link>
         <Link
           href="/ustawienia"
