@@ -95,6 +95,63 @@ export async function getGroupDetailsForTest(groupId: number) {
   return { properties, tenants: activeTenants }
 }
 
+// Kasuje WSZYSTKIE transakcje i faktury przypisane do najemców, sprowadzając
+// saldo każdego z nich dokładnie do 0 (0 wpłat - 0 obciążeń).
+//
+// `transactions`/`invoices` mają trigger blokujący DELETE (patrz
+// supabase/migrations/20260908135400_prevent_critical_deletions.sql),
+// potwierdzone bezpośrednio na bazie zapytaniem do information_schema.
+// Migracja 20260911140000_configurable_delete_protection.sql dodała do niego
+// wyjątek sterowany kolumną `app_config.allow_destructive_test_deletes`
+// (domyślnie false - trigger blokuje DELETE dokładnie tak jak wcześniej).
+// Ta akcja ustawia ją na true tuż przed usuwaniem, ale robi to WYŁĄCZNIE gdy
+// `isTestClockAllowed()` zwraca true - czyli nigdy na prawdziwej produkcji.
+// Dzięki temu produkcyjna baza ma gwarancję pozostania zablokowana na zawsze
+// (nic w kodzie aplikacji nie może tam ustawić tej flagi na true), a dev/
+// preview po pierwszym użyciu tego przycisku mają usuwanie trwale odblokowane.
+export async function zeroAllTenantBalances() {
+  if (!isTestClockAllowed()) {
+    throw new Error('Niedozwolone na tym środowisku')
+  }
+
+  const supabase = createServiceClient()
+
+  const { error: unlockError } = await supabase
+    .from('app_config')
+    .update({ allow_destructive_test_deletes: true })
+    .eq('id', 1)
+
+  if (unlockError) {
+    throw new Error('Nie udało się odblokować usuwania w tym środowisku: ' + unlockError.message)
+  }
+
+  const { error: txError, count: deletedTransactions } = await supabase
+    .from('transactions')
+    .delete({ count: 'exact' })
+    .not('tenant_id', 'is', null)
+
+  if (txError) {
+    console.error('Błąd kasowania transakcji najemców', txError)
+    throw new Error('Błąd podczas kasowania transakcji: ' + txError.message)
+  }
+
+  const { error: invError, count: deletedInvoices } = await supabase
+    .from('invoices')
+    .delete({ count: 'exact' })
+    .not('tenant_id', 'is', null)
+
+  if (invError) {
+    console.error('Błąd kasowania faktur najemców', invError)
+    throw new Error('Błąd podczas kasowania faktur: ' + invError.message)
+  }
+
+  return {
+    success: true,
+    deletedTransactions: deletedTransactions ?? 0,
+    deletedInvoices: deletedInvoices ?? 0,
+  }
+}
+
 export async function generateTestMediaCharge(
   groupId: number,
   tenantAmounts: Record<string, number>,
