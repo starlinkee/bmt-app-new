@@ -50,7 +50,9 @@ export async function getRentPreview(month: number, year: number) {
   }
 }
 
-export async function generateRents(month: number, year: number) {
+export type RentGenerationSource = 'CRON' | 'MANUAL' | 'TEST_MANUAL'
+
+export async function generateRents(month: number, year: number, source: RentGenerationSource = 'MANUAL') {
   const supabase = createServiceClient()
   const { withEmail, withoutEmail } = await getRentPreview(month, year)
   const allContracts = [...(withEmail ?? []), ...(withoutEmail ?? [])]
@@ -88,6 +90,7 @@ export async function generateRents(month: number, year: number) {
           year,
           tenant_id: tenant.id,
           contract_id: contract.id,
+          source,
         },
         { ignoreDuplicates: true },
       )
@@ -108,7 +111,7 @@ export async function generateRents(month: number, year: number) {
     actionName: 'generateRents',
     tableName: 'invoices',
     operation: 'UPSERT',
-    afterData: { month, year, count: results.length, results },
+    afterData: { month, year, source, count: results.length, results },
   })
   revalidatePath('/finance')
 

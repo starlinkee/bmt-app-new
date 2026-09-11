@@ -153,6 +153,7 @@ export type Database = {
           media_settlement_id: number | null
           month: number
           number: string | null
+          source: string
           tenant_id: number
           type: string
           year: number
@@ -164,6 +165,7 @@ export type Database = {
           media_settlement_id?: number | null
           month: number
           number?: string | null
+          source?: string
           tenant_id: number
           type: string
           year: number
@@ -175,6 +177,7 @@ export type Database = {
           media_settlement_id?: number | null
           month?: number
           number?: string | null
+          source?: string
           tenant_id?: number
           type?: string
           year?: number

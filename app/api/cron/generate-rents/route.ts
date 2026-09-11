@@ -30,13 +30,19 @@ export async function GET(request: Request) {
       year = parseInt(queryYear, 10)
     }
 
-    const results = await generateRents(month, year)
-    
-    return NextResponse.json({ 
-      success: true, 
+    // Źródło generacji: prawdziwy Vercel Cron -> CRON, wywołanie ręczne z
+    // sekretem CRON_SECRET (np. curl na produkcji) -> MANUAL, wywołanie z
+    // panelu testowego (dev/preview lub NEXT_PUBLIC_ALLOW_TEST_PANEL) -> TEST_MANUAL.
+    const source = vercelCron === '1' ? 'CRON' : isOverrideAllowed ? 'TEST_MANUAL' : 'MANUAL'
+
+    const results = await generateRents(month, year, source)
+
+    return NextResponse.json({
+      success: true,
       generated: results.length,
       month,
       year,
+      source,
       simulated: isOverrideAllowed && (!!queryMonth || !!queryYear)
     })
   } catch (error: unknown) {
