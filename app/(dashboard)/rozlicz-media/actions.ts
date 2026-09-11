@@ -494,6 +494,7 @@ export async function processSettlement(
           tenant_id: tenant.id,
           contract_id: activeContract.id,
           media_settlement_id: settlement.id,
+          source: 'MANUAL',
         },
         { ignoreDuplicates: true },
       )

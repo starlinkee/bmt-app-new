@@ -29,9 +29,16 @@ type SendParams = {
   cfg: ProviderConfig
 }
 
+function getEnvSubjectPrefix(): string {
+  const env = process.env.VERCEL_ENV || process.env.NEXT_PUBLIC_VERCEL_ENV
+  if (env === 'development') return '[DEVELOPMENT] '
+  if (env === 'preview') return '[PREVIEW] '
+  return ''
+}
+
 async function sendEmail({ to, subject, html, attachments = [], cfg }: SendParams) {
   const finalTo = to;
-  const finalSubject = subject;
+  const finalSubject = `${getEnvSubjectPrefix()}${subject}`;
   const finalHtml = html;
 
   const isPreview = process.env.VERCEL_ENV === 'preview' || process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview';

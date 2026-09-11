@@ -232,6 +232,7 @@ export async function generateTestMediaCharge(
         tenant_id: tenant.id,
         contract_id: activeContract.id,
         media_settlement_id: settlement.id,
+        source: 'TEST_MANUAL',
       },
       { ignoreDuplicates: false }
     )
