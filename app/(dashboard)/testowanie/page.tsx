@@ -15,6 +15,7 @@ import {
   resetTestClock,
   runLateRemindersTest,
   runStatementReminderTest,
+  zeroAllTenantBalances,
 } from './actions'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { buttonVariants } from '@/components/ui/button'
@@ -53,6 +54,9 @@ export default function TestowaniePage() {
 
   const [stmtLoading, setStmtLoading] = useState(false)
   const [stmtResult, setStmtResult] = useState<{ sent?: boolean; reason?: string; error?: string } | null>(null)
+
+  const [zeroLoading, setZeroLoading] = useState(false)
+  const [zeroResult, setZeroResult] = useState<{ deletedTransactions?: number; deletedInvoices?: number; error?: string } | null>(null)
 
   useEffect(() => {
     getSettlementGroups().then(setGroups).catch(console.error)
@@ -119,6 +123,22 @@ export default function TestowaniePage() {
       setLateResult({ error: err instanceof Error ? err.message : 'Wystąpił błąd' })
     } finally {
       setLateLoading(false)
+    }
+  }
+
+  const handleZeroAllBalances = async () => {
+    if (!confirm('To NIEODWRACALNIE usunie WSZYSTKIE transakcje i faktury wszystkich najemców, sprowadzając ich saldo do 0. Kontynuować?')) {
+      return
+    }
+    setZeroLoading(true)
+    setZeroResult(null)
+    try {
+      const res = await zeroAllTenantBalances()
+      setZeroResult(res)
+    } catch (err: unknown) {
+      setZeroResult({ error: err instanceof Error ? err.message : 'Wystąpił błąd' })
+    } finally {
+      setZeroLoading(false)
     }
   }
 
@@ -383,6 +403,49 @@ export default function TestowaniePage() {
                 <p className="text-sm text-red-600 dark:text-red-400">{mediaResult.error}</p>
               </div>
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-sm border-amber-200 dark:border-amber-900/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-500" />
+            Wyzeruj salda wszystkich najemców
+          </CardTitle>
+          <CardDescription>
+            Kasuje z bazy WSZYSTKIE transakcje (przelewy) i faktury przypisane do najemców.
+            Po tej operacji każdy najemca będzie miał saldo równe 0 (0 wpłat - 0 obciążeń).
+            Nieodwracalne. Ten przycisk jest jedynym miejscem w aplikacji, które
+            trwale odblokowuje usuwanie w tym środowisku (na produkcji jest zawsze
+            zablokowany).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-6 space-y-4">
+          <Button
+            onClick={handleZeroAllBalances}
+            disabled={zeroLoading}
+            variant="destructive"
+            className="w-full"
+          >
+            {zeroLoading ? 'Wyrównywanie sald...' : 'Wyzeruj salda wszystkich najemców'}
+          </Button>
+
+          {zeroResult?.error && (
+            <div className="p-4 rounded-md flex items-start gap-3 border border-red-200 dark:border-red-900/50">
+              <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-500 mt-0.5" />
+              <div>
+                <p className="font-medium">Błąd</p>
+                <p className="text-sm text-red-600 dark:text-red-400">{zeroResult.error}</p>
+              </div>
+            </div>
+          )}
+
+          {!zeroResult?.error && zeroResult && (
+            <p className="text-sm text-green-600 dark:text-green-500 flex items-center gap-1">
+              <CheckCircle2 className="h-4 w-4" />
+              Usunięto {zeroResult.deletedTransactions} transakcji i {zeroResult.deletedInvoices} faktur. Wszyscy najemcy mają teraz saldo 0.
+            </p>
           )}
         </CardContent>
       </Card>

@@ -37,6 +37,7 @@ export type Database = {
             ignored_source_accounts: string
             statement_cutoff_day: number
             time_offset_ms: number
+            allow_destructive_test_deletes: boolean
           }
           Insert: {
           drive_invoices_folder_id?: string
@@ -60,6 +61,7 @@ export type Database = {
             ignored_source_accounts?: string
             statement_cutoff_day?: number
             time_offset_ms?: number
+            allow_destructive_test_deletes?: boolean
           }
           Update: {
           drive_invoices_folder_id?: string
@@ -83,6 +85,7 @@ export type Database = {
             ignored_source_accounts?: string
             statement_cutoff_day?: number
             time_offset_ms?: number
+            allow_destructive_test_deletes?: boolean
           }
           Relationships: []
       }
