@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { updateTransaction, getTransactionAmendments } from './actions'
+import { QUERY_KEYS } from '@/lib/queryKeys'
 import { ConfirmEditDialog } from '@/components/ui/confirm-edit-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -50,7 +51,7 @@ export function EditTransactionButton({
   const [note, setNote] = useState('')
   const [amendments, setAmendments] = useState<Amendment[]>([])
   const [pending, startTransition] = useTransition()
-  const router = useRouter()
+  const queryClient = useQueryClient()
 
   function openEdit() {
     setAmount(String(currentAmount))
@@ -84,7 +85,8 @@ export function EditTransactionButton({
       toast.success('Transakcja zaktualizowana.')
       setEditOpen(false)
       setConfirmOpen(false)
-      router.refresh()
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tenantStatement(tenantId) })
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tenantBalance(tenantId) })
     })
   }
 

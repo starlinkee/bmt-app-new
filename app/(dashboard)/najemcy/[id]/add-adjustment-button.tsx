@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { addAdjustment } from './actions'
+import { QUERY_KEYS } from '@/lib/queryKeys'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -22,7 +23,7 @@ export function AddAdjustmentButton({ tenantId }: { tenantId: number }) {
   const [description, setDescription] = useState('')
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [pending, startTransition] = useTransition()
-  const router = useRouter()
+  const queryClient = useQueryClient()
 
   function handleSave() {
     const num = parseFloat(amount.replace(',', '.'))
@@ -36,7 +37,8 @@ export function AddAdjustmentButton({ tenantId }: { tenantId: number }) {
       setOpen(false)
       setAmount('')
       setDescription('')
-      router.refresh()
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tenantStatement(tenantId) })
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tenantBalance(tenantId) })
     })
   }
 

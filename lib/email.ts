@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer'
 import { createServiceClient } from '@/lib/supabase/service'
 import { formatAmount } from '@/lib/utils'
+import { getEnvTier } from '@/lib/env'
 import fs from 'fs/promises'
 import path from 'path'
 import crypto from 'crypto'
@@ -30,9 +31,9 @@ type SendParams = {
 }
 
 function getEnvSubjectPrefix(): string {
-  const env = process.env.VERCEL_ENV || process.env.NEXT_PUBLIC_VERCEL_ENV
-  if (env === 'development') return '[DEVELOPMENT] '
-  if (env === 'preview') return '[PREVIEW] '
+  const tier = getEnvTier()
+  if (tier === 'DEVELOPMENT') return '[DEVELOPMENT] '
+  if (tier === 'PREVIEW') return '[PREVIEW] '
   return ''
 }
 
