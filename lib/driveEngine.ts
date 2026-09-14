@@ -98,6 +98,22 @@ export async function ensureYearMonthFolder(
   return monthFolder
 }
 
+// Struktura docelowa w Drive: [root] / DEVELOPMENT|PREVIEW|PRODUCTION / rok / miesiąc (1-12) / grupa mediów
+// Foldery powstają leniwie — tylko gdy faktycznie trzeba w nich coś zapisać.
+export async function ensureMediaSettlementFolder(
+  rootFolderId: string,
+  envTier: string,
+  year: number,
+  month: number,
+  groupName: string,
+): Promise<string> {
+  const envFolder = await getOrCreateFolder(envTier, rootFolderId)
+  const yearFolder = await getOrCreateFolder(String(year), envFolder)
+  const monthFolder = await getOrCreateFolder(String(month), yearFolder)
+  const groupFolder = await getOrCreateFolder(groupName, monthFolder)
+  return groupFolder
+}
+
 export async function deleteFile(fileId: string): Promise<void> {
   const auth = getOAuthClient()
   const drive = google.drive({ version: 'v3', auth })

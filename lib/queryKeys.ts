@@ -11,5 +11,6 @@ export const QUERY_KEYS = {
   tenantDetail: (tenantId: number) => ['tenant_detail', tenantId] as const,
   tenantBalance: (tenantId: number) => ['tenant_balance', tenantId] as const,
   auditLog: ['audit_log'] as const,
+  mediaHistory: ['media_history'] as const,
   globalPaymentStats: ['global_payment_stats'] as const,
 }

@@ -413,8 +413,8 @@ export default function ContractsPage() {
                     {activeContracts.map((c) => {
                       const tenant = getTenantData(c)
                       const current = Number(c.rent_amount)
-                      const preview = pct !== null ? computeRevaluedAmount(current, pct) : null
                       const checked = selectedIds.has(c.id)
+                      const preview = pct !== null && checked ? computeRevaluedAmount(current, pct) : null
                       return (
                         <div key={c.id} className="flex items-center gap-2 py-1">
                           <Checkbox

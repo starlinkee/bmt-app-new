@@ -165,7 +165,7 @@ export async function generateTestMediaCharge(
   if (!group) throw new Error('Nie znaleziono grupy')
 
   const propertyIds = (group.settlement_group_properties as any[])?.map(p => p.property_id) || []
-  
+
   if (propertyIds.length === 0) {
     throw new Error('Grupa nie ma przypisanych żadnych nieruchomości (lokali)')
   }
@@ -196,7 +196,7 @@ export async function generateTestMediaCharge(
       })
       .select('id')
       .single()
-      
+
     if (settlementError) throw settlementError
     settlement = newSettlement
   }

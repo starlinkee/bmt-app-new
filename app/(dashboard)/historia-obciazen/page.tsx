@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { getAllFlows, getFirstTransactionDate } from './actions'
+import { getAllCharges } from './actions'
 import { formatAmount, formatDate } from '@/lib/utils'
 import {
   Table,
@@ -36,18 +36,12 @@ const TYPE_LABELS: Record<string, string> = {
 
 
 
-type Entry = Awaited<ReturnType<typeof getAllFlows>>[number]
+type Entry = Awaited<ReturnType<typeof getAllCharges>>[number]
 type SortKey = 'id' | 'date' | 'type' | 'tenant' | 'tenantType' | 'description' | 'amount'
 type SortDir = 'asc' | 'desc'
 
 function getTypeLabel(entry: Entry): string {
-  if (entry.type === 'invoice') {
-    return entry.invoiceType ? (TYPE_LABELS[entry.invoiceType] ?? entry.invoiceType) : 'Obciazenie'
-  }
-  if (entry.transactionCategory) {
-    return `Wpłata (${TYPE_LABELS[entry.transactionCategory] ?? entry.transactionCategory})`
-  }
-  return 'Wpłata (bez kategorii)'
+  return entry.invoiceType ? (TYPE_LABELS[entry.invoiceType] ?? entry.invoiceType) : 'Obciazenie'
 }
 
 function sortEntries(entries: Entry[], key: SortKey, dir: SortDir): Entry[] {
@@ -94,12 +88,6 @@ const CATEGORY_OPTIONS = [
   { value: 'all', label: 'Wszystko' },
   { value: 'RENT', label: 'Czynsz' },
   { value: 'MEDIA', label: 'Media' },
-  { value: 'transaction', label: 'Wpłaty' },
-] as const
-
-const TYPE_OPTIONS = [
-  { value: 'invoice', label: 'Obciążenie' },
-  { value: 'transaction', label: 'Wpłata' },
 ] as const
 
 function matchesDateRange(entry: Entry, from: string, to: string): boolean {
@@ -118,23 +106,17 @@ function SortIcon({ col, sortKey, sortDir }: { col: SortKey, sortKey: SortKey, s
     : <ChevronDown className="ml-1 h-3 w-3 inline" />
 }
 
-export default function PrzeplywyPage() {
+export default function HistoriaObciazenPage() {
   const [year, setYear] = useState(CURRENT_YEAR)
   const [sortKey, setSortKey] = useState<SortKey>('date')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [filterText, setFilterText] = useState('')
 
   const { data: entries = [], isLoading } = useQuery({
-    queryKey: ['przeplywy', year],
-    queryFn: () => getAllFlows(year),
+    queryKey: ['historia-obciazen', year],
+    queryFn: () => getAllCharges(year),
     staleTime: 0,
     refetchOnMount: 'always',
-  })
-
-  useQuery({
-    queryKey: ['firstTransactionDate'],
-    queryFn: getFirstTransactionDate,
-    staleTime: Infinity,
   })
 
   function handleSort(key: SortKey) {
@@ -147,23 +129,17 @@ export default function PrzeplywyPage() {
   }
 
   const [categories, setCategories] = useState<Set<string>>(new Set())
-  const [entryTypes, setEntryTypes] = useState<Set<string>>(new Set())
   const [selectedTenants, setSelectedTenants] = useState<Set<string>>(new Set())
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
 
   const categoryFiltered = entries.filter((e) => {
     if (categories.size === 0) return true
-    const cat = e.type === 'transaction' ? 'transaction' : (e.invoiceType ?? 'OTHER')
+    const cat = e.invoiceType ?? 'OTHER'
     return categories.has(cat)
   })
 
-  const typeFiltered = categoryFiltered.filter((e) => {
-    if (entryTypes.size === 0) return true
-    return entryTypes.has(e.type)
-  })
-
-  const selectedTenantsFiltered = typeFiltered.filter((e) => {
+  const selectedTenantsFiltered = categoryFiltered.filter((e) => {
     if (selectedTenants.size === 0) return true
     return e.tenantName && selectedTenants.has(e.tenantName)
   })
@@ -177,9 +153,7 @@ export default function PrzeplywyPage() {
   const visible = sortEntries(textFiltered, sortKey, sortDir)
   const hasDates = !!(dateFrom || dateTo)
 
-  const totalIn = dateFiltered.filter((e) => e.amount > 0).reduce((s, e) => s + e.amount, 0)
-  const totalOut = dateFiltered.filter((e) => e.amount < 0).reduce((s, e) => s + Math.abs(e.amount), 0)
-  const net = totalIn - totalOut
+  const total = dateFiltered.reduce((s, e) => s + Math.abs(e.amount), 0)
 
   // Compute unique tenants for filter
   const uniqueTenants = Array.from(new Set(entries.map(e => e.tenantName).filter(Boolean) as string[])).sort()
@@ -187,7 +161,7 @@ export default function PrzeplywyPage() {
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Przepływy</h1>
+        <h1 className="text-2xl font-semibold">Historia obciążeń</h1>
 
         <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
           <SelectTrigger className="w-28">
@@ -210,7 +184,7 @@ export default function PrzeplywyPage() {
           hideColumns={true}
         />
         <div className="text-sm">
-          Suma (widoczne): <span className={`font-bold ${net >= 0 ? 'text-green-600' : 'text-destructive'}`}>{formatAmount(net)}</span>
+          Suma (widoczne): <span className="font-bold text-destructive">{formatAmount(total)}</span>
         </div>
       </div>
 
@@ -220,13 +194,6 @@ export default function PrzeplywyPage() {
           options={CATEGORY_OPTIONS.filter(o => o.value !== 'all')}
           selectedValues={categories}
           onSelectedChange={setCategories}
-        />
-
-        <FacetedFilter
-          title="Typ"
-          options={[...TYPE_OPTIONS]}
-          selectedValues={entryTypes}
-          onSelectedChange={setEntryTypes}
         />
 
         <FacetedFilter
@@ -305,7 +272,7 @@ export default function PrzeplywyPage() {
           {!isLoading && visible.length === 0 && (
             <TableRow>
               <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                {filterText ? 'Brak wyników dla podanego filtra' : `Brak operacji dla ${year}`}
+                {filterText ? 'Brak wyników dla podanego filtra' : `Brak obciążeń dla ${year}`}
               </TableCell>
             </TableRow>
           )}
@@ -316,24 +283,13 @@ export default function PrzeplywyPage() {
                 {formatDate(entry.date)}
               </TableCell>
               <TableCell>
-                {entry.type === 'invoice' ? (
-                  <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${entry.invoiceType === 'RENT' ? 'bg-gray-100 text-gray-600' : 'bg-blue-100 text-blue-700'}`}>
-                    {entry.invoiceType ? (TYPE_LABELS[entry.invoiceType] ?? entry.invoiceType) : 'Obciazenie'}
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center rounded-md bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                    {getTypeLabel(entry)}
-                  </span>
-                )}
+                <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${entry.invoiceType === 'RENT' ? 'bg-gray-100 text-gray-600' : 'bg-blue-100 text-blue-700'}`}>
+                  {getTypeLabel(entry)}
+                </span>
               </TableCell>
               <TableCell className="text-sm">{entry.tenantName}</TableCell>
               <TableCell className="text-sm text-muted-foreground">{entry.description}</TableCell>
-              <TableCell
-                className={`text-right text-sm font-medium ${
-                  entry.amount >= 0 ? 'text-green-600' : 'text-destructive'
-                }`}
-              >
-                {entry.amount >= 0 ? '+' : ''}
+              <TableCell className="text-right text-sm font-medium text-destructive">
                 {formatAmount(entry.amount)}
               </TableCell>
             </TableRow>

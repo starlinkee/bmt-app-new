@@ -12,15 +12,20 @@ import {
   getServiceAccountEmail,
   stripSpreadsheetColors,
 } from '@/lib/sheetsEngine'
-import { copySpreadsheet, deleteFile } from '@/lib/driveEngine'
+import { copySpreadsheet, deleteFile, ensureMediaSettlementFolder } from '@/lib/driveEngine'
 import { sendMediaEmail } from '@/lib/email'
 import { buildInvoiceNumber, tenantDisplayName } from '@/lib/utils'
+import { getEnvTier } from '@/lib/env'
 
+// Nazwa grupy jako segment ścieżki/folderu — bez ukośników, które łamałyby strukturę.
+function sanitizePathSegment(name: string): string {
+  return name.replace(/\//g, '-').trim()
+}
 
-async function uploadToSupabaseStorage(supabase: any, year: number, month: number, fileName: string, buffer: Buffer): Promise<string> {
-  const isPreview = process.env.VERCEL_ENV === 'preview' || process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview'
-  const basePath = isPreview ? 'preview/' : ''
-  const filePath = `${basePath}${year}/${String(month).padStart(2, '0')}/${fileName}`
+// Struktura: [bucket "invoices"] / DEVELOPMENT|PREVIEW|PRODUCTION / rok / miesiąc / grupa mediów / plik.pdf
+// Zgodna 1:1 ze strukturą folderów w Google Drive (patrz ensureMediaSettlementFolder).
+async function uploadToSupabaseStorage(supabase: any, envTier: string, year: number, month: number, groupName: string, fileName: string, buffer: Buffer): Promise<string> {
+  const filePath = `${envTier}/${year}/${month}/${sanitizePathSegment(groupName)}/${fileName}`
   const { error } = await supabase.storage.from('invoices').upload(filePath, buffer, {
     contentType: 'application/pdf',
     upsert: true,
@@ -299,14 +304,21 @@ export async function processSettlement(
     .eq('id', 1)
     .single()
 
-  // 1. Utwórz folder MM/YYYY i skopiuj szablon arkusza do niego
-  // Month folder is handled in Supabase Storage directly
-  const isPreview = process.env.VERCEL_ENV === 'preview' || process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview'
-  const sheetName = `Media ${String(month).padStart(2, '0')}/${year} – ${group.name}${isPreview ? ' [PREVIEW]' : ''}`
+  // 1. Utwórz strukturę folderów DEVELOPMENT|PREVIEW|PRODUCTION / rok / miesiąc / grupa w Drive
+  // i skopiuj do niej szablon arkusza (foldery powstają leniwie, tylko gdy trzeba).
+  const envTier = getEnvTier()
+  const sheetName = `Media ${String(month).padStart(2, '0')}/${year} – ${group.name}${envTier !== 'PRODUCTION' ? ` [${envTier}]` : ''}`
+  const settlementFolderId = await ensureMediaSettlementFolder(
+    config!.drive_invoices_folder_id,
+    envTier,
+    year,
+    month,
+    group.name,
+  )
   const workingSheetId = await copySpreadsheet(
     group.spreadsheet_id,
     sheetName,
-    config!.drive_invoices_folder_id,
+    settlementFolderId,
     getServiceAccountEmail(),
   )
 
@@ -377,7 +389,7 @@ export async function processSettlement(
 
   if (!pdfSheets || pdfSheets.length === 0) {
     const buffer = await exportSheetAsPdf(workingSheetId)
-    const driveId = await uploadToSupabaseStorage(supabase, year, month, `${baseName}.pdf`, buffer)
+    const driveId = await uploadToSupabaseStorage(supabase, envTier, year, month, group.name, `${baseName}.pdf`, buffer)
     exportedPdfs.push({ name: baseName, driveId, buffer })
   } else {
     const allGids = await getAllSheetGids(workingSheetId)
@@ -386,7 +398,7 @@ export async function processSettlement(
         const gid = sheet.tab ? allGids[sheet.tab] : sheet.gid
         const buffer = await exportSheetAsPdf(workingSheetId, gid, { printRange: sheet.range, portrait: sheet.portrait, fitToPage: sheet.fitToPage })
         const fileName = `${baseName} – ${sheet.name}.pdf`
-        const driveId = await uploadToSupabaseStorage(supabase, year, month, fileName, buffer)
+        const driveId = await uploadToSupabaseStorage(supabase, envTier, year, month, group.name, fileName, buffer)
         return { name: sheet.name, driveId, buffer }
       }),
     )
@@ -505,7 +517,7 @@ export async function processSettlement(
         invoicePdfBuffer = await generateMockupNotaPdfBuffer(tenantName, amount, month, year)
         
         const fileName = `Nota_Rozliczeniowa_${tenantName.replace(/\s+/g, '_')}_${month}_${year}.pdf`
-        await uploadToSupabaseStorage(supabase, year, month, fileName, invoicePdfBuffer)
+        await uploadToSupabaseStorage(supabase, envTier, year, month, group.name, fileName, invoicePdfBuffer)
       } catch (e) {
         invoiceError = e instanceof Error ? e.message : String(e)
         console.error('[media] Błąd generowania noty dla najemcy', tenant.id, ':', invoiceError)

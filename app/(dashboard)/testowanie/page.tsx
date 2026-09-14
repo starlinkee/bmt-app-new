@@ -259,7 +259,7 @@ export default function TestowaniePage() {
                 min={1} 
                 max={12} 
                 value={month} 
-                onChange={(e) => setMonth(parseInt(e.target.value))}
+                onChange={(e) => setMonth(e.target.value === '' ? 0 : parseInt(e.target.value))}
               />
             </div>
             <div className="space-y-2">
@@ -269,7 +269,7 @@ export default function TestowaniePage() {
                 type="number" 
                 min={2000} 
                 value={year} 
-                onChange={(e) => setYear(parseInt(e.target.value))}
+                onChange={(e) => setYear(e.target.value === '' ? 0 : parseInt(e.target.value))}
               />
             </div>
           </div>
@@ -290,6 +290,13 @@ export default function TestowaniePage() {
                 <p className="text-sm text-red-600 dark:text-red-400">{result.error}</p>
               </div>
             </div>
+          )}
+
+          {result?.success && (
+            <p className="text-sm mt-4 text-green-600 dark:text-green-500 flex items-center gap-1">
+              <CheckCircle2 className="h-4 w-4" />
+              Wygenerowano {result.generated} {result.generated === 1 ? 'czynsz' : 'czynszów'} dla {month}/{year}.
+            </p>
           )}
         </CardContent>
       </Card>
@@ -314,7 +321,7 @@ export default function TestowaniePage() {
                 min={1} 
                 max={12} 
                 value={mediaMonth} 
-                onChange={(e) => setMediaMonth(parseInt(e.target.value))}
+                onChange={(e) => setMediaMonth(e.target.value === '' ? 0 : parseInt(e.target.value))}
               />
             </div>
             <div className="space-y-2">
@@ -324,7 +331,7 @@ export default function TestowaniePage() {
                 type="number" 
                 min={2000} 
                 value={mediaYear} 
-                onChange={(e) => setMediaYear(parseInt(e.target.value))}
+                onChange={(e) => setMediaYear(e.target.value === '' ? 0 : parseInt(e.target.value))}
               />
             </div>
           </div>
@@ -403,6 +410,13 @@ export default function TestowaniePage() {
                 <p className="text-sm text-red-600 dark:text-red-400">{mediaResult.error}</p>
               </div>
             </div>
+          )}
+
+          {mediaResult?.success && (
+            <p className="text-sm mt-4 text-green-600 dark:text-green-500 flex items-center gap-1">
+              <CheckCircle2 className="h-4 w-4" />
+              Wystawiono {mediaResult.generated} {mediaResult.generated === 1 ? 'obciążenie' : 'obciążeń'} dla {mediaMonth}/{mediaYear}.
+            </p>
           )}
         </CardContent>
       </Card>

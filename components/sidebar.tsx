@@ -16,6 +16,7 @@ import {
   Mail,
   Beaker,
   Banknote,
+  Receipt,
   Database,
   BellRing,
 } from 'lucide-react'
@@ -31,10 +32,11 @@ const dataItems = [
 ]
 
 const historyItems = [
-  { href: '/przeplywy', label: 'Przepływy', icon: ArrowLeftRight },
+  { href: '/historia-obciazen', label: 'Historia obciążeń', icon: ArrowLeftRight },
   { href: '/wiadomosci', label: 'Historia wiadomości', icon: Mail },
   { href: '/historia', label: 'Historia operacji', icon: History },
   { href: '/import/history', label: 'Historia przelewów', icon: Banknote },
+  { href: '/historia-mediow', label: 'Historia mediów', icon: Receipt },
 ]
 
 const actionItems = [
