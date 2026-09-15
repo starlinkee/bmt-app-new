@@ -131,12 +131,12 @@ export default function ContractsPage() {
   const uniqueTenants = Array.from(new Set(contracts.map((c) => {
     const t = getTenantData(c)
     return `${t?.first_name ?? ''} ${t?.last_name ?? ''}`.trim()
-  }).filter(Boolean))).sort()
+  }).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pl'))
 
   const uniqueProperties = Array.from(new Set(contracts.map((c) => {
     const t = getTenantData(c)
     return t?.properties?.name ?? ''
-  }).filter(Boolean))).sort()
+  }).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pl'))
 
   function openCreate() {
     setEditing(null)

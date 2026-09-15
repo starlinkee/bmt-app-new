@@ -73,6 +73,10 @@ function sortGroups(groups: Group[], key: SortKey, dir: SortDir, allTenants: Ten
       va = getGroupTenantsCount(a, allTenants)
       vb = getGroupTenantsCount(b, allTenants)
     }
+    if (typeof va === 'string' && typeof vb === 'string') {
+      const cmp = va.localeCompare(vb, 'pl')
+      return dir === 'asc' ? cmp : -cmp
+    }
     if (va < vb) return dir === 'asc' ? -1 : 1
     if (va > vb) return dir === 'asc' ? 1 : -1
     return 0

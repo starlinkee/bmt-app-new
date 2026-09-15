@@ -92,6 +92,10 @@ function sortGroups(groups: Group[], key: SortKey, dir: SortDir, allTenants: Ten
       va = getGroupTenantsCount(a, allTenants)
       vb = getGroupTenantsCount(b, allTenants)
     }
+    if (typeof va === 'string' && typeof vb === 'string') {
+      const cmp = va.localeCompare(vb, 'pl')
+      return dir === 'asc' ? cmp : -cmp
+    }
     if (va < vb) return dir === 'asc' ? -1 : 1
     if (va > vb) return dir === 'asc' ? 1 : -1
     return 0
@@ -286,10 +290,27 @@ export default function MediaPage() {
 
     const validSaveKeys = extractValidSaveKeys(inputMap)
     const unknownKeys = new Set<string>()
-    for (const text of Object.values(form.tenant_reading_keys)) {
-      for (const entry of parseTenantReadingKeysText(text)) {
+    const emptyTenantIds: string[] = []
+    for (const [tId, text] of Object.entries(form.tenant_reading_keys)) {
+      const entries = parseTenantReadingKeysText(text)
+      if (entries.length === 0) {
+        emptyTenantIds.push(tId)
+        continue
+      }
+      for (const entry of entries) {
         if (!validSaveKeys.has(entry.key)) unknownKeys.add(entry.key)
       }
+    }
+    if (emptyTenantIds.length > 0) {
+      const names = emptyTenantIds
+        .map((tId) => tenants.find((t) => t.id.toString() === tId))
+        .filter((t): t is Tenant => !!t)
+        .map((t) => `${t.first_name} ${t.last_name}`)
+      toast.error(
+        `Zaznaczono najemcę bez podanego klucza${names.length ? `: ${names.join(', ')}` : ''}. ` +
+        `Wpisz dla niego klucz (format "klucz:Etykieta") albo odznacz go — inaczej link do podawania odczytów mu się nie pojawi.`
+      )
+      return
     }
     if (unknownKeys.size > 0) {
       toast.error(
@@ -341,6 +362,9 @@ export default function MediaPage() {
       setOpen(false)
       setConfirmOpen(false)
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.settlementGroups })
+      // tenant_reading_keys wpływa na reading_keys_count liczone w getTenants() —
+      // bez tego link do odczytów w panelu Najemcy pokazuje stare (przycache'owane) dane.
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tenants })
     })
   }
 
@@ -350,6 +374,7 @@ export default function MediaPage() {
       await deleteSettlementGroup(g.id)
       toast.success('Grupa usunięta.')
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.settlementGroups })
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tenants })
     })
   }
 
@@ -500,8 +525,10 @@ export default function MediaPage() {
                 return groupTenants.map((t) => {
                   const isChecked = form.tenant_reading_keys[t.id.toString()] !== undefined
                   const keysStr = form.tenant_reading_keys[t.id.toString()] || ''
+                  const parsedEntries = parseTenantReadingKeysText(keysStr)
+                  const isEmptyChecked = isChecked && parsedEntries.length === 0
                   const unknownKeys = validSaveKeys.size > 0
-                    ? parseTenantReadingKeysText(keysStr).filter((e) => !validSaveKeys.has(e.key)).map((e) => e.key)
+                    ? parsedEntries.filter((e) => !validSaveKeys.has(e.key)).map((e) => e.key)
                     : []
 
                   return (
@@ -540,8 +567,13 @@ export default function MediaPage() {
                               })
                             }}
                             placeholder="np. jp64_cieplaWodaLokal1:Ciepła woda, jp64_coLokal1:CO"
-                            className={`h-8 text-sm ${unknownKeys.length > 0 ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                            className={`h-8 text-sm ${unknownKeys.length > 0 || isEmptyChecked ? 'border-destructive focus-visible:ring-destructive' : ''}`}
                           />
+                          {isEmptyChecked && (
+                            <p className="text-xs text-destructive">
+                              Brak klucza — bez niego najemca nie dostanie linku do podawania odczytów. Wpisz klucz albo odznacz najemcę.
+                            </p>
+                          )}
                           {unknownKeys.length > 0 && (
                             <p className="text-xs text-destructive">
                               Nieznany klucz: {unknownKeys.join(', ')} — nie występuje jako &quot;save_key&quot; w mapowaniu wejściowym poniżej, więc odczyt najemcy nigdy się nie pojawi w panelu Rozlicz Media.

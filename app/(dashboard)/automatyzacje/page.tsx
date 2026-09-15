@@ -1,7 +1,7 @@
 import { getAutomationStatus } from './actions'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { formatDateTime } from '@/lib/utils'
-import { Mail, CalendarClock, Upload, ClipboardList, Gauge, Receipt, AlertTriangle } from 'lucide-react'
+import { Mail, CalendarClock, Upload, ClipboardList, Gauge, Receipt } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -133,30 +133,33 @@ export default async function AutomatyzacjePage() {
         </CardContent>
       </Card>
 
-      {/* 5. Czynsze — brak maili */}
+      {/* 5. Czynsze — generowanie 1. dnia miesiąca */}
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Receipt className="h-5 w-5 text-primary" />
-            Czynsze (rents)
+            Naliczanie czynszów (1. dnia miesiąca, 8:00)
           </CardTitle>
-          <CardDescription>Świadomie bez maili i bez PDF-ów</CardDescription>
+          <CardDescription>Automatyczne, uruchamiane przez harmonogram (cron) na Vercelu — bez maili i bez PDF-ów</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <p>
-            Dla czynszu aplikacja nie wysyła żadnych maili ani nie generuje żadnych PDF-ów — to celowe.
-            Jedyne, co powstaje, to rekord w tabeli rachunków (bez numeru), potrzebny tylko po to, żeby
-            liczyć zadłużenie/saldo najemcy. Formalne fakturowanie czynszu robi zewnętrzny system księgowy,
-            poza tą aplikacją.
+            1. dnia każdego miesiąca o 8:00 Vercel odpytuje endpoint{' '}
+            <code className="text-xs bg-muted px-1 py-0.5 rounded">/api/cron/generate-rents</code>. Dla
+            każdej aktywnej umowy naliczany jest czynsz za bieżący miesiąc — powstaje rekord w tabeli
+            rachunków (typ <code className="text-xs bg-muted px-1 py-0.5 rounded">RENT</code>, bez numeru),
+            potrzebny tylko po to, żeby liczyć zadłużenie/saldo najemcy w „Kontroli płatności”. Umowa, która
+            ma już taki rachunek za dany miesiąc, jest pomijana (bez duplikatów), więc ponowne odpalenie
+            crona tego samego dnia jest bezpieczne.
           </p>
-          <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/20 px-4 py-3 text-amber-800 dark:text-amber-300">
-            <AlertTriangle className="h-5 w-5 mt-0.5 shrink-0 text-amber-600 dark:text-amber-500" />
-            <span className="flex-1 leading-relaxed">
-              Uwaga: obecnie nic w aplikacji nie tworzy tych rekordów automatycznie co miesiąc — nie ma
-              na to harmonogramu. W efekcie zadłużenie z tytułu czynszu może nie być uwzględnione w saldach
-              widocznych w „Kontroli płatności”, dopóki ktoś ręcznie tego nie uzupełni.
-            </span>
-          </div>
+          <p>
+            Aplikacja świadomie nie wysyła przy tym żadnych maili ani nie generuje żadnych PDF-ów —
+            formalne fakturowanie czynszu robi zewnętrzny system księgowy, poza tą aplikacją.
+          </p>
+          <StatusLine
+            label="Ostatnie naliczenie"
+            value={status.lastRentGenerationAt ? `${formatDateTime(status.lastRentGenerationAt)} — ${status.lastRentGenerationInfo}` : 'jeszcze nigdy (brak wpisu w historii)'}
+          />
         </CardContent>
       </Card>
     </div>

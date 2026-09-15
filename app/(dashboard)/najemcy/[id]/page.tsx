@@ -96,6 +96,10 @@ function sortStatement(entries: StatementEntry[], key: SortKey, dir: SortDir): S
       va = a.amount
       vb = b.amount
     }
+    if (typeof va === 'string' && typeof vb === 'string') {
+      const cmp = va.localeCompare(vb, 'pl')
+      return dir === 'asc' ? cmp : -cmp
+    }
     if (va < vb) return dir === 'asc' ? -1 : 1
     if (va > vb) return dir === 'asc' ? 1 : -1
     return 0

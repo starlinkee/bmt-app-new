@@ -51,6 +51,10 @@ export function sortContracts(contracts: Contract[], key: SortKey, dir: SortDir)
       va = ((a as Record<string, unknown>).has_media_invoice ? 1 : 0)
       vb = ((b as Record<string, unknown>).has_media_invoice ? 1 : 0)
     }
+    if (typeof va === 'string' && typeof vb === 'string') {
+      const cmp = va.localeCompare(vb, 'pl')
+      return dir === 'asc' ? cmp : -cmp
+    }
     if (va < vb) return dir === 'asc' ? -1 : 1
     if (va > vb) return dir === 'asc' ? 1 : -1
     return 0

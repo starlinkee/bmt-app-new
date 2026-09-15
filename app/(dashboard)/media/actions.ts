@@ -101,6 +101,7 @@ export async function createSettlementGroup(data: {
   })
   revalidatePath('/media')
   revalidatePath('/rozlicz-media')
+  revalidatePath('/najemcy')
 }
 
 export async function updateSettlementGroup(
@@ -160,6 +161,7 @@ export async function updateSettlementGroup(
   revalidatePath('/media')
   revalidatePath('/rozlicz-media')
   revalidatePath(`/rozlicz-media/${id}`)
+  revalidatePath('/najemcy')
 }
 
 export async function deleteSettlementGroup(id: number) {
@@ -176,6 +178,7 @@ export async function deleteSettlementGroup(id: number) {
   await logAudit({ actionName: 'deleteSettlementGroup', tableName: 'settlement_groups', operation: 'DELETE', recordId: id, beforeData: before })
   revalidatePath('/media')
   revalidatePath('/rozlicz-media')
+  revalidatePath('/najemcy')
 }
 
 type FieldDef = string | { range: string; source: 'user'; save_key?: string } | { range: string; source: 'db'; db_key: string } | { range: string; source: 'auto'; auto_type: string }

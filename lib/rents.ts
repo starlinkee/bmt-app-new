@@ -18,6 +18,7 @@ export async function getRentPreview(month: number, year: number) {
     .not('contract_id', 'is', null)
 
   const existingContractIds = (existingInvoices ?? []).map((i) => i.contract_id).filter(Boolean)
+  const skippedCount = existingContractIds.length
 
   const [contractsResult, appConfigResult] = await Promise.all([
     supabase
@@ -47,6 +48,10 @@ export async function getRentPreview(month: number, year: number) {
     withoutEmail,
     senderEmail1: appConfigResult.data?.gmail_user ?? null,
     senderEmail2: appConfigResult.data?.gmail_user_2 ?? null,
+    // Liczba aktywnych umów pominiętych, bo mają już rachunek RENT za ten
+    // miesiąc/rok (patrz filtr .not('id', 'in', ...) powyżej) - pokazujemy to
+    // w panelu testowym, żeby "wygenerowano 0" nie wyglądało jak błąd.
+    skippedCount,
   }
 }
 
@@ -54,7 +59,7 @@ export type RentGenerationSource = 'CRON' | 'MANUAL' | 'TEST_MANUAL'
 
 export async function generateRents(month: number, year: number, source: RentGenerationSource = 'MANUAL') {
   const supabase = createServiceClient()
-  const { withEmail, withoutEmail } = await getRentPreview(month, year)
+  const { withEmail, withoutEmail, skippedCount } = await getRentPreview(month, year)
   const allContracts = [...(withEmail ?? []), ...(withoutEmail ?? [])]
 
 
@@ -111,11 +116,11 @@ export async function generateRents(month: number, year: number, source: RentGen
     actionName: 'generateRents',
     tableName: 'invoices',
     operation: 'UPSERT',
-    afterData: { month, year, source, count: results.length, results },
+    afterData: { month, year, source, count: results.length, skippedCount, results },
   })
   revalidatePath('/finance')
 
-  return results
+  return { results, skippedCount }
 }
 
 export async function getRentInvoices(month: number, year: number) {

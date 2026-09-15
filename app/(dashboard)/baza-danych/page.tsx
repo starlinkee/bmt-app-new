@@ -143,16 +143,12 @@ export default function BazaDanychPage() {
       ) : data && data.rows.length === 0 ? (
         <p className="text-sm text-muted-foreground italic py-8">Tabela jest pusta.</p>
       ) : data ? (
-        <div className="rounded-md border">
-          <Table>
+        <div className="rounded-md border overflow-x-auto">
+          <Table className="w-max min-w-full">
             <TableHeader>
               <TableRow>
                 {data.columns.map((col) => (
-                  <TableHead
-                    key={col}
-                    className="font-mono text-xs"
-                    style={col === 'id' ? { minWidth: '4rem' } : undefined}
-                  >
+                  <TableHead key={col} className="font-mono text-xs whitespace-nowrap">
                     {col}
                   </TableHead>
                 ))}
@@ -162,18 +158,8 @@ export default function BazaDanychPage() {
               {data.rows.map((row, i) => (
                 <TableRow key={i}>
                   {data.columns.map((col) => (
-                    <TableCell
-                      key={col}
-                      className={col === 'id' ? 'align-top' : 'align-top max-w-xs'}
-                      style={col === 'id' ? { minWidth: '4rem' } : undefined}
-                    >
-                      <pre
-                        className={
-                          col === 'id'
-                            ? 'm-0 whitespace-nowrap font-mono text-xs'
-                            : 'm-0 whitespace-pre-wrap break-all font-mono text-xs'
-                        }
-                      >
+                    <TableCell key={col} className="align-top">
+                      <pre className="m-0 whitespace-pre font-mono text-xs">
                         {formatCellValue(row[col])}
                       </pre>
                     </TableCell>

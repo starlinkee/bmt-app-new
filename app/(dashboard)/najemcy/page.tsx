@@ -82,6 +82,10 @@ function sortTenants(tenants: Tenant[], key: SortKey, dir: SortDir): Tenant[] {
       va = (a.contracts as unknown as unknown[])?.length ?? 0
       vb = (b.contracts as unknown as unknown[])?.length ?? 0
     }
+    if (typeof va === 'string' && typeof vb === 'string') {
+      const cmp = va.localeCompare(vb, 'pl')
+      return dir === 'asc' ? cmp : -cmp
+    }
     if (va < vb) return dir === 'asc' ? -1 : 1
     if (va > vb) return dir === 'asc' ? 1 : -1
     return 0
@@ -173,7 +177,7 @@ export default function TenantsPage() {
     : facetedTenants
   const sortedTenants = sortTenants(filteredTenants, sortKey, sortDir)
 
-  const uniqueProperties = Array.from(new Set(tenants.map(t => (t.properties as unknown as { name: string } | null)?.name ?? '').filter(Boolean))).sort()
+  const uniqueProperties = Array.from(new Set(tenants.map(t => (t.properties as unknown as { name: string } | null)?.name ?? '').filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pl'))
 
   function openCreate() {
     setEditing(null)

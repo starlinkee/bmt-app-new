@@ -274,13 +274,13 @@ export async function getLastImportSlotRange(docSlot: ImportDocSlot) {
 }
 
 // Dzień w miesiącu, na którym domyślnie "przecina się" okres wyciągu —
-// konfigurowalny w Ustawieniach (statement_cutoff_day, domyślnie 15).
-// Zwraca też gotową podpowiedź zakresu: od (cutoff+1) dnia poprzedniego
+// stała wartość (nie jest konfigurowalna w Ustawieniach).
+// Zwraca gotową podpowiedź zakresu: od (cutoff+1) dnia poprzedniego
 // miesiąca do (cutoff) dnia bieżącego — np. dla 15: od 16 do 15.
+const STATEMENT_CUTOFF_DAY = 15
+
 export async function getStatementCutoffDay() {
-  const supabase = createServiceClient()
-  const { data } = await supabase.from('app_config').select('statement_cutoff_day').eq('id', 1).single()
-  const cutoffDay = data?.statement_cutoff_day ?? 15
+  const cutoffDay = STATEMENT_CUTOFF_DAY
   return {
     cutoffDay,
     suggestedDayFrom: cutoffDay + 1 > 31 ? 1 : cutoffDay + 1,

@@ -37,7 +37,7 @@ const TYPE_LABELS: Record<string, string> = {
 
 
 type Entry = Awaited<ReturnType<typeof getAllCharges>>[number]
-type SortKey = 'id' | 'date' | 'type' | 'tenant' | 'tenantType' | 'description' | 'amount'
+type SortKey = 'id' | 'date' | 'type' | 'tenant' | 'tenantType' | 'property' | 'amount'
 type SortDir = 'asc' | 'desc'
 
 function getTypeLabel(entry: Entry): string {
@@ -63,12 +63,16 @@ function sortEntries(entries: Entry[], key: SortKey, dir: SortDir): Entry[] {
     } else if (key === 'tenantType') {
       va = (a.tenantType ?? '').toLowerCase()
       vb = (b.tenantType ?? '').toLowerCase()
-    } else if (key === 'description') {
-      va = (a.description ?? '').toLowerCase()
-      vb = (b.description ?? '').toLowerCase()
+    } else if (key === 'property') {
+      va = (a.propertyName ?? '').toLowerCase()
+      vb = (b.propertyName ?? '').toLowerCase()
     } else if (key === 'amount') {
       va = a.amount
       vb = b.amount
+    }
+    if (typeof va === 'string' && typeof vb === 'string') {
+      const cmp = va.localeCompare(vb, 'pl')
+      return dir === 'asc' ? cmp : -cmp
     }
     if (va < vb) return dir === 'asc' ? -1 : 1
     if (va > vb) return dir === 'asc' ? 1 : -1
@@ -79,9 +83,9 @@ function sortEntries(entries: Entry[], key: SortKey, dir: SortDir): Entry[] {
 function matchesEntryFilter(entry: Entry, text: string): boolean {
   const q = text.toLowerCase()
   const tenant = (entry.tenantName ?? '').toLowerCase()
-  const description = (entry.description ?? '').toLowerCase()
+  const property = (entry.propertyName ?? '').toLowerCase()
   const type = getTypeLabel(entry).toLowerCase()
-  return tenant.includes(q) || description.includes(q) || type.includes(q)
+  return tenant.includes(q) || property.includes(q) || type.includes(q)
 }
 
 const CATEGORY_OPTIONS = [
@@ -156,7 +160,7 @@ export default function HistoriaObciazenPage() {
   const total = dateFiltered.reduce((s, e) => s + Math.abs(e.amount), 0)
 
   // Compute unique tenants for filter
-  const uniqueTenants = Array.from(new Set(entries.map(e => e.tenantName).filter(Boolean) as string[])).sort()
+  const uniqueTenants = Array.from(new Set(entries.map(e => e.tenantName).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b, 'pl'))
 
   return (
     <div className="p-6 space-y-4">
@@ -253,8 +257,8 @@ export default function HistoriaObciazenPage() {
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('tenant')}>
               Najemca<SortIcon col="tenant" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
-            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('description')}>
-              Opis<SortIcon col="description" sortKey={sortKey} sortDir={sortDir} />
+            <TableHead className="cursor-pointer select-none" onClick={() => handleSort('property')}>
+              Nieruchomość<SortIcon col="property" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort('amount')}>
               Kwota<SortIcon col="amount" sortKey={sortKey} sortDir={sortDir} />
@@ -288,7 +292,7 @@ export default function HistoriaObciazenPage() {
                 </span>
               </TableCell>
               <TableCell className="text-sm">{entry.tenantName}</TableCell>
-              <TableCell className="text-sm text-muted-foreground">{entry.description}</TableCell>
+              <TableCell className="text-sm text-muted-foreground">{entry.propertyName}</TableCell>
               <TableCell className="text-right text-sm font-medium text-destructive">
                 {formatAmount(entry.amount)}
               </TableCell>

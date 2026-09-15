@@ -80,6 +80,10 @@ function sortTransactions(txs: Transaction[], key: SortKey, dir: SortDir): Trans
       va = ((a as unknown as { category?: string | null }).category ?? '').toLowerCase()
       vb = ((b as unknown as { category?: string | null }).category ?? '').toLowerCase()
     }
+    if (typeof va === 'string' && typeof vb === 'string') {
+      const cmp = va.localeCompare(vb, 'pl')
+      return dir === 'asc' ? cmp : -cmp
+    }
     if (va < vb) return dir === 'asc' ? -1 : 1
     if (va > vb) return dir === 'asc' ? 1 : -1
     return 0

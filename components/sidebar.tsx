@@ -117,6 +117,9 @@ export function Sidebar() {
         </ul>
       </nav>
       <div className="border-t p-2 space-y-0.5">
+        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          Administracja
+        </div>
         {(process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_ALLOW_TEST_PANEL === 'true') && (
           <Link
             href="/testowanie"

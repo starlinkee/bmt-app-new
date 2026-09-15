@@ -70,6 +70,10 @@ function sortProperties(props: Property[], key: SortKey, dir: SortDir): Property
       va = (a.tenants as unknown as { count: number }[])?.[0]?.count ?? 0
       vb = (b.tenants as unknown as { count: number }[])?.[0]?.count ?? 0
     }
+    if (typeof va === 'string' && typeof vb === 'string') {
+      const cmp = va.localeCompare(vb, 'pl')
+      return dir === 'asc' ? cmp : -cmp
+    }
     if (va < vb) return dir === 'asc' ? -1 : 1
     if (va > vb) return dir === 'asc' ? 1 : -1
     return 0

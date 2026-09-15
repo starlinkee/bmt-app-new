@@ -40,6 +40,10 @@ function sortTenants(tenants: TenantWithBalance[], key: SortKey, dir: SortDir): 
       va = a.totalInflows
       vb = b.totalInflows
     }
+    if (typeof va === 'string' && typeof vb === 'string') {
+      const cmp = va.localeCompare(vb, 'pl')
+      return dir === 'asc' ? cmp : -cmp
+    }
     if (va < vb) return dir === 'asc' ? -1 : 1
     if (va > vb) return dir === 'asc' ? 1 : -1
     return 0

@@ -35,11 +35,12 @@ export async function GET(request: Request) {
     // panelu testowego (dev/preview lub NEXT_PUBLIC_ALLOW_TEST_PANEL) -> TEST_MANUAL.
     const source = vercelCron === '1' ? 'CRON' : isOverrideAllowed ? 'TEST_MANUAL' : 'MANUAL'
 
-    const results = await generateRents(month, year, source)
+    const { results, skippedCount } = await generateRents(month, year, source)
 
     return NextResponse.json({
       success: true,
       generated: results.length,
+      skipped: skippedCount,
       month,
       year,
       source,

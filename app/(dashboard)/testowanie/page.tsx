@@ -25,7 +25,7 @@ export default function TestowaniePage() {
   const [month, setMonth] = useState(new Date().getMonth() + 1)
   const [year, setYear] = useState(new Date().getFullYear())
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<{ success?: boolean; generated?: number; error?: string } | null>(null)
+  const [result, setResult] = useState<{ success?: boolean; generated?: number; skipped?: number; error?: string } | null>(null)
   
   const [groups, setGroups] = useState<{ id: number; name: string }[]>([])
   const [selectedGroup, setSelectedGroup] = useState<string>('')
@@ -180,7 +180,7 @@ export default function TestowaniePage() {
       const data = await res.json()
       
       if (res.ok) {
-        setResult({ success: true, generated: data.generated })
+        setResult({ success: true, generated: data.generated, skipped: data.skipped })
       } else {
         setResult({ error: data.error || 'Wystąpił nieznany błąd' })
       }
@@ -295,7 +295,11 @@ export default function TestowaniePage() {
           {result?.success && (
             <p className="text-sm mt-4 text-green-600 dark:text-green-500 flex items-center gap-1">
               <CheckCircle2 className="h-4 w-4" />
-              Wygenerowano {result.generated} {result.generated === 1 ? 'czynsz' : 'czynszów'} dla {month}/{year}.
+              Wygenerowano {result.generated} {result.generated === 1 ? 'czynsz' : 'czynszów'} dla {month}/{year}
+              {!!result.skipped && (
+                <> (pominięto {result.skipped} {result.skipped === 1 ? 'umowę' : 'umów'} – czynsz za ten miesiąc już istnieje)</>
+              )}
+              .
             </p>
           )}
         </CardContent>
