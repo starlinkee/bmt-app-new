@@ -10,7 +10,7 @@ import {
   deleteProperty,
 } from './actions'
 import { QUERY_KEYS } from '@/lib/queryKeys'
-import { ConfirmEditDialog } from '@/components/ui/confirm-edit-dialog'
+import { ConfirmEditDialog, hasChanges } from '@/components/ui/confirm-edit-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -48,6 +48,22 @@ const PROPERTY_TYPES = ['Mieszkanie', 'Lokal użytkowy']
 
 function emptyForm() {
   return { name: '', address1: '', address2: '', type: '' }
+}
+
+function propertyToForm(p: Property) {
+  return {
+    name: p.name,
+    address1: p.address1,
+    address2: p.address2 ?? '',
+    type: p.type,
+  }
+}
+
+const propertyFieldLabels: Record<string, string> = {
+  name: 'Nazwa',
+  address1: 'Adres',
+  address2: 'Adres 2',
+  type: 'Typ',
 }
 
 function sortProperties(props: Property[], key: SortKey, dir: SortDir): Property[] {
@@ -116,6 +132,7 @@ export default function PropertiesPage() {
   const [propertyTypes, setPropertyTypes] = useState<Set<string>>(new Set())
 
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false)
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -144,12 +161,7 @@ export default function PropertiesPage() {
 
   function openEdit(p: Property) {
     setEditing(p)
-    setForm({
-      name: p.name,
-      address1: p.address1,
-      address2: p.address2 ?? '',
-      type: p.type,
-    })
+    setForm(propertyToForm(p))
     setOpen(true)
   }
 
@@ -162,6 +174,15 @@ export default function PropertiesPage() {
       setConfirmOpen(true)
     } else {
       performSave()
+    }
+  }
+
+  function handleCancel() {
+    const baseline = editing ? propertyToForm(editing) : emptyForm()
+    if (hasChanges(baseline, form)) {
+      setCancelConfirmOpen(true)
+    } else {
+      setOpen(false)
     }
   }
 
@@ -281,7 +302,7 @@ export default function PropertiesPage() {
         </TableBody>
       </Table>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(o) => { if (!o) handleCancel(); else setOpen(o) }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -334,7 +355,7 @@ export default function PropertiesPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
+            <Button variant="outline" onClick={handleCancel}>
               Anuluj
             </Button>
             <Button onClick={handleSave} disabled={pending}>
@@ -349,23 +370,22 @@ export default function PropertiesPage() {
         onOpenChange={setConfirmOpen}
         onConfirm={performSave}
         pending={pending}
-        originalData={
-          editing
-            ? {
-                name: editing.name,
-                address1: editing.address1,
-                address2: editing.address2 ?? '',
-                type: editing.type,
-              }
-            : null
-        }
+        originalData={editing ? propertyToForm(editing) : null}
         newData={form}
-        labels={{
-          name: 'Nazwa',
-          address1: 'Adres',
-          address2: 'Adres 2',
-          type: 'Typ',
-        }}
+        labels={propertyFieldLabels}
+      />
+
+      <ConfirmEditDialog
+        open={cancelConfirmOpen}
+        onOpenChange={setCancelConfirmOpen}
+        onConfirm={() => { setCancelConfirmOpen(false); setOpen(false) }}
+        title="Odrzucić zmiany?"
+        message="Masz niezapisane zmiany. Czy na pewno chcesz je odrzucić?"
+        confirmLabel="Odrzuć zmiany"
+        confirmVariant="destructive"
+        originalData={editing ? propertyToForm(editing) : emptyForm()}
+        newData={form}
+        labels={propertyFieldLabels}
       />
     </div>
   )

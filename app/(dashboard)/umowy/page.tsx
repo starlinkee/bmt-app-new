@@ -17,7 +17,7 @@ import {
   parseInflationPercent,
   isLastDayOfMonth,
 } from '@/lib/contracts'
-import { ConfirmEditDialog } from '@/components/ui/confirm-edit-dialog'
+import { ConfirmEditDialog, hasChanges } from '@/components/ui/confirm-edit-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -68,6 +68,30 @@ function emptyForm() {
   }
 }
 
+function contractToForm(c: Contract) {
+  return {
+    contract_type: c.contract_type,
+    rent_amount: String(c.rent_amount),
+    has_media_invoice: (c as Record<string, unknown>).has_media_invoice as boolean ?? false,
+    start_date: c.start_date,
+    end_date: c.end_date ?? '',
+    indefinite: !c.end_date,
+    is_active: c.is_active,
+    tenant_id: String(c.tenant_id),
+  }
+}
+
+const contractFieldLabels: Record<string, string> = {
+  contract_type: 'Typ',
+  rent_amount: 'Kwota czynszu',
+  has_media_invoice: 'Rozliczaj media',
+  start_date: 'Data od',
+  end_date: 'Data do',
+  indefinite: 'Bezterminowa',
+  is_active: 'Aktywna',
+  tenant_id: 'Najemca',
+}
+
 function SortIcon({ col, sortKey, sortDir }: { col: SortKey, sortKey: SortKey, sortDir: SortDir }) {
   if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
   return sortDir === 'asc'
@@ -101,6 +125,7 @@ export default function ContractsPage() {
   const [activeStatuses, setActiveStatuses] = useState<Set<string>>(new Set())
 
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false)
   const [bulkRevalConfirmOpen, setBulkRevalConfirmOpen] = useState(false)
 
   function handleSort(key: SortKey) {
@@ -147,17 +172,7 @@ export default function ContractsPage() {
 
   function openEdit(c: Contract) {
     setEditing(c)
-    setForm({
-      contract_type: c.contract_type,
-      rent_amount: String(c.rent_amount),
-      has_media_invoice: (c as Record<string, unknown>).has_media_invoice as boolean ?? false,
-
-      start_date: c.start_date,
-      end_date: c.end_date ?? '',
-      indefinite: !c.end_date,
-      is_active: c.is_active,
-      tenant_id: String(c.tenant_id),
-    })
+    setForm(contractToForm(c))
     setOpen(true)
   }
 
@@ -170,6 +185,15 @@ export default function ContractsPage() {
       setConfirmOpen(true)
     } else {
       performSave()
+    }
+  }
+
+  function handleCancel() {
+    const baseline = editing ? contractToForm(editing) : emptyForm()
+    if (hasChanges(baseline, form)) {
+      setCancelConfirmOpen(true)
+    } else {
+      setOpen(false)
     }
   }
 
@@ -478,7 +502,7 @@ export default function ContractsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(o) => { if (!o) handleCancel(); else setOpen(o) }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editing ? 'Edytuj umowę' : 'Nowa umowa'}</DialogTitle>
@@ -568,7 +592,7 @@ export default function ContractsPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Anuluj</Button>
+            <Button variant="outline" onClick={handleCancel}>Anuluj</Button>
             <Button onClick={handleSave} disabled={pending}>Zapisz</Button>
           </DialogFooter>
         </DialogContent>
@@ -579,31 +603,22 @@ export default function ContractsPage() {
         onOpenChange={setConfirmOpen}
         onConfirm={performSave}
         pending={pending}
-        originalData={
-          editing
-            ? {
-                contract_type: editing.contract_type,
-                rent_amount: String(editing.rent_amount),
-                has_media_invoice: (editing as Record<string, unknown>).has_media_invoice as boolean ?? false,
-                start_date: editing.start_date,
-                end_date: editing.end_date ?? '',
-                indefinite: !editing.end_date,
-                is_active: editing.is_active,
-                tenant_id: String(editing.tenant_id),
-              }
-            : null
-        }
+        originalData={editing ? contractToForm(editing) : null}
         newData={form}
-        labels={{
-          contract_type: 'Typ',
-          rent_amount: 'Kwota czynszu',
-          has_media_invoice: 'Rozliczaj media',
-          start_date: 'Data od',
-          end_date: 'Data do',
-          indefinite: 'Bezterminowa',
-          is_active: 'Aktywna',
-          tenant_id: 'Najemca',
-        }}
+        labels={contractFieldLabels}
+      />
+
+      <ConfirmEditDialog
+        open={cancelConfirmOpen}
+        onOpenChange={setCancelConfirmOpen}
+        onConfirm={() => { setCancelConfirmOpen(false); setOpen(false) }}
+        title="Odrzucić zmiany?"
+        message="Masz niezapisane zmiany. Czy na pewno chcesz je odrzucić?"
+        confirmLabel="Odrzuć zmiany"
+        confirmVariant="destructive"
+        originalData={editing ? contractToForm(editing) : emptyForm()}
+        newData={form}
+        labels={contractFieldLabels}
       />
     </div>
   )

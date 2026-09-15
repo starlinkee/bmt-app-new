@@ -38,6 +38,8 @@ export type Database = {
             statement_cutoff_day: number
             time_offset_ms: number
             allow_destructive_test_deletes: boolean
+            meter_reading_reminder_subject: string | null
+            meter_reading_reminder_body: string | null
           }
           Insert: {
           drive_invoices_folder_id?: string
@@ -62,6 +64,8 @@ export type Database = {
             statement_cutoff_day?: number
             time_offset_ms?: number
             allow_destructive_test_deletes?: boolean
+            meter_reading_reminder_subject?: string | null
+            meter_reading_reminder_body?: string | null
           }
           Update: {
           drive_invoices_folder_id?: string
@@ -86,6 +90,8 @@ export type Database = {
             statement_cutoff_day?: number
             time_offset_ms?: number
             allow_destructive_test_deletes?: boolean
+            meter_reading_reminder_subject?: string | null
+            meter_reading_reminder_body?: string | null
           }
           Relationships: []
       }
@@ -421,6 +427,7 @@ export type Database = {
           nip: string | null
           phone: string | null
           property_id: number
+          reading_token: string
           sender_account: number
           tenant_type: string
         }
@@ -437,6 +444,7 @@ export type Database = {
           nip?: string | null
           phone?: string | null
           property_id: number
+          reading_token?: string
           sender_account?: number
           tenant_type?: string
         }
@@ -453,6 +461,7 @@ export type Database = {
           nip?: string | null
           phone?: string | null
           property_id?: number
+          reading_token?: string
           sender_account?: number
           tenant_type?: string
         }

@@ -15,7 +15,7 @@ import { getProperties } from '@/app/(dashboard)/nieruchomosci/actions'
 import { getTenants } from '@/app/(dashboard)/najemcy/actions'
 import { SearchSelect } from '@/components/ui/search-select'
 import { QUERY_KEYS } from '@/lib/queryKeys'
-import { ConfirmEditDialog } from '@/components/ui/confirm-edit-dialog'
+import { ConfirmEditDialog, hasChanges } from '@/components/ui/confirm-edit-dialog'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -177,6 +177,18 @@ function emptyForm() {
   }
 }
 
+const settlementGroupFieldLabels: Record<string, string> = {
+  name: 'Nazwa',
+  spreadsheet_id: 'ID arkusza Google',
+  input_mapping_json: 'Mapowanie wejściowe (JSON)',
+  output_mapping_json: 'Mapowanie wyjściowe (JSON)',
+  pdf_sheets_json: 'Arkusze PDF (JSON)',
+  email_subject_template: 'Temat e-maila',
+  email_body_template: 'Treść e-maila',
+  property_ids: 'Nieruchomości',
+  tenant_reading_keys: 'Klucze odczytu najemców',
+}
+
 function SortIcon({ col, sortKey, sortDir }: { col: SortKey, sortKey: SortKey, sortDir: SortDir }) {
   if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
   return sortDir === 'asc'
@@ -204,6 +216,7 @@ export default function MediaPage() {
   const [form, setForm] = useState(emptyForm())
   const [jsonError, setJsonError] = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
@@ -324,6 +337,15 @@ export default function MediaPage() {
       setConfirmOpen(true)
     } else {
       performSave()
+    }
+  }
+
+  function handleCancel() {
+    const baseline = editing ? initialForm : emptyForm()
+    if (hasChanges(baseline, form)) {
+      setCancelConfirmOpen(true)
+    } else {
+      setOpen(false)
     }
   }
 
@@ -466,7 +488,7 @@ export default function MediaPage() {
 
 
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(o) => { if (!o) handleCancel(); else setOpen(o) }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editing ? 'Edytuj grupę' : 'Nowa grupa'}</DialogTitle>
@@ -669,7 +691,7 @@ export default function MediaPage() {
             {jsonError && <p className="text-sm text-destructive">{jsonError}</p>}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Anuluj</Button>
+            <Button variant="outline" onClick={handleCancel}>Anuluj</Button>
             <Button onClick={handleSave} disabled={pending}>Zapisz</Button>
           </DialogFooter>
         </DialogContent>
@@ -682,17 +704,20 @@ export default function MediaPage() {
         pending={pending}
         originalData={editing ? initialForm : null}
         newData={form}
-        labels={{
-          name: 'Nazwa',
-          spreadsheet_id: 'ID arkusza Google',
-          input_mapping_json: 'Mapowanie wejściowe (JSON)',
-          output_mapping_json: 'Mapowanie wyjściowe (JSON)',
-          pdf_sheets_json: 'Arkusze PDF (JSON)',
-          email_subject_template: 'Temat e-maila',
-          email_body_template: 'Treść e-maila',
-          property_ids: 'Nieruchomości',
-          tenant_reading_keys: 'Klucze odczytu najemców',
-        }}
+        labels={settlementGroupFieldLabels}
+      />
+
+      <ConfirmEditDialog
+        open={cancelConfirmOpen}
+        onOpenChange={setCancelConfirmOpen}
+        onConfirm={() => { setCancelConfirmOpen(false); setOpen(false) }}
+        title="Odrzucić zmiany?"
+        message="Masz niezapisane zmiany. Czy na pewno chcesz je odrzucić?"
+        confirmLabel="Odrzuć zmiany"
+        confirmVariant="destructive"
+        originalData={editing ? initialForm : emptyForm()}
+        newData={form}
+        labels={settlementGroupFieldLabels}
       />
     </div>
   )

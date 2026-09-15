@@ -22,28 +22,33 @@ interface ConfirmEditDialogProps {
   originalData: Record<string, any> | null
   newData: Record<string, any>
   title?: string
+  message?: string
+  confirmLabel?: string
+  confirmVariant?: 'default' | 'destructive'
   pending?: boolean
   labels?: Record<string, string>
 }
 
-function formatValue(val: any): string {
+export interface FieldDiff {
+  key: string
+  label: string
+  old: string
+  new: string
+}
+
+export function formatValue(val: any): string {
   if (val === null || val === undefined) return '-'
   if (typeof val === 'boolean') return val ? 'Tak' : 'Nie'
   if (typeof val === 'object') return JSON.stringify(val)
   return String(val)
 }
 
-export function ConfirmEditDialog({
-  open,
-  onOpenChange,
-  onConfirm,
-  originalData,
-  newData,
-  title = 'Potwierdź zmiany',
-  pending = false,
-  labels = {},
-}: ConfirmEditDialogProps) {
-  const diffs: { key: string; label: string; old: string; new: string }[] = []
+export function computeDiffs(
+  originalData: Record<string, any> | null,
+  newData: Record<string, any> | null,
+  labels: Record<string, string> = {}
+): FieldDiff[] {
+  const diffs: FieldDiff[] = []
 
   if (originalData && newData) {
     for (const key of Object.keys(newData)) {
@@ -56,17 +61,42 @@ export function ConfirmEditDialog({
     }
   }
 
+  return diffs
+}
+
+export function hasChanges(
+  originalData: Record<string, any> | null,
+  newData: Record<string, any> | null
+): boolean {
+  return computeDiffs(originalData, newData).length > 0
+}
+
+export function ConfirmEditDialog({
+  open,
+  onOpenChange,
+  onConfirm,
+  originalData,
+  newData,
+  title = 'Potwierdź zmiany',
+  message = 'Czy na pewno chcesz zapisać te zmiany? Różnice:',
+  confirmLabel = 'Zapisz zmiany',
+  confirmVariant = 'default',
+  pending = false,
+  labels = {},
+}: ConfirmEditDialogProps) {
+  const diffs = computeDiffs(originalData, newData, labels)
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        
+
         {diffs.length > 0 ? (
           <div className="my-4">
             <p className="text-sm text-muted-foreground mb-2">
-              Czy na pewno chcesz zapisać te zmiany? Różnice:
+              {message}
             </p>
             <Table>
               <TableHeader>
@@ -101,8 +131,8 @@ export function ConfirmEditDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
             Anuluj
           </Button>
-          <Button onClick={onConfirm} disabled={pending || diffs.length === 0}>
-            Zapisz zmiany
+          <Button variant={confirmVariant} onClick={onConfirm} disabled={pending || diffs.length === 0}>
+            {confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

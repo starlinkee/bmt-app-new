@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { updateTransaction, getTransactionAmendments } from './actions'
 import { QUERY_KEYS } from '@/lib/queryKeys'
-import { ConfirmEditDialog } from '@/components/ui/confirm-edit-dialog'
+import { ConfirmEditDialog, hasChanges } from '@/components/ui/confirm-edit-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -44,6 +44,7 @@ export function EditTransactionButton({
 }) {
   const [editOpen, setEditOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [amount, setAmount] = useState(String(currentAmount))
   const [title, setTitle] = useState(currentTitle)
@@ -78,6 +79,17 @@ export function EditTransactionButton({
     setConfirmOpen(true)
   }
 
+  function handleCancel() {
+    const num = parseFloat(amount.replace(',', '.'))
+    const baseline = { amount: currentAmount, title: currentTitle, date: currentDate }
+    const current = { amount: num, title, date }
+    if (hasChanges(baseline, current)) {
+      setCancelConfirmOpen(true)
+    } else {
+      setEditOpen(false)
+    }
+  }
+
   function performSave() {
     const num = parseFloat(amount.replace(',', '.'))
     startTransition(async () => {
@@ -110,7 +122,7 @@ export function EditTransactionButton({
         </button>
       )}
 
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+      <Dialog open={editOpen} onOpenChange={(o) => { if (!o) handleCancel(); else setEditOpen(o) }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edytuj transakcję</DialogTitle>
@@ -149,7 +161,7 @@ export function EditTransactionButton({
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditOpen(false)}>Anuluj</Button>
+            <Button variant="outline" onClick={handleCancel}>Anuluj</Button>
             <Button onClick={handleSave} disabled={pending}>Zapisz</Button>
           </DialogFooter>
         </DialogContent>
@@ -160,6 +172,31 @@ export function EditTransactionButton({
         onOpenChange={setConfirmOpen}
         onConfirm={performSave}
         pending={pending}
+        originalData={{
+          amount: currentAmount,
+          title: currentTitle,
+          date: currentDate,
+        }}
+        newData={{
+          amount: parseFloat(amount.replace(',', '.')),
+          title,
+          date,
+        }}
+        labels={{
+          amount: 'Kwota',
+          title: 'Tytuł / opis',
+          date: 'Data',
+        }}
+      />
+
+      <ConfirmEditDialog
+        open={cancelConfirmOpen}
+        onOpenChange={setCancelConfirmOpen}
+        onConfirm={() => { setCancelConfirmOpen(false); setEditOpen(false) }}
+        title="Odrzucić zmiany?"
+        message="Masz niezapisane zmiany. Czy na pewno chcesz je odrzucić?"
+        confirmLabel="Odrzuć zmiany"
+        confirmVariant="destructive"
         originalData={{
           amount: currentAmount,
           title: currentTitle,

@@ -229,3 +229,23 @@ export async function sendStatementUploadReminderEmail(to: string | string[]) {
   await sendEmail({ to, subject, html, cfg })
 }
 
+const DEFAULT_METER_READING_REMINDER_SUBJECT = 'Przypomnienie: podaj odczyty liczników'
+const DEFAULT_METER_READING_REMINDER_BODY =
+  'Szanowny/a {imie},\n\nDzisiaj ostatni dzień miesiąca — prosimy o podanie odczytów liczników mediów pod poniższym linkiem:\n{link}\n\nPozdrawiamy,\nBMT'
+
+export async function sendMeterReadingReminderEmail(
+  to: string | string[],
+  tenantName: string,
+  link: string,
+  subjectTemplate?: string | null,
+  bodyTemplate?: string | null,
+) {
+  const cfg = await getProviderConfig()
+  const vars: Record<string, string> = { imie: tenantName, link }
+  const applyVars = (tpl: string) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '')
+  const subject = applyVars(subjectTemplate || DEFAULT_METER_READING_REMINDER_SUBJECT)
+  const bodyText = applyVars(bodyTemplate || DEFAULT_METER_READING_REMINDER_BODY)
+  const html = bodyText.split('\n').map((l) => (l ? `<p>${l}</p>` : '<br>')).join('')
+  await sendEmail({ to, subject, html, cfg })
+}
+

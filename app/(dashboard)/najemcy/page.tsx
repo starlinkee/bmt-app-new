@@ -9,7 +9,7 @@ import { getTenants, createTenant, updateTenant, deleteTenant } from './actions'
 import { getProperties } from '@/app/(dashboard)/nieruchomosci/actions'
 import { getAppConfig } from '@/app/(dashboard)/ustawienia/actions'
 import { QUERY_KEYS } from '@/lib/queryKeys'
-import { ConfirmEditDialog } from '@/components/ui/confirm-edit-dialog'
+import { ConfirmEditDialog, hasChanges } from '@/components/ui/confirm-edit-dialog'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -110,6 +110,40 @@ function emptyForm() {
   }
 }
 
+function tenantToForm(t: Tenant) {
+  return {
+    tenant_type: t.tenant_type,
+    first_name: t.first_name,
+    last_name: t.last_name,
+    company_name: (t as unknown as { company_name?: string | null }).company_name ?? '',
+    email: t.email ?? '',
+    email2: (t as unknown as { email2?: string | null }).email2 ?? '',
+    phone: t.phone ?? '',
+    bank_accounts_as_text: t.bank_accounts_as_text,
+    nip: t.nip ?? '',
+    address1: t.address1 ?? '',
+    address2: t.address2 ?? '',
+    property_id: String(t.property_id),
+    sender_account: String((t as unknown as { sender_account?: number | null }).sender_account ?? 1),
+  }
+}
+
+const tenantFieldLabels: Record<string, string> = {
+  tenant_type: 'Typ najemcy',
+  first_name: 'Imię',
+  last_name: 'Nazwisko',
+  company_name: 'Nazwa firmy',
+  email: 'E-mail',
+  email2: 'E-mail 2',
+  phone: 'Telefon',
+  bank_accounts_as_text: 'Konta bankowe',
+  nip: 'NIP',
+  address1: 'Adres',
+  address2: 'Adres 2',
+  property_id: 'Nieruchomość',
+  sender_account: 'Konto nadawcy',
+}
+
 function SortIcon({ col, sortKey, sortDir }: { col: SortKey, sortKey: SortKey, sortDir: SortDir }) {
   if (sortKey !== col) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />
   return sortDir === 'asc'
@@ -139,6 +173,7 @@ export default function TenantsPage() {
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [filterText, setFilterText] = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false)
 
   const [propertyNames, setPropertyNames] = useState<Set<string>>(new Set())
   useEffect(() => {
@@ -187,22 +222,17 @@ export default function TenantsPage() {
 
   function openEdit(t: Tenant) {
     setEditing(t)
-    setForm({
-      tenant_type: t.tenant_type,
-      first_name: t.first_name,
-      last_name: t.last_name,
-      company_name: (t as unknown as { company_name?: string | null }).company_name ?? '',
-      email: t.email ?? '',
-      email2: (t as unknown as { email2?: string | null }).email2 ?? '',
-      phone: t.phone ?? '',
-      bank_accounts_as_text: t.bank_accounts_as_text,
-      nip: t.nip ?? '',
-      address1: t.address1 ?? '',
-      address2: t.address2 ?? '',
-      property_id: String(t.property_id),
-      sender_account: String((t as unknown as { sender_account?: number | null }).sender_account ?? 1),
-    })
+    setForm(tenantToForm(t))
     setOpen(true)
+  }
+
+  function handleCancel() {
+    const baseline = editing ? tenantToForm(editing) : emptyForm()
+    if (hasChanges(baseline, form)) {
+      setCancelConfirmOpen(true)
+    } else {
+      setOpen(false)
+    }
   }
 
   function handleSave() {
@@ -398,7 +428,7 @@ export default function TenantsPage() {
         </TableBody>
       </Table>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(o) => { if (!o) handleCancel(); else setOpen(o) }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -519,7 +549,7 @@ export default function TenantsPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
+            <Button variant="outline" onClick={handleCancel}>
               Anuluj
             </Button>
             <Button onClick={handleSave} disabled={pending}>
@@ -534,41 +564,22 @@ export default function TenantsPage() {
         onOpenChange={setConfirmOpen}
         onConfirm={performSave}
         pending={pending}
-        originalData={
-          editing
-            ? {
-                tenant_type: editing.tenant_type,
-                first_name: editing.first_name,
-                last_name: editing.last_name,
-                company_name: (editing as unknown as { company_name?: string | null }).company_name ?? '',
-                email: editing.email ?? '',
-                email2: (editing as unknown as { email2?: string | null }).email2 ?? '',
-                phone: editing.phone ?? '',
-                bank_accounts_as_text: editing.bank_accounts_as_text,
-                nip: editing.nip ?? '',
-                address1: editing.address1 ?? '',
-                address2: editing.address2 ?? '',
-                property_id: String(editing.property_id),
-                sender_account: String((editing as unknown as { sender_account?: number | null }).sender_account ?? 1),
-              }
-            : null
-        }
+        originalData={editing ? tenantToForm(editing) : null}
         newData={form}
-        labels={{
-          tenant_type: 'Typ najemcy',
-          first_name: 'Imię',
-          last_name: 'Nazwisko',
-          company_name: 'Nazwa firmy',
-          email: 'E-mail',
-          email2: 'E-mail 2',
-          phone: 'Telefon',
-          bank_accounts_as_text: 'Konta bankowe',
-          nip: 'NIP',
-          address1: 'Adres',
-          address2: 'Adres 2',
-          property_id: 'Nieruchomość',
-          sender_account: 'Konto nadawcy',
-        }}
+        labels={tenantFieldLabels}
+      />
+
+      <ConfirmEditDialog
+        open={cancelConfirmOpen}
+        onOpenChange={setCancelConfirmOpen}
+        onConfirm={() => { setCancelConfirmOpen(false); setOpen(false) }}
+        title="Odrzucić zmiany?"
+        message="Masz niezapisane zmiany. Czy na pewno chcesz je odrzucić?"
+        confirmLabel="Odrzuć zmiany"
+        confirmVariant="destructive"
+        originalData={editing ? tenantToForm(editing) : emptyForm()}
+        newData={form}
+        labels={tenantFieldLabels}
       />
     </div>
   )

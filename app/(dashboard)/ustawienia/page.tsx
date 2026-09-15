@@ -13,6 +13,8 @@ export default function SettingsPage() {
     late_reminder_subject: 'Rozliczenie wpłat i rachunków - BMT',
     late_reminder_body: 'Szanowny/a {imie},\n\nPrzesyłamy w załączeniu aktualne podsumowanie Państwa konta. Saldo na dzień dzisiejszy wynosi: {saldo}.\n\nProsimy o uregulowanie należności.\n\nPozdrawiamy,\nBMT',
     ignored_source_accounts: '',
+    meter_reading_reminder_subject: 'Przypomnienie: podaj odczyty liczników',
+    meter_reading_reminder_body: 'Szanowny/a {imie},\n\nDzisiaj ostatni dzień miesiąca — prosimy o podanie odczytów liczników mediów pod poniższym linkiem:\n{link}\n\nPozdrawiamy,\nBMT',
   })
   const [pending, startTransition] = useTransition()
 
@@ -24,6 +26,8 @@ export default function SettingsPage() {
           late_reminder_subject: (config as Record<string, unknown>).late_reminder_subject as string ?? 'Rozliczenie wpłat i rachunków - BMT',
           late_reminder_body: (config as Record<string, unknown>).late_reminder_body as string ?? 'Szanowny/a {imie},\n\nPrzesyłamy w załączeniu aktualne podsumowanie Państwa konta. Saldo na dzień dzisiejszy wynosi: {saldo}.\n\nProsimy o uregulowanie należności.\n\nPozdrawiamy,\nBMT',
           ignored_source_accounts: (config as Record<string, unknown>).ignored_source_accounts as string ?? '',
+          meter_reading_reminder_subject: (config as Record<string, unknown>).meter_reading_reminder_subject as string ?? 'Przypomnienie: podaj odczyty liczników',
+          meter_reading_reminder_body: (config as Record<string, unknown>).meter_reading_reminder_body as string ?? 'Szanowny/a {imie},\n\nDzisiaj ostatni dzień miesiąca — prosimy o podanie odczytów liczników mediów pod poniższym linkiem:\n{link}\n\nPozdrawiamy,\nBMT',
         })
       }
     })
@@ -36,6 +40,8 @@ export default function SettingsPage() {
           late_reminder_subject: form.late_reminder_subject,
           late_reminder_body: form.late_reminder_body,
           ignored_source_accounts: form.ignored_source_accounts,
+          meter_reading_reminder_subject: form.meter_reading_reminder_subject,
+          meter_reading_reminder_body: form.meter_reading_reminder_body,
         })
         toast.success('Ustawienia zapisane.')
       } catch (e) {
@@ -92,6 +98,39 @@ export default function SettingsPage() {
             onChange={(e) => setForm({ ...form, ignored_source_accounts: e.target.value })}
             rows={4}
             placeholder="Np. 12345678901234567890123456"
+          />
+        </div>
+
+        <div className="space-y-1 mt-6">
+          <h2 className="text-lg font-semibold">Przypomnienie o odczytach liczników (ostatni dzień miesiąca)</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Ten mail wychodzi automatycznie w ostatnim dniu każdego miesiąca do najemców, którzy mają
+            przypisane klucze odczytów liczników w swojej grupie rozliczeniowej (widać ich na liście
+            Najemcy jako mających link do odczytów). Odbiorców nie trzeba ustawiać ręcznie — system
+            wylicza ich sam na podstawie tego, kto faktycznie ma co podać.
+          </p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Dostępne zmienne w temacie i treści:{' '}
+            <code className="text-xs bg-muted px-1 py-0.5 rounded">{'{imie}'}</code>{' '}
+            <code className="text-xs bg-muted px-1 py-0.5 rounded">{'{link}'}</code>{' '}
+            (spersonalizowany link do formularza odczytów danego najemcy)
+          </p>
+        </div>
+
+        <div className="space-y-1">
+          <Label>Temat wiadomości</Label>
+          <Input
+            value={form.meter_reading_reminder_subject}
+            onChange={(e) => setForm({ ...form, meter_reading_reminder_subject: e.target.value })}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <Label>Treść wiadomości</Label>
+          <Textarea
+            value={form.meter_reading_reminder_body}
+            onChange={(e) => setForm({ ...form, meter_reading_reminder_body: e.target.value })}
+            rows={6}
           />
         </div>
 

@@ -27,6 +27,8 @@ export async function upsertAppConfig(data: {
   rent_email_subject?: string | null
   rent_email_body?: string | null
   ignored_source_accounts?: string
+  meter_reading_reminder_subject?: string | null
+  meter_reading_reminder_body?: string | null
 }) {
   const supabase = createServiceClient()
   const { data: before } = await supabase.from('app_config').select('*').eq('id', 1).single()

@@ -127,7 +127,42 @@ export default async function AutomatyzacjePage() {
         </CardContent>
       </Card>
 
-      {/* 5. Czynsze — generowanie 1. dnia miesiąca */}
+      {/* 5. Przypomnienie o odczytach liczników — ostatni dzień miesiąca */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Gauge className="h-5 w-5 text-primary" />
+            Przypomnienie o odczytach liczników (ostatni dzień miesiąca)
+          </CardTitle>
+          <CardDescription>Automatyczne, uruchamiane przez harmonogram (cron) na Vercelu</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <p>
+            Codziennie o 8:00 Vercel odpytuje endpoint{' '}
+            <code className="text-xs bg-muted px-1 py-0.5 rounded">/api/cron/meter-reading-reminder</code>,
+            ale mail wychodzi tylko w <strong>ostatnim dniu miesiąca</strong> — w pozostałe dni nic się nie
+            dzieje. Zabezpieczenie w kodzie pilnuje, żeby nie wysłać go dwa razy w tym samym miesiącu.
+            Choć mail idzie tego samego dnia, odczyt wprowadzony kilka dni później i tak trafia do tego
+            samego miesiąca rozliczeniowego (formularz odczytów sam to ustala).
+          </p>
+          <p>
+            Odbiorcy są wyliczani automatycznie — to najemcy z aktywną umową na media, którzy mają
+            przypisane klucze odczytów (<strong>tenant_reading_keys</strong>) w swojej grupie
+            rozliczeniowej (ta sama grupa co lista „Kopiuj link” w zakładce Najemcy). Każdy dostaje mail ze
+            spersonalizowanym linkiem do swojego formularza odczytów. Temat i treść edytuje się w{' '}
+            <strong>Ustawieniach</strong> („Przypomnienie o odczytach liczników”).
+          </p>
+          <StatusLine
+            label="Ostatnio wysłane"
+            value={status.lastMeterReminderSentAt ? `${formatDateTime(status.lastMeterReminderSentAt)} — ${status.lastMeterReminderInfo}` : 'jeszcze nigdy (brak wpisu w historii)'}
+          />
+          {status.meterReadingReminderSubject && (
+            <StatusLine label="Aktualny temat maila" value={status.meterReadingReminderSubject} />
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 6. Czynsze — generowanie 1. dnia miesiąca */}
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

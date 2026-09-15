@@ -10,7 +10,6 @@ export async function getTenantReadingsContext(token: string) {
   const { data: tenant, error: tenantErr } = await supabase
     .from('tenants')
     .select('id, first_name, last_name, property_id, contracts(is_active, has_media_invoice)')
-    // @ts-expect-error type inference is wrong here
     .eq('reading_token', token)
     .single()
     
@@ -104,14 +103,18 @@ export async function hasAlreadySubmitted(groupId: number, month: number, year: 
   const supabase = createServiceClient()
   const { data } = await supabase
     .from('media_meter_readings')
-    .select('id')
+    .select('key')
     .eq('group_id', groupId)
     .eq('month', month)
     .eq('year', year)
     .in('key', keys)
-    .limit(1)
-    
-  return !!(data && data.length > 0)
+
+  // Formularz jest wypełniany i wysyłany w całości (wszystkie klucze naraz),
+  // więc uznajemy go za "już podany" tylko gdy WSZYSTKIE klucze najemcy
+  // mają już zapisany odczyt. Dzięki temu wspólny licznik podany przez
+  // sąsiada nie ukrywa najemcy jego własnych, niepodanych jeszcze liczników.
+  const submittedKeys = new Set((data ?? []).map(r => r.key))
+  return keys.every(k => submittedKeys.has(k))
 }
 
 export async function saveReadings(groupId: number, month: number, year: number, readings: Record<string, string>) {

@@ -17,21 +17,31 @@ import { sendMediaEmail } from '@/lib/email'
 import { buildInvoiceNumber, tenantDisplayName } from '@/lib/utils'
 import { getEnvTier } from '@/lib/env'
 
-// Nazwa grupy jako segment ścieżki/folderu — bez ukośników, które łamałyby strukturę.
+// Segment ścieżki/nazwy pliku bezpieczny dla kluczy Supabase Storage.
+// Storage odrzuca ("Invalid key") m.in. polskie znaki diakrytyczne, en-dash (–),
+// nawiasy kwadratowe/klamrowe i kilka innych znaków — normalizujemy do ASCII
+// i zamieniamy resztę na "-", żeby upload nigdy nie failował przez samą nazwę.
 function sanitizePathSegment(name: string): string {
-  return name.replace(/\//g, '-').trim()
+  return name
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '') // usuń znaki diakrytyczne (ń -> n, ś -> s, itd.)
+    .replace(/[‐-―]/g, '-') // en-dash/em-dash itp. -> zwykły myślnik
+    .replace(/\//g, '-')
+    .replace(/[^A-Za-z0-9 ._()'!#+,@;=-]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 // Struktura: [bucket "invoices"] / DEVELOPMENT|PREVIEW|PRODUCTION / rok / miesiąc / grupa mediów / plik.pdf
 // Zgodna 1:1 ze strukturą folderów w Google Drive (patrz ensureMediaSettlementFolder).
 async function uploadToSupabaseStorage(supabase: any, envTier: string, year: number, month: number, groupName: string, fileName: string, buffer: Buffer): Promise<string> {
-  const filePath = `${envTier}/${year}/${month}/${sanitizePathSegment(groupName)}/${fileName}`
+  const filePath = `${envTier}/${year}/${month}/${sanitizePathSegment(groupName)}/${sanitizePathSegment(fileName)}`
   const { error } = await supabase.storage.from('invoices').upload(filePath, buffer, {
     contentType: 'application/pdf',
     upsert: true,
   })
   if (error) {
-    console.error('Błąd wgrywania pliku do Storage:', error)
+    throw new Error(`Błąd wgrywania pliku "${fileName}" do Storage: ${error.message}`)
   }
   return filePath
 }
