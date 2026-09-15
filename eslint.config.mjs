@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Testy Playwright (e2e/**) to nie kod Next.js/React — fixture'y biorą
+    // parametr `use`, co reguła react-hooks/rules-of-hooks błędnie czyta jako
+    // wywołanie hooka `use()`.
+    "e2e/**",
   ]),
 ]);
 
