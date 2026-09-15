@@ -420,7 +420,11 @@ export async function reconcileMany(
   revalidatePath('/import/reconcile')
 }
 
-export async function dismissTransaction(txId: number, reason: 'REJECTED_OWN_TRANSFER' | 'REJECTED_OTHER' = 'REJECTED_OTHER') {
+export async function dismissTransaction(
+  txId: number,
+  reason: 'REJECTED_OWN_TRANSFER' | 'REJECTED_OTHER' | 'REJECTED_DUPLICATE' = 'REJECTED_OTHER',
+  note?: string,
+) {
   const supabase = createServiceClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: before } = await (supabase as any).from('transaction_staging').select('*').eq('id', txId).single()
@@ -436,6 +440,7 @@ export async function dismissTransaction(txId: number, reason: 'REJECTED_OWN_TRA
     status: reason,
     category: null,
     raw_data: before.raw_data,
+    description: note?.trim() || null,
   })
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

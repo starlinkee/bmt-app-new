@@ -15,6 +15,7 @@ import {
   matchesContractFilter,
   computeRevaluedAmount,
   parseInflationPercent,
+  isLastDayOfMonth,
 } from '@/lib/contracts'
 import { ConfirmEditDialog } from '@/components/ui/confirm-edit-dialog'
 import { Button } from '@/components/ui/button'
@@ -546,7 +547,15 @@ export default function ContractsPage() {
                 <Input
                   type="date"
                   value={form.end_date}
-                  onChange={(e) => setForm({ ...form, end_date: e.target.value })}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    setForm({ ...form, end_date: value })
+                    if (value && !isLastDayOfMonth(value)) {
+                      toast.warning(
+                        'Data zakończenia nie jest ostatnim dniem miesiąca. Generator czynszów nie liczy proporcjonalnie (proracja) - naliczy pełną kwotę za ten miesiąc albo wcale, w zależności od ustawienia. Jeśli potrzebne jest rozliczenie proporcjonalne, zgłoś to jako wymaganie do wdrożenia.',
+                      )
+                    }
+                  }}
                 />
               </div>
             )}

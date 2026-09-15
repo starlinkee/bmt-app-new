@@ -22,6 +22,7 @@ const STATUS_LABELS: Record<string, string> = {
   MATCHED: 'Dopasowana',
   MANUAL: 'Ręczna',
   REJECTED_OWN_TRANSFER: 'Przelew własny',
+  REJECTED_DUPLICATE: 'Duplikat',
   REJECTED_OTHER: 'Odrzucona',
   UNMATCHED: 'Nieznana',
   SKIPPED: 'Pominięta'
@@ -31,6 +32,7 @@ const STATUS_VARIANTS: Record<string, 'default' | 'secondary' | 'destructive' | 
   MATCHED: 'default',
   MANUAL: 'outline',
   REJECTED_OWN_TRANSFER: 'secondary',
+  REJECTED_DUPLICATE: 'secondary',
   REJECTED_OTHER: 'destructive',
   UNMATCHED: 'destructive',
   SKIPPED: 'secondary'
@@ -47,7 +49,7 @@ const FILTER_COLUMNS = [
   { key: 'status', label: 'Status' },
 ]
 
-const STATUSES = ['MATCHED', 'MANUAL', 'REJECTED_OWN_TRANSFER', 'REJECTED_OTHER', 'SKIPPED']
+const STATUSES = ['MATCHED', 'MANUAL', 'REJECTED_OWN_TRANSFER', 'REJECTED_DUPLICATE', 'REJECTED_OTHER', 'SKIPPED']
 
 function sortTransactions(txs: Transaction[], key: SortKey, dir: SortDir): Transaction[] {
   return [...txs].sort((a, b) => {
@@ -107,7 +109,7 @@ function matchesTxFilter(tx: Transaction, text: string, col: string): boolean {
 
 function CategoryCell({ tx }: { tx: Transaction }) {
   const category = (tx as unknown as { category?: string | null }).category
-  const isRejectedOrSkipped = tx.status === 'REJECTED_OWN_TRANSFER' || tx.status === 'REJECTED_OTHER' || tx.status === 'SKIPPED'
+  const isRejectedOrSkipped = tx.status === 'REJECTED_OWN_TRANSFER' || tx.status === 'REJECTED_DUPLICATE' || tx.status === 'REJECTED_OTHER' || tx.status === 'SKIPPED'
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const queryClient = useQueryClient()
@@ -220,7 +222,7 @@ export default function TransactionHistoryPage() {
   const nullCount = sorted.filter(
     (tx) => {
       const cat = (tx as unknown as { category?: string | null }).category
-      const isRejected = tx.status === 'REJECTED_OWN_TRANSFER' || tx.status === 'REJECTED_OTHER' || tx.status === 'SKIPPED'
+      const isRejected = tx.status === 'REJECTED_OWN_TRANSFER' || tx.status === 'REJECTED_DUPLICATE' || tx.status === 'REJECTED_OTHER' || tx.status === 'SKIPPED'
       return !cat && !isRejected
     }
   ).length

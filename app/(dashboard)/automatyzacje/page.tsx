@@ -21,8 +21,8 @@ export default async function AutomatyzacjePage() {
       <div className="pb-4 border-b">
         <h1 className="text-2xl font-semibold tracking-tight">Automatyzacje i maile</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Wyłącznie do odczytu — spis wszystkiego, co aplikacja wysyła sama, oraz tego, co można wysłać ręcznie.
-          Ten opis odpowiada aktualnemu stanowi kodu (nie jest to plan ani dokumentacja historyczna).
+          Wyłącznie do odczytu — spis tego, co aplikacja wysyła sama, oraz co można wysłać ręcznie.
+          Opis odpowiada aktualnemu stanowi kodu.
         </p>
       </div>
 
@@ -38,14 +38,13 @@ export default async function AutomatyzacjePage() {
         <CardContent className="space-y-3 text-sm">
           <p>
             Codziennie o 8:00 Vercel odpytuje endpoint <code className="text-xs bg-muted px-1 py-0.5 rounded">/api/cron/statement-reminder</code>,
-            ale mail faktycznie wychodzi tylko wtedy, gdy jest dokładnie <strong>16. dzień miesiąca</strong> —
-            w pozostałe dni endpoint nic nie robi. Zabezpieczenie w kodzie pilnuje też, żeby nie wysłać go
-            dwa razy w tym samym miesiącu, nawet gdyby cron odpalił się kilka razy.
+            ale mail wychodzi tylko dokładnie <strong>16. dnia miesiąca</strong> — w pozostałe dni nic się nie dzieje.
+            Zabezpieczenie w kodzie pilnuje też, żeby nie wysłać go dwa razy w tym samym miesiącu.
           </p>
           <p>
-            Mail trafia do jednego, stałego adresu administratora skonfigurowanego zmienną środowiskową{' '}
-            <code className="text-xs bg-muted px-1 py-0.5 rounded">APP_ADMIN_EMAIL</code> (nie do najemców). Jego treść
-            to przypomnienie, żeby tego dnia wgrać do zakładki <strong>Import</strong> aktualny wyciąg — 1 plik CSV
+            Mail trafia do stałego adresu administratora ze zmiennej środowiskowej{' '}
+            <code className="text-xs bg-muted px-1 py-0.5 rounded">APP_ADMIN_EMAIL</code> (nie do najemców) —
+            to przypomnienie, żeby wgrać do zakładki <strong>Import</strong> aktualny wyciąg: 1 plik CSV
             (Pekao) oraz 2 pliki PDF (Millennium, poprzedni i bieżący miesiąc).
           </p>
           <StatusLine
@@ -70,17 +69,15 @@ export default async function AutomatyzacjePage() {
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <p>
-            To nie jest osobny cron — to krok wykonywany automatycznie na końcu <strong>każdego</strong> importu
-            wyciągu w zakładce Import (zarówno wgrania pojedynczego pliku CSV, jak i pary plików PDF).
-            Po zapisaniu transakcji aplikacja sama sprawdza wszystkich najemców z ujemnym saldem, ale
-            wyłącznie jeśli jest już <strong>po 15. dniu miesiąca</strong> — we wcześniejszej części miesiąca
-            krok ten nic nie robi.
+            To nie osobny cron, tylko krok na końcu <strong>każdego</strong> importu wyciągu w zakładce Import
+            (CSV albo para PDF-ów). Po zapisaniu transakcji aplikacja sprawdza najemców z ujemnym saldem,
+            ale tylko <strong>po 15. dniu miesiąca</strong> — wcześniej krok nic nie robi.
           </p>
           <p>
-            Dla każdego zalegającego najemcy z adresem e-mail wysyła mail z podsumowaniem konta i załączonym
-            PDF-em wyciągu (na oba adresy e-mail najemcy, jeśli ma podane dwa). Do każdego najemcy taki mail
-            leci maksymalnie <strong>raz w miesiącu</strong> — kolejny import w tym samym miesiącu go pominie.
-            Temat i treść tego maila edytuje się w <strong>Ustawieniach</strong> (pola „Mail z rozliczeniem / wyciągiem z konta”).
+            Każdemu zalegającemu najemcy z adresem e-mail wysyła mail z podsumowaniem konta i PDF-em
+            wyciągu (na oba adresy, jeśli ma dwa), maksymalnie <strong>raz w miesiącu</strong> — kolejny
+            import w tym samym miesiącu go pominie. Temat i treść edytuje się w <strong>Ustawieniach</strong>
+            („Mail z rozliczeniem / wyciągiem z konta”).
           </p>
           <StatusLine
             label="Ostatnio wysłano komuś taki mail"
@@ -103,12 +100,10 @@ export default async function AutomatyzacjePage() {
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <p>
-            W zakładce <strong>Kontrola płatności</strong>, przy każdym najemcy na liście, znajduje się przycisk
-            z ikoną koperty (<Mail className="inline h-3.5 w-3.5 align-text-bottom" /> „Wyślij podsumowanie do tego najemcy”).
-            Kliknięcie go wysyła dokładnie ten sam mail co automatyczne ponaglenie opisane wyżej (ten sam
-            szablon z Ustawień, ten sam PDF z wyciągiem) — ale natychmiast, ręcznie, niezależnie od dnia
-            miesiąca i bez limitu „raz w miesiącu”. To wygodny sposób, żeby dosłać komuś wyciąg na żądanie,
-            bez czekania na import czy na 15. dzień miesiąca.
+            W zakładce <strong>Kontrola płatności</strong>, przy każdym najemcy, jest przycisk z ikoną koperty
+            (<Mail className="inline h-3.5 w-3.5 align-text-bottom" /> „Wyślij podsumowanie do tego najemcy”).
+            Wysyła dokładnie ten sam mail co automatyczne ponaglenie wyżej (ten sam szablon i PDF), ale
+            natychmiast i bez limitu „raz w miesiącu” — wygodny sposób, żeby dosłać wyciąg na żądanie.
           </p>
         </CardContent>
       </Card>
@@ -125,10 +120,9 @@ export default async function AutomatyzacjePage() {
         <CardContent className="space-y-3 text-sm">
           <p>
             Gdy w zakładce <strong>Rozlicz media</strong> uruchomisz rozliczenie grupy, aplikacja dla każdego
-            najemcy z adresem e-mail: kopiuje wskazany w Ustawieniach szablon Google Sheets, wypełnia go
-            kwotami, eksportuje jako PDF („nota obciążeniowa”) i wysyła mailem — wszystko w ramach tego
-            jednego kliknięcia. Wygląd samej noty pochodzi w całości z arkusza Google Sheets, nie z kodu
-            aplikacji.
+            najemcy z adresem e-mail kopiuje szablon Google Sheets z Ustawień, wypełnia go kwotami,
+            eksportuje jako PDF („nota obciążeniowa”) i wysyła mailem — jednym kliknięciem. Wygląd noty
+            pochodzi w całości z arkusza, nie z kodu aplikacji.
           </p>
         </CardContent>
       </Card>
@@ -146,15 +140,14 @@ export default async function AutomatyzacjePage() {
           <p>
             1. dnia każdego miesiąca o 8:00 Vercel odpytuje endpoint{' '}
             <code className="text-xs bg-muted px-1 py-0.5 rounded">/api/cron/generate-rents</code>. Dla
-            każdej aktywnej umowy naliczany jest czynsz za bieżący miesiąc — powstaje rekord w tabeli
-            rachunków (typ <code className="text-xs bg-muted px-1 py-0.5 rounded">RENT</code>, bez numeru),
-            potrzebny tylko po to, żeby liczyć zadłużenie/saldo najemcy w „Kontroli płatności”. Umowa, która
-            ma już taki rachunek za dany miesiąc, jest pomijana (bez duplikatów), więc ponowne odpalenie
-            crona tego samego dnia jest bezpieczne.
+            każdej aktywnej umowy powstaje rekord w tabeli rachunków (typ{' '}
+            <code className="text-xs bg-muted px-1 py-0.5 rounded">RENT</code>, bez numeru) — potrzebny
+            tylko do liczenia zadłużenia/salda w „Kontroli płatności”. Umowa z już istniejącym rachunkiem
+            za dany miesiąc jest pomijana, więc ponowne odpalenie crona jest bezpieczne.
           </p>
           <p>
-            Aplikacja świadomie nie wysyła przy tym żadnych maili ani nie generuje żadnych PDF-ów —
-            formalne fakturowanie czynszu robi zewnętrzny system księgowy, poza tą aplikacją.
+            Krok świadomie nie wysyła maili ani nie generuje PDF-ów — formalne fakturowanie czynszu robi
+            zewnętrzny system księgowy.
           </p>
           <StatusLine
             label="Ostatnie naliczenie"

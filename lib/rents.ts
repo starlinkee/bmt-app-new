@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/service'
 import { logAudit } from '@/lib/audit'
 import { tenantDisplayName } from '@/lib/utils'
+import { contractCoversPeriod } from '@/lib/contracts'
 
 export async function getRentPreview(month: number, year: number) {
   const supabase = createServiceClient()
@@ -33,7 +34,11 @@ export async function getRentPreview(month: number, year: number) {
       .single(),
   ])
 
-  const contracts = contractsResult.data
+  // Umowy z end_date wcześniejszym niż dany miesiąc są pomijane, nawet jeśli
+  // is_active nie zostało ręcznie odznaczone - end_date zawsze jest ustawiane
+  // na ostatni dzień miesiąca, więc miesiąc/rok zakończenia jest jeszcze
+  // objęty naliczaniem (patrz contractCoversPeriod).
+  const contracts = (contractsResult.data ?? []).filter((c) => contractCoversPeriod(c.end_date, month, year))
   const withEmail: typeof contracts = []
   const withoutEmail: typeof contracts = []
 

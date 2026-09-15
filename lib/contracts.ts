@@ -89,3 +89,27 @@ export function parseInflationPercent(input: string): number | null {
   if (isNaN(pct) || pct <= 0) return null
   return pct
 }
+
+/**
+ * Sprawdza, czy podana data (YYYY-MM-DD) jest ostatnim dniem swojego miesiąca.
+ * Generator czynszów zakłada, że data zakończenia umowy zawsze przypada na
+ * koniec miesiąca - proracja (naliczanie proporcjonalne) nie jest
+ * zaimplementowana, więc inna data prowadzi do niejednoznacznego wyniku.
+ */
+export function isLastDayOfMonth(dateStr: string): boolean {
+  const d = new Date(dateStr + 'T00:00:00')
+  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
+  return d.getDate() === lastDay
+}
+
+/**
+ * Czy umowa obejmuje jeszcze dany miesiąc/rok - tzn. czy nie zakończyła się
+ * przed nim. Zakłada, że end_date to zawsze ostatni dzień miesiąca, w którym
+ * umowa jeszcze obowiązuje (patrz isLastDayOfMonth) - więc miesiąc/rok
+ * zakończenia jest jeszcze objęty naliczaniem czynszu.
+ */
+export function contractCoversPeriod(endDate: string | null | undefined, month: number, year: number): boolean {
+  if (!endDate) return true
+  const [endYear, endMonth] = endDate.split('-').map(Number)
+  return endYear > year || (endYear === year && endMonth >= month)
+}
