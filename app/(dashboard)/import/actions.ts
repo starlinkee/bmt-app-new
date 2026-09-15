@@ -26,6 +26,26 @@ export async function importBankStatement(
 ) {
   const supabase = createServiceClient()
 
+  // Rezerwujemy wiersz audit_log jako "batch" tego importu, zanim jeszcze
+  // wiemy, ile transakcji zostanie wczytanych — dzięki temu każdy rekord
+  // w transaction_staging/transactions może być od razu oznaczony
+  // import_id, co pozwala historii importów pokazywać żywy status
+  // (do zatwierdzenia / zatwierdzono / odrzucono), a nie zrzut z chwili
+  // wgrania pliku. after_data uzupełniamy pełnym podsumowaniem na końcu.
+  const { data: importRow, error: importRowError } = await supabase
+    .from('audit_log')
+    .insert({
+      action_name: 'importBankStatement',
+      table_name: 'transaction_staging',
+      operation: 'IMPORT',
+    })
+    .select('id')
+    .single()
+  if (importRowError || !importRow) {
+    throw importRowError ?? new Error('Nie udało się utworzyć wpisu importu')
+  }
+  const importId = importRow.id
+
   let parseResult;
   if (fileName.toLowerCase().endsWith('.pdf')) {
     // If it's a base64 string from readAsDataURL, strip the prefix
@@ -86,9 +106,11 @@ export async function importBankStatement(
         status: isIgnored ? 'REJECTED_OWN_TRANSFER' : 'SKIPPED',
         category: null,
         raw_data: tx.rawData,
+        import_id: importId,
       }
     })
-    await supabase.from('transactions').insert(toInsertSkipped)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase.from('transactions') as any).insert(toInsertSkipped)
   }
 
   for (const tx of transactions) {
@@ -150,6 +172,7 @@ export async function importBankStatement(
       raw_data: Object.keys(rawDataWithFlag).length > 0 ? rawDataWithFlag : null,
       suggested_tenant_id: suggestedTenantId,
       is_duplicate: isDuplicate,
+      import_id: importId,
     })
     
     if (insertError) {
@@ -194,12 +217,7 @@ export async function importBankStatement(
     dayTo: dayTo ?? null,
     docSlot: docSlot ?? null,
   }
-  await logAudit({
-    actionName: 'importBankStatement',
-    tableName: 'transaction_staging',
-    operation: 'IMPORT',
-    afterData: summary,
-  })
+  await supabase.from('audit_log').update({ after_data: summary }).eq('id', importId)
 
   // Uruchom sprawdzanie zaległości, jeśli to już po 10. dniu miesiąca
   const { processLateReminders } = await import('@/lib/late-reminders')
@@ -295,9 +313,46 @@ export async function getImportHistoryList() {
     .select('id, after_data, created_at')
     .eq('action_name', 'importBankStatement')
     .order('created_at', { ascending: false })
-    
+
   if (error) throw error
-  return data
+  if (!data || data.length === 0) return []
+
+  // Liczymy żywy status każdego importu (ile transakcji wciąż czeka, ile
+  // zatwierdzono, ile odrzucono) na podstawie import_id na powiązanych
+  // rekordach — zamiast polegać na zrzucie liczb zapisanym w after_data
+  // w chwili wgrania pliku, który nigdy się nie aktualizuje.
+  const importIds = data.map((row) => row.id)
+
+  const [{ data: pendingRows }, { data: resolvedRows }] = await Promise.all([
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).from('transaction_staging').select('import_id').in('import_id', importIds),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).from('transactions').select('import_id, status').in('import_id', importIds) as Promise<{ data: { import_id: number | null; status: string | null }[] | null }>,
+  ])
+
+  const pendingByImport = new Map<number, number>()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const row of (pendingRows ?? []) as any[]) {
+    pendingByImport.set(row.import_id, (pendingByImport.get(row.import_id) ?? 0) + 1)
+  }
+
+  const acceptedByImport = new Map<number, number>()
+  const rejectedByImport = new Map<number, number>()
+  for (const row of resolvedRows ?? []) {
+    if (row.import_id == null) continue
+    if (row.status === 'MATCHED') {
+      acceptedByImport.set(row.import_id, (acceptedByImport.get(row.import_id) ?? 0) + 1)
+    } else if (row.status?.startsWith('REJECTED')) {
+      rejectedByImport.set(row.import_id, (rejectedByImport.get(row.import_id) ?? 0) + 1)
+    }
+  }
+
+  return data.map((row) => ({
+    ...row,
+    pendingCount: pendingByImport.get(row.id) ?? 0,
+    acceptedCount: acceptedByImport.get(row.id) ?? 0,
+    rejectedCount: rejectedByImport.get(row.id) ?? 0,
+  }))
 }
 
 export async function getFileContent(fileName: string) {
@@ -358,6 +413,7 @@ export async function reconcileTransaction(
     tenant_id: tenantId,
     raw_data: staged.raw_data,
     category: category ?? null,
+    import_id: staged.import_id ?? null,
   }).select().single()
 
   if (insertError) {
@@ -430,7 +486,8 @@ export async function dismissTransaction(
   const { data: before } = await (supabase as any).from('transaction_staging').select('*').eq('id', txId).single()
   if (!before) return
 
-  await supabase.from('transactions').insert({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase.from('transactions') as any).insert({
     date: before.date,
     title: before.title,
     amount: before.amount,
@@ -441,6 +498,7 @@ export async function dismissTransaction(
     category: null,
     raw_data: before.raw_data,
     description: note?.trim() || null,
+    import_id: before.import_id ?? null,
   })
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -472,8 +530,10 @@ export async function dismissAllTransactions() {
       status: 'REJECTED_OTHER',
       category: null,
       raw_data: staging.raw_data,
+      import_id: staging.import_id ?? null,
     }))
-    await supabase.from('transactions').insert(toInsert)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase.from('transactions') as any).insert(toInsert)
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

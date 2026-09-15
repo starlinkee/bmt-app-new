@@ -81,7 +81,7 @@ export default function MediaGroupPage({
   const [editedPreviousReadings, setEditedPreviousReadings] = useState<Record<string, string>>({})
   const [settlementExists, setSettlementExists] = useState(false)
   const [readingsLoaded, setReadingsLoaded] = useState(false)
-  const [results, setResults] = useState<{ tenantName: string; amount: number; invoiceNumber: string | null; invoiceError?: string; emailError?: string }[]>([])
+  const [results, setResults] = useState<{ tenantName: string; amount: number; invoiceNumber: string | null; emailError?: string }[]>([])
   const [progress, setProgress] = useState(0)
   const [pending, startTransition] = useTransition()
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -329,11 +329,6 @@ export default function MediaGroupPage({
                 <div>
                   {r.tenantName} — {formatAmount(r.amount)}
                 </div>
-                {r.invoiceError && (
-                  <div className="text-xs text-destructive pl-1">
-                    Błąd obciążenia: {r.invoiceError}
-                  </div>
-                )}
                 {r.emailError && (
                   <div className="text-xs text-amber-600 pl-1">
                     Błąd wysyłki e-mail: {r.emailError}

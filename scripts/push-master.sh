@@ -3,8 +3,10 @@
 #
 #   1. commit + push na bieżący branch (dev)
 #   2. LOKALNIE: testy jednostkowe (vitest) muszą przejść - inaczej stop
-#   3. merge dev do master i push master
-#   4. checkout z powrotem na dev + rebase na master
+#   3. e2e (Playwright) na ŚWIEŻO zbudowanym deploymencie preview tego commita
+#      - inaczej stop (pomijane, jeśli brak .env.e2e - patrz e2e/README.md)
+#   4. merge dev do master i push master
+#   5. checkout z powrotem na dev + rebase na master
 
 set -euo pipefail
 
@@ -16,11 +18,11 @@ CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 log() { printf '\n\033[1;36m▶ %s\033[0m\n' "$1"; }
 fail() { printf '\n\033[1;31m✗ %s\033[0m\n' "$1"; exit 1; }
 
-log "1/4 Commit + push brancha '$CURRENT_BRANCH'"
+log "1/5 Commit + push brancha '$CURRENT_BRANCH'"
 git add .
 git commit -m 'update' || echo "  (nic do commitowania)"
 
-log "2/4 Testy jednostkowe (vitest) - lokalna bramka przed pushem"
+log "2/5 Testy jednostkowe (vitest) - lokalna bramka przed pushem"
 if ! npm run test; then
   fail "Testy jednostkowe NIE przeszły. Napraw je zanim spróbujesz znowu - nic nie zostało wypchnięte na master."
 fi
@@ -29,13 +31,24 @@ git push origin "$CURRENT_BRANCH"
 SHA="$(git rev-parse HEAD)"
 echo "  commit: $SHA"
 
-log "3/4 Merge '$CURRENT_BRANCH' -> master i push"
+log "3/5 Testy e2e (Playwright) na świeżym deploymencie preview tego commita"
+if [ ! -f .env.e2e ]; then
+  echo "  (pomijam - brak .env.e2e; jednorazowa konfiguracja: patrz e2e/README.md)"
+else
+  PREVIEW_HOST="$(node scripts/wait-for-preview-deploy.mjs "$SHA" "$CURRENT_BRANCH")" \
+    || fail "Nie doczekano się gotowego deploya preview dla $SHA - nic nie zostało wypchnięte na master."
+  if ! E2E_BASE_URL="https://$PREVIEW_HOST" npm run test:e2e; then
+    fail "Testy e2e NIE przeszły na https://$PREVIEW_HOST. Napraw je zanim spróbujesz znowu - nic nie zostało wypchnięte na master."
+  fi
+fi
+
+log "4/5 Merge '$CURRENT_BRANCH' -> master i push"
 git checkout master
 git merge "$CURRENT_BRANCH"
 git push origin master
 
-log "4/4 Powrót na '$CURRENT_BRANCH' i rebase na master"
+log "5/5 Powrót na '$CURRENT_BRANCH' i rebase na master"
 git checkout "$CURRENT_BRANCH"
 git rebase master
 
-log "Gotowe. master zaktualizowany i zweryfikowany testami jednostkowymi."
+log "Gotowe. master zaktualizowany i zweryfikowany testami jednostkowymi oraz e2e."

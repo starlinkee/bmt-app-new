@@ -651,6 +651,27 @@ export type Database = {
           }
           Relationships: []
         }
+        reminder_dedup: {
+          Row: {
+            id: number
+            action_name: string
+            dedup_key: string
+            created_at: string
+          }
+          Insert: {
+            id?: never
+            action_name: string
+            dedup_key: string
+            created_at?: string
+          }
+          Update: {
+            id?: never
+            action_name?: string
+            dedup_key?: string
+            created_at?: string
+          }
+          Relationships: []
+        }
     }
     Views: {
       [_ in never]: never

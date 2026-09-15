@@ -17,6 +17,8 @@ setup('zaloguj się i zapisz sesję', async ({ page }) => {
   await page.getByLabel('Hasło').fill(password)
   await page.getByRole('button', { name: 'Zaloguj się' }).click()
 
-  await expect(page).toHaveURL('/')
+  // Po zalogowaniu strona główna przekierowuje dalej (np. na /kontrola-platnosci),
+  // więc sprawdzamy tylko, że opuściliśmy /login, a nie konkretny URL docelowy.
+  await expect(page).not.toHaveURL(/\/login$/)
   await page.context().storageState({ path: authFile })
 })

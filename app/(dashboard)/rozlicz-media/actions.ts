@@ -499,12 +499,9 @@ export async function processSettlement(
   })
 
   // Przetwarzaj wszystkich najemców równolegle
-  type TenantResult = { tenantName: string; amount: number; invoiceNumber: string | null; invoiceError?: string; emailError?: string }
+  type TenantResult = { tenantName: string; amount: number; invoiceNumber: string | null; emailError?: string }
   const settled = await Promise.allSettled(
     assignedEntries.map(async ({ entry, amount, tenant, activeContract }) => {
-      let invoicePdfBuffer: Buffer | undefined
-      let invoiceError: string | undefined
-
       // Zapisz należność bez formalnego numeru rachunku
       await supabase.from('invoices').upsert(
         {
@@ -521,19 +518,6 @@ export async function processSettlement(
         { ignoreDuplicates: true },
       )
 
-      // 9. Wygeneruj Notę Rozliczeniową (Mockup) dla każdego najemcy
-      try {
-        const { generateMockupNotaPdfBuffer } = await import('@/lib/pdf')
-        const tenantName = tenantDisplayName(tenant)
-        invoicePdfBuffer = await generateMockupNotaPdfBuffer(tenantName, amount, month, year)
-        
-        const fileName = `Nota_Rozliczeniowa_${tenantName.replace(/\s+/g, '_')}_${month}_${year}.pdf`
-        await uploadToSupabaseStorage(supabase, envTier, year, month, group.name, fileName, invoicePdfBuffer)
-      } catch (e) {
-        invoiceError = e instanceof Error ? e.message : String(e)
-        console.error('[media] Błąd generowania noty dla najemcy', tenant.id, ':', invoiceError)
-      }
-
       let emailError: string | undefined
       if (tenant.email) {
         const attachments = (entry.email_pdfs ?? [])
@@ -543,13 +527,6 @@ export async function processSettlement(
             filename: `${p.name}_${String(month).padStart(2, '0')}_${year}.pdf`,
             buffer: p.buffer,
           }))
-
-        if (invoicePdfBuffer) {
-          attachments.push({
-            filename: `Nota_Rozliczeniowa_${String(month).padStart(2, '0')}_${year}.pdf`,
-            buffer: invoicePdfBuffer,
-          })
-        }
 
         const recipients = [tenant.email, tenant.email2].filter(Boolean) as string[]
         const senderAccount = ((tenant as Record<string, unknown>).sender_account as number ?? 1) === 2 ? 2 : 1
@@ -577,7 +554,6 @@ export async function processSettlement(
         tenantName: tenantDisplayName(tenant),
         amount,
         invoiceNumber: null,
-        invoiceError,
         emailError,
       } satisfies TenantResult
     }),

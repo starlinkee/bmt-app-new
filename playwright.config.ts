@@ -21,6 +21,18 @@ export default defineConfig({
     baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
+    // Deploymenty preview mają włączony Vercel Deployment Protection (SSO) -
+    // bez tego nagłówka każde żądanie ląduje na ekranie logowania do Vercela
+    // zamiast w aplikacji. Sekret pochodzi z "Protection Bypass for Automation"
+    // w ustawieniach projektu na Vercelu.
+    ...(process.env.VERCEL_PROTECTION_BYPASS_SECRET
+      ? {
+          extraHTTPHeaders: {
+            'x-vercel-protection-bypass': process.env.VERCEL_PROTECTION_BYPASS_SECRET,
+            'x-vercel-set-bypass-cookie': 'true',
+          },
+        }
+      : {}),
   },
 
   projects: [

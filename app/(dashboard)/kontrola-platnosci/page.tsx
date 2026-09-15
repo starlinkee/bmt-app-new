@@ -84,6 +84,7 @@ export default function KontrolaPlatnosciPage() {
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [filterText, setFilterText] = useState('')
+  const [sendingTenantIds, setSendingTenantIds] = useState<Set<number>>(new Set())
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -204,19 +205,30 @@ export default function KontrolaPlatnosciPage() {
                 {formatAmount(t.balance)}
               </TableCell>
               <TableCell>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  disabled={sendingTenantIds.has(t.id)}
                   onClick={(e) => {
                     e.stopPropagation()
+                    if (sendingTenantIds.has(t.id)) return
                     if (!confirm(`Wysłać podsumowanie salda do najemcy "${t.first_name} ${t.last_name}"?`)) return
+                    setSendingTenantIds((prev) => new Set(prev).add(t.id))
                     toast.promise(
-                      sendStatementToTenant(t.id).then((res) => {
-                        if (!res.success) {
-                          throw new Error(res.error)
-                        }
-                        return res
-                      }),
+                      sendStatementToTenant(t.id)
+                        .then((res) => {
+                          if (!res.success) {
+                            throw new Error(res.error)
+                          }
+                          return res
+                        })
+                        .finally(() => {
+                          setSendingTenantIds((prev) => {
+                            const next = new Set(prev)
+                            next.delete(t.id)
+                            return next
+                          })
+                        }),
                       {
                         loading: 'Wysyłanie wyciągu...',
                         success: 'Wysłano pomyślnie!',

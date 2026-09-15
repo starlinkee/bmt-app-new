@@ -18,17 +18,19 @@ export async function processStatementUploadReminder() {
   }
 
   const supabase = createServiceClient()
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  const dedupKey = `${now.getFullYear()}-${now.getMonth() + 1}`
 
-  const { data: existingLogs } = await supabase
-    .from('audit_log')
-    .select('id')
-    .eq('action_name', 'statementUploadReminder')
-    .gte('created_at', startOfMonth)
-    .limit(1)
+  // Atomowe "zastrzeżenie" tego miesiąca - unique constraint na (action_name,
+  // dedup_key) gwarantuje, że dwa równoległe wywołania nie przejdą oba.
+  const { error: claimError } = await supabase
+    .from('reminder_dedup')
+    .insert({ action_name: 'statementUploadReminder', dedup_key: dedupKey })
 
-  if (existingLogs && existingLogs.length > 0) {
-    return { sent: false, reason: 'Already sent this month' }
+  if (claimError) {
+    if (claimError.code === '23505') {
+      return { sent: false, reason: 'Already sent this month' }
+    }
+    throw claimError
   }
 
   try {
@@ -40,6 +42,12 @@ export async function processStatementUploadReminder() {
     })
     return { sent: true }
   } catch (e) {
+    // Zwolnij zastrzeżenie, żeby kolejna próba mogła wysłać ponownie.
+    await supabase
+      .from('reminder_dedup')
+      .delete()
+      .eq('action_name', 'statementUploadReminder')
+      .eq('dedup_key', dedupKey)
     await logAudit({
       actionName: 'statementUploadReminder',
       operation: 'CREATE',

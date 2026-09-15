@@ -11,7 +11,7 @@ export async function processLateReminders() {
   }
 
   const supabase = createServiceClient()
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  const dedupKeySuffix = `${now.getFullYear()}-${now.getMonth() + 1}`
 
   const tenants = await getTenantsWithBalances()
   const debtors = tenants.filter((t) => t.balance < 0)
@@ -20,16 +20,21 @@ export async function processLateReminders() {
   let skipped = 0
 
   for (const tenant of debtors) {
-    // Sprawdz czy juz wyslalismy ponaglenie w tym miesiacu
-    const { data: existingLogs } = await supabase
-      .from('audit_log')
-      .select('id')
-      .eq('action_name', 'lateReminder')
-      .eq('record_id', String(tenant.id))
-      .gte('created_at', startOfMonth)
-      .limit(1)
+    const dedupKey = `${tenant.id}-${dedupKeySuffix}`
 
-    if (existingLogs && existingLogs.length > 0) {
+    // Atomowe "zastrzeżenie" tego najemcy na ten miesiąc - unique constraint
+    // na (action_name, dedup_key) gwarantuje, że dwa równoległe wywołania
+    // (np. cron trafiony dwa razy blisko siebie) nie wyślą obu maili.
+    const { error: claimError } = await supabase
+      .from('reminder_dedup')
+      .insert({ action_name: 'lateReminder', dedup_key: dedupKey })
+
+    if (claimError) {
+      if (claimError.code === '23505') {
+        skipped++
+        continue
+      }
+      console.error('Failed to claim late reminder dedup for tenant', tenant.id, claimError)
       skipped++
       continue
     }
@@ -45,6 +50,12 @@ export async function processLateReminders() {
       })
       sent++
     } catch (e) {
+      // Zwolnij zastrzeżenie, żeby kolejny cron mógł spróbować ponownie.
+      await supabase
+        .from('reminder_dedup')
+        .delete()
+        .eq('action_name', 'lateReminder')
+        .eq('dedup_key', dedupKey)
       console.error('Failed to send late reminder to tenant', tenant.id, e)
       skipped++
     }

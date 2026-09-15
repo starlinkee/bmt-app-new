@@ -16,21 +16,31 @@ export async function processMeterReadingReminder() {
   }
 
   const supabase = createServiceClient()
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  const dedupKey = `${now.getFullYear()}-${now.getMonth() + 1}`
 
-  const { data: existingLogs } = await supabase
-    .from('audit_log')
-    .select('id')
-    .eq('action_name', 'meterReadingReminder')
-    .gte('created_at', startOfMonth)
-    .limit(1)
+  // Atomowe "zastrzeżenie" tego miesiąca - unique constraint na (action_name,
+  // dedup_key) gwarantuje, że dwa równoległe wywołania nie przejdą oba.
+  const { error: claimError } = await supabase
+    .from('reminder_dedup')
+    .insert({ action_name: 'meterReadingReminder', dedup_key: dedupKey })
 
-  if (existingLogs && existingLogs.length > 0) {
-    return { sent: false, reason: 'Already sent this month' }
+  if (claimError) {
+    if (claimError.code === '23505') {
+      return { sent: false, reason: 'Already sent this month' }
+    }
+    throw claimError
   }
+
+  const releaseClaim = () =>
+    supabase
+      .from('reminder_dedup')
+      .delete()
+      .eq('action_name', 'meterReadingReminder')
+      .eq('dedup_key', dedupKey)
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL
   if (!baseUrl) {
+    await releaseClaim()
     await logAudit({
       actionName: 'meterReadingReminder',
       operation: 'CREATE',
@@ -39,6 +49,7 @@ export async function processMeterReadingReminder() {
     return { sent: false, reason: 'NEXT_PUBLIC_APP_URL not configured' }
   }
 
+  try {
   const { data: config } = await supabase
     .from('app_config')
     .select('meter_reading_reminder_subject, meter_reading_reminder_body')
@@ -137,4 +148,17 @@ export async function processMeterReadingReminder() {
   })
 
   return { sent: true, count: results.filter((r) => !r.error).length, results }
+  } catch (e) {
+    // Zwolnij zastrzeżenie tylko przy nieoczekiwanym błędzie (np. zapytanie do
+    // tenants się wywaliło) - żeby kolejna próba mogła spróbować ponownie.
+    // Pojedyncze błędy wysyłki do konkretnych najemców są już obsłużone wyżej
+    // i nie trafiają tutaj.
+    await releaseClaim()
+    await logAudit({
+      actionName: 'meterReadingReminder',
+      operation: 'CREATE',
+      errorData: e,
+    })
+    throw e
+  }
 }

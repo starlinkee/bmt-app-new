@@ -1,4 +1,16 @@
 import { test, expect } from './support/fixtures'
+import type { Locator } from '@playwright/test'
+
+// Dialog "Rewaluuj" ma autoFocus na polu inflacji i animację otwierania -
+// pierwsze kliknięcie w checkbox tuż po otwarciu bywa gubione (base-ui
+// przełącza fokus w tym samym momencie). Ponawiamy klik, aż stan faktycznie
+// się zmieni, zamiast polegać na pojedynczym click()/check().
+async function setChecked(locator: Locator, checked: boolean) {
+  await expect(async () => {
+    if ((await locator.isChecked()) !== checked) await locator.click()
+    expect(await locator.isChecked()).toBe(checked)
+  }).toPass({ timeout: 10_000 })
+}
 
 // Wszystkie testy w tym pliku operują wyłącznie na najemcach/nieruchomościach/umowach
 // zakładanych przez fixture'y `makeTenant` / `makeContract` (nazwy z prefiksem
@@ -103,10 +115,17 @@ test('rewaluacja czynszu', async ({ page, makeTenant, makeContract }) => {
   // WAŻNE: dialog domyślnie zaznacza WSZYSTKIE aktywne umowy w bazie (nie tylko
   // testową) — na współdzielonej bazie preview trzeba to odznaczyć i zaznaczyć
   // ręcznie wyłącznie naszą umowę, żeby nie przeliczyć cudzych czynszów.
-  await dialog.locator('#select-all').click()
-  await dialog.locator(`#c-${contract.id}`).click()
+  // Checkbox (base-ui) renderuje DWA elementy pod tym samym id: widoczny
+  // (role="checkbox", z dostępną nazwą z etykiety) i ukryty natywny <input>
+  // poza viewportem (do semantyki formularza). CSS `#id` trafia w ten ukryty,
+  // więc celujemy w rolę + nazwę dostępności zamiast w selektor po id.
+  const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  await setChecked(dialog.getByRole('checkbox', { name: /^Wszystkie aktywne/ }), false)
+  await expect(dialog.getByText(/^Zaznaczono: /)).toHaveText(/^Zaznaczono: 0 z /)
+  await setChecked(dialog.getByRole('checkbox', { name: new RegExp(`^${escapeRegExp(tenant.fullName)}`) }), true)
 
-  await dialog.getByLabel('Inflacja (%)').fill('10')
+  await expect(dialog.getByText(/^Zaznaczono: /)).toHaveText(/^Zaznaczono: 1 z /)
+  await dialog.getByPlaceholder('np. 3.6').fill('10')
   await expect(dialog.locator(`label[for="c-${contract.id}"]`)).toContainText('550,00 zł')
 
   await dialog.getByRole('button', { name: 'Zatwierdź (1)' }).click()

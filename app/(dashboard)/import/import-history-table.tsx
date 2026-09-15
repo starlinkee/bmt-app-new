@@ -119,11 +119,19 @@ export function ImportHistoryTable() {
                     <TableCell className="text-right text-sm">
                       <div className="flex flex-col items-end">
                         <span className="font-medium">{data.total || 0} wczytanych</span>
-                        {(data.withSuggestion > 0 || data.withoutSuggestion > 0) && (
-                          <span className="text-xs text-muted-foreground">
-                            {data.withSuggestion + data.withoutSuggestion} do zatwierdzenia
+                        {item.pendingCount > 0 ? (
+                          <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                            {item.pendingCount} do zatwierdzenia
                           </span>
-                        )}
+                        ) : (item.acceptedCount > 0 || item.rejectedCount > 0) ? (
+                          <span className="text-xs text-muted-foreground">
+                            {item.acceptedCount > 0 && item.rejectedCount > 0
+                              ? `zatwierdzono ${item.acceptedCount}, odrzucono ${item.rejectedCount}`
+                              : item.rejectedCount > 0
+                                ? 'wszystkie odrzucone'
+                                : 'wszystkie zatwierdzone'}
+                          </span>
+                        ) : null}
                       </div>
                     </TableCell>
                     <TableCell className="text-center">

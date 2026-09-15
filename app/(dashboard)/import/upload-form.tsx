@@ -224,51 +224,51 @@ export function UploadForm() {
         </div>
       )}
 
-      <div className="grid md:grid-cols-2 gap-6 items-start">
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <UploadCloud className="h-5 w-5 text-primary" />
-              Wgraj wyciąg CSV (Pekao SA)
-            </CardTitle>
-            <CardDescription>
-              Wybierz plik w formacie .csv pobrany z konta w Pekao SA
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div
-              className={`border-2 border-dashed rounded-xl p-8 text-center transition-all ${
-                pending ? 'border-primary/50 bg-primary/5' : 'border-border hover:border-primary/50 hover:bg-muted/50'
-              }`}
-            >
-              <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-                <FileSpreadsheet className="h-6 w-6 text-primary" />
-              </div>
-              <h3 className="text-base font-medium mb-1">
-                {pending ? 'Przetwarzanie pliku...' : 'Wybierz plik z dysku'}
-              </h3>
-              <p className="text-sm text-muted-foreground mb-6">
-                Obsługiwany format: CSV
-              </p>
-
-              <Button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={pending}
-                className="w-full sm:w-auto"
-              >
-                {pending ? 'Importowanie...' : 'Wybierz plik CSV'}
-              </Button>
-              <input
-                ref={fileInputRef}
-                id="csv-file"
-                type="file"
-                accept=".csv"
-                onChange={handleFile}
-                disabled={pending}
-                className="hidden"
-              />
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <UploadCloud className="h-5 w-5 text-primary" />
+            Wgraj wyciąg CSV (Pekao SA)
+          </CardTitle>
+          <CardDescription>
+            Wybierz plik w formacie .csv pobrany z konta w Pekao SA
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div
+            className={`border-2 border-dashed rounded-xl p-8 text-center transition-all ${
+              pending ? 'border-primary/50 bg-primary/5' : 'border-border hover:border-primary/50 hover:bg-muted/50'
+            }`}
+          >
+            <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
+              <FileSpreadsheet className="h-6 w-6 text-primary" />
             </div>
+            <h3 className="text-base font-medium mb-1">
+              {pending ? 'Przetwarzanie pliku...' : 'Wybierz plik z dysku'}
+            </h3>
+            <p className="text-sm text-muted-foreground mb-6">
+              Obsługiwany format: CSV
+            </p>
 
+            <Button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={pending}
+              className="w-full sm:w-auto"
+            >
+              {pending ? 'Importowanie...' : 'Wybierz plik CSV'}
+            </Button>
+            <input
+              ref={fileInputRef}
+              id="csv-file"
+              type="file"
+              accept=".csv"
+              onChange={handleFile}
+              disabled={pending}
+              className="hidden"
+            />
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-2 rounded-lg border border-border/50 p-4">
               <p className="text-sm font-medium">Zakres dni brany z pliku</p>
               <p className="text-xs text-muted-foreground">
@@ -353,85 +353,41 @@ export function UploadForm() {
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
-
-        {result ? (
-          <Card className="shadow-sm border-primary/20 bg-primary/5">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-500" />
-                Podsumowanie importu
-              </CardTitle>
-              <CardDescription>
-                Plik został pomyślnie wczytany i przetworzony
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-y-3 text-sm">
-                  <div className="text-muted-foreground">Bank</div>
-                  <div className="font-medium">{result.bank}</div>
-                  
-                  {result.minDate && result.maxDate && (
-                    <>
-                      <div className="text-muted-foreground">Okres</div>
-                      <div className="font-medium">{result.minDate} <span className="text-muted-foreground font-normal mx-1">do</span> {result.maxDate}</div>
-                    </>
-                  )}
-                  
-                  <div className="col-span-2 my-2 border-t border-border/50"></div>
-                  
-                  <div className="text-muted-foreground flex items-center">
-                    Z sugestią najemcy
-                  </div>
-                  <div className="font-medium text-green-600 dark:text-green-400">
-                    {result.withSuggestion}
-                  </div>
-                  
-                  <div className="text-muted-foreground">
-                    Bez dopasowania
-                  </div>
-                  <div className="font-medium text-amber-600 dark:text-amber-400">
-                    {result.withoutSuggestion}
-                  </div>
-                  
-                  <div className="text-muted-foreground">
-                    Pominięte <span className="text-xs opacity-70">(wychodzące/błędy)</span>
-                  </div>
-                  <div className="font-medium">
-                    {result.skipped}
-                  </div>
-
-                  {result.duplicates > 0 && (
-                    <>
-                      <div className="text-red-600 dark:text-red-400 font-medium flex items-center gap-1.5 mt-2">
-                        Możliwe duplikaty
-                        <AlertTriangle className="h-3.5 w-3.5" />
-                      </div>
-                      <div className="font-medium text-red-600 dark:text-red-400 mt-2">
-                        {result.duplicates}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-            {(result.withSuggestion + result.withoutSuggestion) > 0 && (
-              <CardFooter className="pt-4 border-t border-border/50 bg-background/50">
-                <Link href="/import/reconcile" className={buttonVariants({ className: 'w-full', size: 'lg' })}>
-                  Przejdź do zatwierdzania transakcji ({result.withSuggestion + result.withoutSuggestion})
-                </Link>
-              </CardFooter>
-            )}
-          </Card>
-        ) : (
-          <div className="hidden md:flex flex-col items-center justify-center h-full min-h-[300px] rounded-xl border border-dashed border-border/50 bg-muted/20 text-muted-foreground">
-            <FileSpreadsheet className="h-10 w-10 mb-3 opacity-20" />
-            <p className="text-sm">Wynik importu pojawi się tutaj po wgraniu pliku</p>
           </div>
+        </CardContent>
+
+        {result && (
+          <CardFooter className="flex-col items-stretch gap-4 pt-4 border-t border-border/50 bg-background/50">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-500" />
+              Podsumowanie importu ({result.bank}
+              {result.minDate && result.maxDate && <>, {result.minDate} do {result.maxDate}</>})
+            </div>
+            <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+              <span className="text-muted-foreground">
+                Z sugestią najemcy: <span className="font-medium text-green-600 dark:text-green-400">{result.withSuggestion}</span>
+              </span>
+              <span className="text-muted-foreground">
+                Bez dopasowania: <span className="font-medium text-amber-600 dark:text-amber-400">{result.withoutSuggestion}</span>
+              </span>
+              <span className="text-muted-foreground">
+                Pominięte: <span className="font-medium">{result.skipped}</span>
+              </span>
+              {result.duplicates > 0 && (
+                <span className="text-red-600 dark:text-red-400 font-medium flex items-center gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  Możliwe duplikaty: {result.duplicates}
+                </span>
+              )}
+            </div>
+            {(result.withSuggestion + result.withoutSuggestion) > 0 && (
+              <Link href="/import/reconcile" className={buttonVariants({ className: 'w-full', size: 'lg' })}>
+                Przejdź do zatwierdzania transakcji ({result.withSuggestion + result.withoutSuggestion})
+              </Link>
+            )}
+          </CardFooter>
         )}
-      </div>
+      </Card>
 
       <Card className="shadow-sm">
         <CardHeader>
