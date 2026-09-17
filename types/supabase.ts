@@ -40,6 +40,7 @@ export type Database = {
             allow_destructive_test_deletes: boolean
             meter_reading_reminder_subject: string | null
             meter_reading_reminder_body: string | null
+            meter_reading_closed_message: string | null
             admin_email: string | null
             payment_account_1_name: string
             payment_account_2_name: string
@@ -69,6 +70,7 @@ export type Database = {
             allow_destructive_test_deletes?: boolean
             meter_reading_reminder_subject?: string | null
             meter_reading_reminder_body?: string | null
+            meter_reading_closed_message?: string | null
             admin_email?: string | null
             payment_account_1_name?: string
             payment_account_2_name?: string
@@ -98,6 +100,7 @@ export type Database = {
             allow_destructive_test_deletes?: boolean
             meter_reading_reminder_subject?: string | null
             meter_reading_reminder_body?: string | null
+            meter_reading_closed_message?: string | null
             admin_email?: string | null
             payment_account_1_name?: string
             payment_account_2_name?: string

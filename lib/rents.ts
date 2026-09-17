@@ -24,7 +24,7 @@ export async function getRentPreview(month: number, year: number) {
   const [contractsResult, appConfigResult] = await Promise.all([
     supabase
       .from('contracts')
-      .select('*, tenants(id, first_name, last_name, tenant_type, company_name, email, email2, nip, address1, address2, property_id, sender_account)')
+      .select('*, tenants(id, first_name, last_name, tenant_type, company_name, email, email2, nip, address1, address2, property_id, sender_account, properties(name))')
       .eq('is_active', true)
       .not('id', 'in', existingContractIds.length ? `(${existingContractIds.join(',')})` : '(-1)'),
     supabase

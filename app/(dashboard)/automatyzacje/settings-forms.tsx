@@ -53,6 +53,41 @@ export function LateReminderForm({ initialSubject, initialBody }: { initialSubje
   )
 }
 
+export function MeterClosedMessageForm({ initialMessage }: { initialMessage: string }) {
+  const [message, setMessage] = useState(initialMessage)
+  const [pending, startTransition] = useTransition()
+
+  function handleSave() {
+    startTransition(async () => {
+      try {
+        await upsertAppConfig({ meter_reading_closed_message: message })
+        toast.success('Komunikat zapisany.')
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : JSON.stringify(e)
+        toast.error(`Błąd zapisu: ${msg}`)
+      }
+    })
+  }
+
+  return (
+    <div className="space-y-3 border-t pt-3">
+      <div>
+        <p className="text-sm font-medium">Komunikat poza oknem podawania odczytów</p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          To widzi najemca na formularzu odczytów, gdy próbuje go otworzyć poza dozwolonym oknem.
+          Celowo bez konkretnych dat, żeby nie ujawniać najemcy dokładnego zakresu.
+        </p>
+      </div>
+      <div className="space-y-1">
+        <Label>Treść komunikatu</Label>
+        <Textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3} />
+      </div>
+      <Button size="sm" onClick={handleSave} disabled={pending}>Zapisz komunikat</Button>
+      <SavedNote />
+    </div>
+  )
+}
+
 export function MeterReminderForm({ initialSubject, initialBody }: { initialSubject: string, initialBody: string }) {
   const [subject, setSubject] = useState(initialSubject)
   const [body, setBody] = useState(initialBody)

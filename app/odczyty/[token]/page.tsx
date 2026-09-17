@@ -1,7 +1,7 @@
 'use client'
 
 import { use, useEffect, useState, useTransition } from 'react'
-import { getTenantReadingsContext, getTargetMonthYear, hasAlreadySubmitted, getPreviousMeterReadings, saveReadings } from './actions'
+import { getTenantReadingsContext, getTargetMonthYear, hasAlreadySubmitted, getPreviousMeterReadings, saveReadings, getClosedWindowMessage } from './actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -23,12 +23,13 @@ export default function TenantReadingsPage({ params }: { params: Promise<{ token
   const { token } = use(params)
   
   const [ctx, setCtx] = useState<Awaited<ReturnType<typeof getTenantReadingsContext>>>(null)
-  const [dateInfo, setDateInfo] = useState<{ month: number; year: number } | null>(null)
+  const [dateInfo, setDateInfo] = useState<{ month: number; year: number; windowOpen: boolean } | null>(null)
   const [submittedGroups, setSubmittedGroups] = useState<Record<number, boolean>>({})
   const [loading, setLoading] = useState(true)
   const [pending, startTransition] = useTransition()
   const [values, setValues] = useState<Record<number, Record<string, string>>>({})
   const [previousReadings, setPreviousReadings] = useState<Record<number, Record<string, number>>>({})
+  const [closedMessage, setClosedMessage] = useState('')
 
   useEffect(() => {
     async function load() {
@@ -37,7 +38,7 @@ export default function TenantReadingsPage({ params }: { params: Promise<{ token
       const d = await getTargetMonthYear()
       setDateInfo(d)
       
-      if (data && data.groups) {
+      if (data && data.groups && d.windowOpen) {
         const statuses: Record<number, boolean> = {}
         const initVals: Record<number, Record<string, string>> = {}
         const prevReadings: Record<number, Record<string, number>> = {}
@@ -55,6 +56,8 @@ export default function TenantReadingsPage({ params }: { params: Promise<{ token
         setSubmittedGroups(statuses)
         setValues(initVals)
         setPreviousReadings(prevReadings)
+      } else if (data && data.groups && !d.windowOpen) {
+        setClosedMessage(await getClosedWindowMessage())
       }
       setLoading(false)
     }
@@ -68,6 +71,15 @@ export default function TenantReadingsPage({ params }: { params: Promise<{ token
       <div className="p-8 max-w-md mx-auto text-center space-y-4">
         <h1 className="text-xl font-bold">Brak odczytów</h1>
         <p className="text-muted-foreground">Nie znaleziono aktywnych formularzy dla tego linku.</p>
+      </div>
+    )
+  }
+
+  if (dateInfo && !dateInfo.windowOpen) {
+    return (
+      <div className="p-8 max-w-md mx-auto text-center space-y-4">
+        <h1 className="text-xl font-bold">Formularz obecnie niedostępny</h1>
+        <p className="text-muted-foreground">{closedMessage}</p>
       </div>
     )
   }

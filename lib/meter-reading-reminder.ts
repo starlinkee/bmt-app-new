@@ -3,6 +3,86 @@ import { logAudit } from '@/lib/audit'
 import { sendMeterReadingReminderEmail } from '@/lib/email'
 import { getCurrentDate } from '@/lib/clock'
 
+// Domyślny komunikat na formularzu najemcy (/odczyty/[token]), gdy okno
+// podawania odczytów jest zamknięte. Celowo bez konkretnych dat — nie
+// ujawniamy najemcy dokładnego zakresu, w którym formularz jest aktywny.
+export const DEFAULT_METER_READING_CLOSED_MESSAGE =
+  'Podawanie odczytów jest teraz zamknięte. Sprawdź ponownie pod koniec miesiąca.'
+
+export type EligibleMeterReminderTenant = {
+  id: number
+  name: string
+  emails: string[]
+}
+
+// Najemcy, którzy DZIŚ (gdyby przypomnienie wysyłało się teraz) dostaliby maila:
+// mają aktywną umowę z włączonymi mediami, adres e-mail, i co najmniej jeden
+// klucz odczytu do podania (tenant_reading_keys w grupie rozliczeniowej ich
+// nieruchomości). Współdzielone przez cron (processMeterReadingReminder) i
+// podgląd w zakładce Automatyzacje.
+export async function getEligibleMeterReminderTenants(): Promise<EligibleMeterReminderTenant[]> {
+  const supabase = createServiceClient()
+
+  const { data: tenants, error: tenantsError } = await supabase
+    .from('tenants')
+    .select('id, first_name, last_name, email, email2, property_id, contracts(is_active, has_media_invoice)')
+
+  if (tenantsError) throw tenantsError
+
+  const eligibleTenants = (tenants ?? []).filter(
+    (t) => t.email && t.contracts?.some((c) => c.is_active && c.has_media_invoice),
+  )
+
+  const propertyIds = Array.from(
+    new Set(eligibleTenants.map((t) => t.property_id).filter((id): id is number => id != null)),
+  )
+
+  const readingKeysCountByTenant: Record<number, number> = {}
+  if (propertyIds.length > 0) {
+    const { data: sgp } = await supabase
+      .from('settlement_group_properties')
+      .select('property_id, settlement_group_id')
+      .in('property_id', propertyIds)
+
+    const groupIds = Array.from(new Set((sgp ?? []).map((s) => s.settlement_group_id)))
+
+    if (groupIds.length > 0) {
+      const { data: groups } = await supabase
+        .from('settlement_groups')
+        .select('id, tenant_reading_keys')
+        .in('id', groupIds)
+
+      const readingKeysByGroup = new Map(
+        (groups ?? []).map((g) => [g.id, g.tenant_reading_keys as Record<string, unknown[]> | null]),
+      )
+      const groupIdsByProperty = new Map<number, number[]>()
+      for (const row of sgp ?? []) {
+        const list = groupIdsByProperty.get(row.property_id) ?? []
+        list.push(row.settlement_group_id)
+        groupIdsByProperty.set(row.property_id, list)
+      }
+
+      for (const t of eligibleTenants) {
+        if (t.property_id == null) continue
+        let count = 0
+        for (const gid of groupIdsByProperty.get(t.property_id) ?? []) {
+          const keys = readingKeysByGroup.get(gid)?.[t.id.toString()]
+          if (Array.isArray(keys)) count += keys.length
+        }
+        readingKeysCountByTenant[t.id] = count
+      }
+    }
+  }
+
+  return eligibleTenants
+    .filter((t) => (readingKeysCountByTenant[t.id] ?? 0) > 0)
+    .map((t) => ({
+      id: t.id,
+      name: `${t.first_name} ${t.last_name}`.trim(),
+      emails: [t.email, t.email2].filter((e): e is string => !!e),
+    }))
+}
+
 // Wysyła do najemców, którzy mają przypisane klucze odczytów liczników
 // (tenant_reading_keys w grupie rozliczeniowej ich nieruchomości), przypomnienie
 // żeby dzisiaj podali odczyty - bo dzisiaj ostatni dzień miesiąca. Cron uderza

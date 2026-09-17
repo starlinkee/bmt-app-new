@@ -2,6 +2,7 @@
 
 import { createServiceClient } from '@/lib/supabase/service'
 import { getCurrentDate } from '@/lib/clock'
+import { DEFAULT_METER_READING_CLOSED_MESSAGE } from '@/lib/meter-reading-reminder'
 
 export async function getTenantReadingsContext(token: string) {
   const supabase = createServiceClient()
@@ -60,18 +61,32 @@ export async function getTargetMonthYear() {
   const day = now.getDate()
   let month = now.getMonth() + 1
   let year = now.getFullYear()
-  
-  // Do 15-tego podajemy za poprzedni miesiąc.
-  // Od 16-tego podajemy za obecny miesiąc.
-  if (day <= 15) {
+
+  // Okno podawania odczytów: od 25. do 5. dnia miesiąca (obejmuje przełom
+  // miesięcy). Od 25. do końca miesiąca podajemy odczyt na koniec bieżącego
+  // miesiąca. Od 1. do 5. podajemy jeszcze odczyt za miesiąc, który się
+  // właśnie skończył. Poza tym oknem (6.-24.) formularz jest zablokowany.
+  const windowOpen = day >= 25 || day <= 5
+
+  if (day <= 5) {
     month -= 1
     if (month === 0) {
       month = 12
       year -= 1
     }
   }
-  
-  return { month, year }
+
+  return { month, year, windowOpen }
+}
+
+export async function getClosedWindowMessage(): Promise<string> {
+  const supabase = createServiceClient()
+  const { data } = await supabase
+    .from('app_config')
+    .select('meter_reading_closed_message')
+    .eq('id', 1)
+    .single()
+  return data?.meter_reading_closed_message || DEFAULT_METER_READING_CLOSED_MESSAGE
 }
 
 export async function getPreviousMeterReadings(
