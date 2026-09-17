@@ -17,6 +17,8 @@ export async function getAppConfig() {
 export async function upsertAppConfig(data: {
   ignored_source_accounts?: string
   admin_email?: string | null
+  payment_account_1_name?: string
+  payment_account_2_name?: string
 }) {
   const supabase = createServiceClient()
   const { data: before } = await supabase.from('app_config').select('*').eq('id', 1).single()

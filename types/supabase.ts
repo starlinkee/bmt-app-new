@@ -41,6 +41,8 @@ export type Database = {
             meter_reading_reminder_subject: string | null
             meter_reading_reminder_body: string | null
             admin_email: string | null
+            payment_account_1_name: string
+            payment_account_2_name: string
           }
           Insert: {
           drive_invoices_folder_id?: string
@@ -68,6 +70,8 @@ export type Database = {
             meter_reading_reminder_subject?: string | null
             meter_reading_reminder_body?: string | null
             admin_email?: string | null
+            payment_account_1_name?: string
+            payment_account_2_name?: string
           }
           Update: {
           drive_invoices_folder_id?: string
@@ -95,6 +99,8 @@ export type Database = {
             meter_reading_reminder_subject?: string | null
             meter_reading_reminder_body?: string | null
             admin_email?: string | null
+            payment_account_1_name?: string
+            payment_account_2_name?: string
           }
           Relationships: []
       }
@@ -432,6 +438,7 @@ export type Database = {
           property_id: number
           reading_token: string
           sender_account: number
+          payment_account: number | null
           tenant_type: string
         }
         Insert: {
@@ -449,6 +456,7 @@ export type Database = {
           property_id: number
           reading_token?: string
           sender_account?: number
+          payment_account?: number | null
           tenant_type?: string
         }
         Update: {
@@ -466,6 +474,7 @@ export type Database = {
           property_id?: number
           reading_token?: string
           sender_account?: number
+          payment_account?: number | null
           tenant_type?: string
         }
         Relationships: [

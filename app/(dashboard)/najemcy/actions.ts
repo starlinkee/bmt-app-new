@@ -87,6 +87,7 @@ export async function createTenant(data: {
   address2?: string
   property_id: number
   sender_account?: number
+  payment_account?: number | null
 }) {
   const supabase = createServiceClient()
   const { data: created, error } = await supabase
@@ -118,6 +119,7 @@ export async function updateTenant(
     address2: string
     property_id: number
     sender_account: number
+    payment_account: number | null
   }>,
 ) {
   const supabase = createServiceClient()

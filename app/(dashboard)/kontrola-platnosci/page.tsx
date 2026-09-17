@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { useQuery } from '@tanstack/react-query'
 import { getTenantsWithBalances, sendStatementToTenant, getGlobalPaymentStats } from './actions'
 import { QUERY_KEYS } from '@/lib/queryKeys'
-import { formatAmount } from '@/lib/utils'
+import { formatAmount, formatDateTime } from '@/lib/utils'
 import {
   Table,
   TableBody,
@@ -161,20 +161,21 @@ export default function KontrolaPlatnosciPage() {
             <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort('balance')}>
               Saldo<SortIcon col="balance" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
+            <TableHead>Ostatnia kontrola</TableHead>
             <TableHead className="w-16"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {isLoading && (
             <TableRow>
-              <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                 Ładowanie…
               </TableCell>
             </TableRow>
           )}
           {!isLoading && sorted.length === 0 && (
             <TableRow>
-              <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                 {filterText ? 'Brak wyników dla podanego filtra' : 'Brak najemców'}
               </TableCell>
             </TableRow>
@@ -203,6 +204,21 @@ export default function KontrolaPlatnosciPage() {
                 }`}
               >
                 {formatAmount(t.balance)}
+              </TableCell>
+              <TableCell className="text-muted-foreground">
+                {!t.paymentAccount ? (
+                  <span>Brak konta</span>
+                ) : !t.lastImportAt ? (
+                  <>
+                    <div>Brak importu</div>
+                    <div className="text-xs">{t.paymentAccountLabel}</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-foreground">{formatDateTime(t.lastImportAt)}</div>
+                    <div className="text-xs">{t.paymentAccountLabel}</div>
+                  </>
+                )}
               </TableCell>
               <TableCell>
                 <Button

@@ -3,19 +3,45 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { INCOME_TRANSACTION_STATUSES } from '@/lib/transactionStatus'
 
+// Data ostatniego importu wyciągu bankowego per konto firmowe: konto 1 =
+// import CSV (docSlot 0, opisany w UI importu jako "Pekao SA"), konto 2 =
+// import PDF (docSlot 1 lub 2, opisany jako "Millennium"). Liczone z
+// audit_log tak samo jak getLastImportInfo w app/(dashboard)/import/actions.ts,
+// bez osobnej tabeli importów.
+export async function getLastImportDatesByAccount(): Promise<Record<1 | 2, string | null>> {
+  const supabase = createServiceClient()
+  const { data } = await supabase
+    .from('audit_log')
+    .select('after_data, created_at')
+    .eq('action_name', 'importBankStatement')
+    .order('created_at', { ascending: false })
+
+  const result: Record<1 | 2, string | null> = { 1: null, 2: null }
+  for (const row of data ?? []) {
+    const summary = row.after_data as { docSlot?: number | null } | null
+    const docSlot = summary?.docSlot
+    if (docSlot === 0 && result[1] === null) result[1] = row.created_at
+    if ((docSlot === 1 || docSlot === 2) && result[2] === null) result[2] = row.created_at
+    if (result[1] !== null && result[2] !== null) break
+  }
+  return result
+}
+
 export async function getTenantsWithBalances() {
   const supabase = createServiceClient()
 
-  const [{ data: tenants }, { data: transactions }, { data: invoices }] =
+  const [{ data: tenants }, { data: transactions }, { data: invoices }, { data: config }, lastImportByAccount] =
     await Promise.all([
       supabase
         .from('tenants')
-        .select('id, first_name, last_name, company_name, properties(name, address1)'),
+        .select('id, first_name, last_name, company_name, payment_account, properties(name, address1)'),
       supabase
         .from('transactions')
         .select('tenant_id, amount')
         .in('status', INCOME_TRANSACTION_STATUSES),
       supabase.from('invoices').select('tenant_id, amount'),
+      supabase.from('app_config').select('payment_account_1_name, payment_account_2_name').eq('id', 1).single(),
+      getLastImportDatesByAccount(),
     ])
 
   const txMap = new Map<number, number>()
@@ -30,16 +56,27 @@ export async function getTenantsWithBalances() {
     invMap.set(inv.tenant_id, (invMap.get(inv.tenant_id) ?? 0) + (Number(inv.amount) || 0))
   }
 
+  const accountLabels: Record<1 | 2, string> = {
+    1: config?.payment_account_1_name ?? 'Pekao',
+    2: config?.payment_account_2_name ?? 'Millennium',
+  }
+
   return (tenants ?? [])
-    .map((t) => ({
-      id: t.id,
-      first_name: t.first_name,
-      last_name: t.last_name,
-      company_name: t.company_name,
-      property: t.properties as unknown as { name: string; address1: string } | null,
-      balance: (txMap.get(t.id) ?? 0) - (invMap.get(t.id) ?? 0),
-      totalInflows: txMap.get(t.id) ?? 0,
-    }))
+    .map((t) => {
+      const paymentAccount = (t as unknown as { payment_account: number | null }).payment_account as 1 | 2 | null
+      return {
+        id: t.id,
+        first_name: t.first_name,
+        last_name: t.last_name,
+        company_name: t.company_name,
+        property: t.properties as unknown as { name: string; address1: string } | null,
+        balance: (txMap.get(t.id) ?? 0) - (invMap.get(t.id) ?? 0),
+        totalInflows: txMap.get(t.id) ?? 0,
+        paymentAccount,
+        paymentAccountLabel: paymentAccount ? accountLabels[paymentAccount] : null,
+        lastImportAt: paymentAccount ? lastImportByAccount[paymentAccount] : null,
+      }
+    })
     .sort((a, b) => a.balance - b.balance)
 }
 

@@ -107,6 +107,7 @@ function emptyForm() {
     address2: '',
     property_id: '',
     sender_account: '1',
+    payment_account: '',
   }
 }
 
@@ -125,6 +126,9 @@ function tenantToForm(t: Tenant) {
     address2: t.address2 ?? '',
     property_id: String(t.property_id),
     sender_account: String((t as unknown as { sender_account?: number | null }).sender_account ?? 1),
+    payment_account: (t as unknown as { payment_account?: number | null }).payment_account != null
+      ? String((t as unknown as { payment_account?: number | null }).payment_account)
+      : '',
   }
 }
 
@@ -142,6 +146,7 @@ const tenantFieldLabels: Record<string, string> = {
   address2: 'Adres 2',
   property_id: 'Nieruchomość',
   sender_account: 'Konto nadawcy',
+  payment_account: 'Konto płatności',
 }
 
 function SortIcon({ col, sortKey, sortDir }: { col: SortKey, sortKey: SortKey, sortDir: SortDir }) {
@@ -165,6 +170,8 @@ export default function TenantsPage() {
     queryKey: ['app_config'],
     queryFn: getAppConfig,
   })
+  const paymentAccount1Name = (appConfig as unknown as { payment_account_1_name?: string } | undefined)?.payment_account_1_name ?? 'Pekao'
+  const paymentAccount2Name = (appConfig as unknown as { payment_account_2_name?: string } | undefined)?.payment_account_2_name ?? 'Millennium'
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Tenant | null>(null)
   const [form, setForm] = useState(emptyForm())
@@ -267,6 +274,7 @@ export default function TenantsPage() {
       address2: form.address2 || undefined,
       property_id: Number(form.property_id),
       sender_account: Number(form.sender_account),
+      payment_account: form.payment_account ? Number(form.payment_account) : null,
     }
 
     startTransition(async () => {
@@ -549,6 +557,22 @@ export default function TenantsPage() {
                 }
                 rows={3}
               />
+            </div>
+            <div className="space-y-1">
+              <Label>Konto płatności</Label>
+              <Select
+                value={form.payment_account || 'none'}
+                onValueChange={(v) => setForm({ ...form, payment_account: !v || v === 'none' ? '' : v })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nieprzypisane</SelectItem>
+                  <SelectItem value="1">{paymentAccount1Name}</SelectItem>
+                  <SelectItem value="2">{paymentAccount2Name}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>
