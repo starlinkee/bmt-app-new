@@ -172,6 +172,14 @@ export default function TenantsPage() {
   })
   const paymentAccount1Name = (appConfig as unknown as { payment_account_1_name?: string } | undefined)?.payment_account_1_name ?? 'Pekao'
   const paymentAccount2Name = (appConfig as unknown as { payment_account_2_name?: string } | undefined)?.payment_account_2_name ?? 'Millennium'
+  const tenantValueFormatters = {
+    payment_account: (v: string) => {
+      if (v === '1') return paymentAccount1Name
+      if (v === '2') return paymentAccount2Name
+      return 'Nieprzypisane'
+    },
+    property_id: (v: string) => properties.find((p) => String(p.id) === v)?.name ?? '-',
+  }
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Tenant | null>(null)
   const [form, setForm] = useState(emptyForm())
@@ -594,6 +602,7 @@ export default function TenantsPage() {
         originalData={editing ? tenantToForm(editing) : null}
         newData={form}
         labels={tenantFieldLabels}
+        valueFormatters={tenantValueFormatters}
       />
 
       <ConfirmEditDialog
@@ -607,6 +616,7 @@ export default function TenantsPage() {
         originalData={editing ? tenantToForm(editing) : emptyForm()}
         newData={form}
         labels={tenantFieldLabels}
+        valueFormatters={tenantValueFormatters}
       />
     </div>
   )

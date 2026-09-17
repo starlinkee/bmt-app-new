@@ -31,10 +31,16 @@ npx playwright show-report
   po najemcy, rewaluacja czynszu.
 - `najemcy.spec.ts` — dodawanie/edycja/usuwanie najemcy, filtr tekstowy i
   fasetowy po nieruchomości.
+- `nieruchomosci.spec.ts` — dodawanie/edycja/usuwanie nieruchomości, filtr
+  tekstowy i fasetowy po typie.
+- `media.spec.ts` — dodawanie/edycja/usuwanie grupy rozliczeniowej (mediów),
+  filtr tekstowy. Tylko podstawowe akcje CRUD na samej grupie — generowanie
+  not obciążeniowych jest świadomie pominięte, patrz niżej.
 
-Niepokryte (świadomie, patrz sekcja "Zasady" niżej): Media/noty obciążeniowe.
-Niepokryte (jeszcze nie zaimplementowane): pozostałe moduły (nieruchomości,
-kontrola płatności, rozliczanie mediów, import, automatyzacje, ustawienia itd.).
+Niepokryte (świadomie, patrz sekcja "Zasady" niżej): generowanie i wysyłka
+not obciążeniowych (rozlicz-media).
+Niepokryte (jeszcze nie zaimplementowane): pozostałe moduły (kontrola
+płatności, rozliczanie mediów, import, automatyzacje, ustawienia itd.).
 
 ## Zasady, którymi kierują się te testy
 
@@ -47,9 +53,12 @@ kontrola płatności, rozliczanie mediów, import, automatyzacje, ustawienia itd
 - **Rewaluacja jest szczególnie wrażliwa** — dialog "Rewaluuj" domyślnie
   zaznacza WSZYSTKIE aktywne umowy w bazie, więc test ręcznie odznacza
   "Wszystkie aktywne" i zaznacza wyłącznie umowę testową przed zatwierdzeniem.
-- **Media (noty obciążeniowe) nie są tu testowane** — ten przepływ realnie
-  wysyła e-maile i generuje PDF-y przez Google Sheets, więc nie nadaje się do
-  automatycznego, powtarzalnego uruchamiania; zostaje do ręcznej weryfikacji.
+- **Samo generowanie not obciążeniowych nie jest tu testowane** — ten przepływ
+  (rozlicz-media) realnie wysyła e-maile i generuje PDF-y przez Google Sheets,
+  więc nie nadaje się do automatycznego, powtarzalnego uruchamiania; zostaje do
+  ręcznej weryfikacji. `media.spec.ts` testuje wyłącznie CRUD na definicji
+  grupy rozliczeniowej (nazwa, arkusz, przypisane nieruchomości), a nie samo
+  liczenie/wysyłkę rozliczeń.
 
 ## Dodawanie kolejnych testów
 

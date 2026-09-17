@@ -432,7 +432,11 @@ export default function MediaPage() {
           </button>
         </div>
 
-        {autoView === 'tasks' ? <SkillRunner /> : <VpsFileBrowser />}
+        {autoView === 'tasks' ? (
+          <SkillRunner groups={groups.map((g) => ({ id: g.id, name: g.name }))} />
+        ) : (
+          <VpsFileBrowser />
+        )}
       </div>
 
       <Dialog open={open} onOpenChange={(o) => { if (!o) handleCancel(); else setOpen(o) }}>

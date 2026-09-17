@@ -85,6 +85,7 @@ export default function KontrolaPlatnosciPage() {
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [filterText, setFilterText] = useState('')
   const [sendingTenantIds, setSendingTenantIds] = useState<Set<number>>(new Set())
+  const [sendingAll, setSendingAll] = useState(false)
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -101,6 +102,47 @@ export default function KontrolaPlatnosciPage() {
   const sorted = sortTenants(filtered, sortKey, sortDir)
 
   const totalBalance = tenants.reduce((sum, t) => sum + t.balance, 0)
+  const debtors = tenants.filter((t) => t.balance < 0)
+
+  async function handleSendToAllDebtors() {
+    if (debtors.length === 0) return
+    if (!confirm(`Wysłać podsumowanie salda do ${debtors.length} najemców z ujemnym saldem?`)) return
+
+    setSendingAll(true)
+    setSendingTenantIds((prev) => {
+      const next = new Set(prev)
+      for (const t of debtors) next.add(t.id)
+      return next
+    })
+
+    let sent = 0
+    let failed = 0
+    for (const t of debtors) {
+      try {
+        const res = await sendStatementToTenant(t.id)
+        if (res.success) {
+          sent++
+        } else {
+          failed++
+        }
+      } catch {
+        failed++
+      } finally {
+        setSendingTenantIds((prev) => {
+          const next = new Set(prev)
+          next.delete(t.id)
+          return next
+        })
+      }
+    }
+
+    setSendingAll(false)
+    if (failed === 0) {
+      toast.success(`Wysłano ${sent} wiadomości.`)
+    } else {
+      toast.error(`Wysłano ${sent} wiadomości, ${failed} nie powiodło się.`)
+    }
+  }
 
   return (
     <div className="p-6 space-y-4">
@@ -130,8 +172,16 @@ export default function KontrolaPlatnosciPage() {
               </span>
             </div>
           </div>
-          <Button 
-            size="sm" 
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={sendingAll || debtors.length === 0}
+            onClick={handleSendToAllDebtors}
+          >
+            {sendingAll ? 'Wysyłanie...' : `Wyślij do wszystkich zadłużonych (${debtors.length})`}
+          </Button>
+          <Button
+            size="sm"
             variant="outline"
             onClick={() => router.push('/wiadomosci')}
           >

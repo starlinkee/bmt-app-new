@@ -7,17 +7,18 @@ export async function GET() {
   try {
     const { data, error } = await (supabase as any)
       .from('skill_prompts')
-      .select('id, label, description, timeout_ms')
+      .select('id, label, description, timeout_ms, settlement_group_id')
       .order('id')
-      
+
     if (error) throw error
-    
+
     // Map to expected frontend format
     const skills = (data as any[]).map((s: any) => ({
       id: s.id,
       label: s.label,
       description: s.description,
-      timeoutMs: s.timeout_ms
+      timeoutMs: s.timeout_ms,
+      groupId: s.settlement_group_id
     }))
     
     return NextResponse.json({ skills })

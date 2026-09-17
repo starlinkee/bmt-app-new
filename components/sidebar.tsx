@@ -53,7 +53,7 @@ function getBestMatchingHref(pathname: string, hrefs: string[]): string | undefi
     .sort((a, b) => b.length - a.length)[0]
 }
 
-function NavItem({ href, label, icon: Icon, activeHref }: { href: string, label: string, icon: React.ElementType, activeHref?: string }) {
+function NavItem({ href, label, icon: Icon, activeHref, bold }: { href: string, label: string, icon: React.ElementType, activeHref?: string, bold?: boolean }) {
   const isActive = href === activeHref
   return (
     <li>
@@ -61,6 +61,7 @@ function NavItem({ href, label, icon: Icon, activeHref }: { href: string, label:
         href={href}
         className={cn(
           'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors whitespace-nowrap',
+          bold && 'font-semibold',
           isActive
             ? 'bg-primary text-primary-foreground'
             : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
@@ -98,7 +99,7 @@ export function Sidebar() {
         </div>
         <ul className="space-y-0.5 px-2 mb-4">
           {actionItems.map((item) => (
-            <NavItem key={item.href} {...item} activeHref={activeHref} />
+            <NavItem key={item.href} {...item} activeHref={activeHref} bold />
           ))}
         </ul>
         <div className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">

@@ -601,6 +601,7 @@ export async function dismissAllTransactions() {
     actionName: 'dismissAllTransactions',
     tableName: 'transaction_staging',
     operation: 'DISMISS',
+    beforeData: allStaging,
   })
   revalidatePath('/import/reconcile')
 }

@@ -36,12 +36,17 @@ Aktualnie zaimplementowane pokrycie:
   fasetowy po najemcy, rewaluacja czynszu.
 - `najemcy.spec.ts` — dodawanie/edycja/usuwanie najemcy, filtr tekstowy i
   fasetowy po nieruchomości.
+- `nieruchomosci.spec.ts` — dodawanie/edycja/usuwanie nieruchomości, filtr
+  tekstowy i fasetowy po typie.
+- `media.spec.ts` — dodawanie/edycja/usuwanie grupy rozliczeniowej mediów
+  (tylko CRUD definicji grupy), filtr tekstowy.
 
-Świadomie pominięte: Media/noty obciążeniowe (przepływ realnie wysyła e-maile
-i generuje PDF-y przez Google Sheets — do ręcznej weryfikacji).
+Świadomie pominięte: samo generowanie/wysyłka not obciążeniowych — rozlicz-media
+(przepływ realnie wysyła e-maile i generuje PDF-y przez Google Sheets — do
+ręcznej weryfikacji).
 
-Pozostałe moduły (nieruchomości, kontrola płatności, rozliczanie mediów,
-import, automatyzacje, ustawienia itd.) nie mają jeszcze testów e2e.
+Pozostałe moduły (kontrola płatności, rozliczanie mediów, import, automatyzacje,
+ustawienia itd.) nie mają jeszcze testów e2e.
 
 Nowe testy: trzymaj się wzorca z `umowy.spec.ts` / `najemcy.spec.ts` — dane
 wejściowe przez fabryki w `e2e/support/fixtures.ts` (bezpośrednio w bazie,

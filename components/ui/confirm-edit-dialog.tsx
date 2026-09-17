@@ -27,6 +27,7 @@ interface ConfirmEditDialogProps {
   confirmVariant?: 'default' | 'destructive'
   pending?: boolean
   labels?: Record<string, string>
+  valueFormatters?: Record<string, (val: any) => string>
 }
 
 export interface FieldDiff {
@@ -46,14 +47,16 @@ export function formatValue(val: any): string {
 export function computeDiffs(
   originalData: Record<string, any> | null,
   newData: Record<string, any> | null,
-  labels: Record<string, string> = {}
+  labels: Record<string, string> = {},
+  valueFormatters: Record<string, (val: any) => string> = {}
 ): FieldDiff[] {
   const diffs: FieldDiff[] = []
 
   if (originalData && newData) {
     for (const key of Object.keys(newData)) {
-      const origVal = formatValue(originalData[key])
-      const newVal = formatValue(newData[key])
+      const format = valueFormatters[key] ?? formatValue
+      const origVal = format(originalData[key])
+      const newVal = format(newData[key])
 
       if (origVal !== newVal) {
         diffs.push({ key, label: labels[key] || key, old: origVal, new: newVal })
@@ -83,8 +86,9 @@ export function ConfirmEditDialog({
   confirmVariant = 'default',
   pending = false,
   labels = {},
+  valueFormatters = {},
 }: ConfirmEditDialogProps) {
-  const diffs = computeDiffs(originalData, newData, labels)
+  const diffs = computeDiffs(originalData, newData, labels, valueFormatters)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

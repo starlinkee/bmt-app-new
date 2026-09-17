@@ -16,6 +16,7 @@ import {
   runLateRemindersTest,
   runStatementReminderTest,
   zeroAllTenantBalances,
+  clearAllTransactionHistory,
 } from './actions'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { buttonVariants } from '@/components/ui/button'
@@ -57,6 +58,9 @@ export default function TestowaniePage() {
 
   const [zeroLoading, setZeroLoading] = useState(false)
   const [zeroResult, setZeroResult] = useState<{ deletedTransactions?: number; deletedInvoices?: number; error?: string } | null>(null)
+
+  const [clearHistoryLoading, setClearHistoryLoading] = useState(false)
+  const [clearHistoryResult, setClearHistoryResult] = useState<{ deletedTransactions?: number; error?: string } | null>(null)
 
   useEffect(() => {
     getSettlementGroups().then(setGroups).catch(console.error)
@@ -139,6 +143,22 @@ export default function TestowaniePage() {
       setZeroResult({ error: err instanceof Error ? err.message : 'Wystąpił błąd' })
     } finally {
       setZeroLoading(false)
+    }
+  }
+
+  const handleClearTransactionHistory = async () => {
+    if (!confirm('To NIEODWRACALNIE usunie CAŁĄ historię przelewów (transactions) - łącznie z odrzuconymi i duplikatami, niezależnie od statusu i przypisanego najemcy. Kontynuować?')) {
+      return
+    }
+    setClearHistoryLoading(true)
+    setClearHistoryResult(null)
+    try {
+      const res = await clearAllTransactionHistory()
+      setClearHistoryResult(res)
+    } catch (err: unknown) {
+      setClearHistoryResult({ error: err instanceof Error ? err.message : 'Wystąpił błąd' })
+    } finally {
+      setClearHistoryLoading(false)
     }
   }
 
@@ -463,6 +483,47 @@ export default function TestowaniePage() {
             <p className="text-sm text-green-600 dark:text-green-500 flex items-center gap-1">
               <CheckCircle2 className="h-4 w-4" />
               Usunięto {zeroResult.deletedTransactions} transakcji i {zeroResult.deletedInvoices} faktur. Wszyscy najemcy mają teraz saldo 0.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-sm border-amber-200 dark:border-amber-900/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-500" />
+            Wyczyść całą historię przelewów
+          </CardTitle>
+          <CardDescription>
+            Kasuje z bazy WSZYSTKIE wiersze z `transactions` (historia widoczna na
+            /import/history) - w tym transakcje odrzucone (przelew własny, duplikat,
+            inne) i nieznane, nie tylko te przypisane do najemcy. Nieodwracalne.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-6 space-y-4">
+          <Button
+            onClick={handleClearTransactionHistory}
+            disabled={clearHistoryLoading}
+            variant="destructive"
+            className="w-full"
+          >
+            {clearHistoryLoading ? 'Czyszczenie...' : 'Wyczyść całą historię przelewów'}
+          </Button>
+
+          {clearHistoryResult?.error && (
+            <div className="p-4 rounded-md flex items-start gap-3 border border-red-200 dark:border-red-900/50">
+              <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-500 mt-0.5" />
+              <div>
+                <p className="font-medium">Błąd</p>
+                <p className="text-sm text-red-600 dark:text-red-400">{clearHistoryResult.error}</p>
+              </div>
+            </div>
+          )}
+
+          {!clearHistoryResult?.error && clearHistoryResult && (
+            <p className="text-sm text-green-600 dark:text-green-500 flex items-center gap-1">
+              <CheckCircle2 className="h-4 w-4" />
+              Usunięto {clearHistoryResult.deletedTransactions} transakcji z historii przelewów.
             </p>
           )}
         </CardContent>

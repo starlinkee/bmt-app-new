@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   const body = await req.json().catch(() => ({})) as Record<string, unknown>
-  const { skillId, content, label, description, timeoutMs } = body
+  const { skillId, content, label, description, timeoutMs, settlementGroupId } = body
 
   if (!isValidSkillId(skillId)) {
     return NextResponse.json({ error: 'Invalid skillId' }, { status: 400 })
@@ -56,6 +56,7 @@ export async function PUT(req: NextRequest) {
         label: label || skillId,
         description: description || '',
         timeout_ms: timeoutMs || 300000,
+        settlement_group_id: (settlementGroupId as number | null | undefined) ?? null,
         updated_at: new Date().toISOString()
       })
       

@@ -152,6 +152,46 @@ export async function zeroAllTenantBalances() {
   }
 }
 
+// Kasuje CAŁĄ historię przelewów z `transactions` - w odróżnieniu od
+// zeroAllTenantBalances() (która celowo zostawia w spokoju wiersze bez
+// tenant_id, np. REJECTED_OWN_TRANSFER/REJECTED_DUPLICATE/REJECTED_OTHER/
+// SKIPPED/UNMATCHED - patrz app/(dashboard)/import/actions.ts) ta akcja nie
+// filtruje po tenant_id w ogóle, więc czyści też odrzucone transakcje i
+// wykryte duplikaty. Ten sam mechanizm odblokowania triggera co wyżej -
+// działa wyłącznie gdy isTestClockAllowed() zwraca true, więc nigdy na
+// prawdziwej produkcji.
+export async function clearAllTransactionHistory() {
+  if (!isTestClockAllowed()) {
+    throw new Error('Niedozwolone na tym środowisku')
+  }
+
+  const supabase = createServiceClient()
+
+  const { error: unlockError } = await supabase
+    .from('app_config')
+    .update({ allow_destructive_test_deletes: true })
+    .eq('id', 1)
+
+  if (unlockError) {
+    throw new Error('Nie udało się odblokować usuwania w tym środowisku: ' + unlockError.message)
+  }
+
+  const { error: txError, count: deletedTransactions } = await supabase
+    .from('transactions')
+    .delete({ count: 'exact' })
+    .not('id', 'is', null)
+
+  if (txError) {
+    console.error('Błąd kasowania historii transakcji', txError)
+    throw new Error('Błąd podczas kasowania historii transakcji: ' + txError.message)
+  }
+
+  return {
+    success: true,
+    deletedTransactions: deletedTransactions ?? 0,
+  }
+}
+
 export async function generateTestMediaCharge(
   groupId: number,
   tenantAmounts: Record<string, number>,
