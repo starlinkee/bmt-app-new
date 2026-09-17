@@ -3,7 +3,6 @@
 import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/service'
 import { logAudit } from '@/lib/audit'
-import type { Json } from '@/types/supabase'
 
 export async function getAppConfig() {
   const supabase = createServiceClient()
@@ -16,19 +15,8 @@ export async function getAppConfig() {
 }
 
 export async function upsertAppConfig(data: {
-  rent_invoice_spreadsheet_id?: string
-  rent_invoice_input_mapping_json?: Json
-  rent_invoice_pdf_gid?: string
-  drive_invoices_folder_id?: string
-  reminder_subject?: string
-  reminder_body?: string
-  late_reminder_subject?: string
-  late_reminder_body?: string
-  rent_email_subject?: string | null
-  rent_email_body?: string | null
   ignored_source_accounts?: string
-  meter_reading_reminder_subject?: string | null
-  meter_reading_reminder_body?: string | null
+  admin_email?: string | null
 }) {
   const supabase = createServiceClient()
   const { data: before } = await supabase.from('app_config').select('*').eq('id', 1).single()

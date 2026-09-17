@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import { getTenants, createTenant, updateTenant, deleteTenant } from './actions'
 import { getProperties } from '@/app/(dashboard)/nieruchomosci/actions'
-import { getAppConfig } from '@/app/(dashboard)/ustawienia/actions'
+import { getAppConfig } from '@/app/(dashboard)/automatyzacje/actions'
 import { QUERY_KEYS } from '@/lib/queryKeys'
 import { ConfirmEditDialog, hasChanges } from '@/components/ui/confirm-edit-dialog'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -353,7 +353,7 @@ export default function TenantsPage() {
         </TableHeader>
         <TableBody>
           {sortedTenants.map((t) => (
-            <TableRow key={t.id}>
+            <TableRow key={t.id} data-testid="tenant-row" data-tenant-id={t.id}>
               <TableCell className="text-muted-foreground">{t.id}</TableCell>
               <TableCell className="font-medium">
                 <div>{t.first_name} {t.last_name}</div>
@@ -408,10 +408,10 @@ export default function TenantsPage() {
               </TableCell>
               <TableCell>
                 <div className="flex gap-1 justify-end">
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(t)}>
+                  <Button variant="ghost" size="icon" aria-label="Edytuj najemcę" onClick={() => openEdit(t)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(t)}>
+                  <Button variant="ghost" size="icon" aria-label="Usuń najemcę" onClick={() => handleDelete(t)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
@@ -438,15 +438,17 @@ export default function TenantsPage() {
           <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>Imię *</Label>
+                <Label htmlFor="tenant-first-name">Imię *</Label>
                 <Input
+                  id="tenant-first-name"
                   value={form.first_name}
                   onChange={(e) => setForm({ ...form, first_name: e.target.value })}
                 />
               </div>
               <div className="space-y-1">
-                <Label>Nazwisko *</Label>
+                <Label htmlFor="tenant-last-name">Nazwisko *</Label>
                 <Input
+                  id="tenant-last-name"
                   value={form.last_name}
                   onChange={(e) => setForm({ ...form, last_name: e.target.value })}
                 />
@@ -531,8 +533,9 @@ export default function TenantsPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label>Telefon</Label>
+              <Label htmlFor="tenant-phone">Telefon</Label>
               <Input
+                id="tenant-phone"
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
               />

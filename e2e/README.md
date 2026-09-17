@@ -25,6 +25,17 @@ npx playwright test umowy # tylko plik umowy.spec.ts
 npx playwright show-report
 ```
 
+## Co jest już pokryte
+
+- `umowy.spec.ts` — dodawanie/edycja/usuwanie umowy, filtr tekstowy i fasetowy
+  po najemcy, rewaluacja czynszu.
+- `najemcy.spec.ts` — dodawanie/edycja/usuwanie najemcy, filtr tekstowy i
+  fasetowy po nieruchomości.
+
+Niepokryte (świadomie, patrz sekcja "Zasady" niżej): Media/noty obciążeniowe.
+Niepokryte (jeszcze nie zaimplementowane): pozostałe moduły (nieruchomości,
+kontrola płatności, rozliczanie mediów, import, automatyzacje, ustawienia itd.).
+
 ## Zasady, którymi kierują się te testy
 
 - **Izolacja danych.** Każdy test sam zakłada potrzebnych najemców/nieruchomości

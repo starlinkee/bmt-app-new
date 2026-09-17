@@ -124,6 +124,7 @@ export async function importBankStatement(
       .eq('amount', tx.amount)
       .eq('type', 'BANK')
       .eq('bank_account', tx.bankAccount ?? '')
+      .eq('status', 'MATCHED')
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { count: stagingCount } = await (supabase as any)
@@ -133,7 +134,17 @@ export async function importBankStatement(
       .eq('amount', tx.amount)
       .eq('bank_account', tx.bankAccount ?? '')
 
-    const isDuplicate = (count ?? 0) > 0 || (stagingCount ?? 0) > 0
+    // Transakcja już czeka nieprzetworzona w kolejce (np. z poprzedniego,
+    // niedokończonego importu tego samego pliku) — oryginał i tak tam jest
+    // i wciąż czeka na decyzję, więc nie tworzymy drugiej kopii do
+    // zaakceptowania/odrzucenia. To nie jest "duplikat" w sensie transakcji
+    // już zaksięgowanej, tylko wpis już będący w kolejce.
+    if ((stagingCount ?? 0) > 0) {
+      skipped++
+      continue
+    }
+
+    const isDuplicate = (count ?? 0) > 0
     if (isDuplicate) duplicates++
 
     const txAccountNorm = tx.bankAccount ? tx.bankAccount.replace(/\s/g, '') : ''
@@ -219,12 +230,12 @@ export async function importBankStatement(
   }
   await supabase.from('audit_log').update({ after_data: summary }).eq('id', importId)
 
-  // Uruchom sprawdzanie zaległości, jeśli to już po 10. dniu miesiąca
-  const { processLateReminders } = await import('@/lib/late-reminders')
-  const lateReminders = await processLateReminders()
+  // Automatyczne ponaglenia do zalegających najemców po imporcie są obecnie
+  // wyłączone (na życzenie) — logika w lib/late-reminders.ts zostaje w kodzie
+  // (używa jej nadal panel Testowanie), ale nie jest tu wywoływana.
 
   revalidatePath('/import')
-  return { ...summary, lateReminders }
+  return { ...summary, lateReminders: null }
 }
 
 export async function getLastImportInfo() {
@@ -244,6 +255,7 @@ export async function getLastImportInfo() {
       maxDate?: string | null
       savedFileName?: string
       originalFileName?: string
+      docSlot?: number | null
     },
     created_at: data.created_at
   }
@@ -288,21 +300,6 @@ export async function getLastImportSlotRange(docSlot: ImportDocSlot) {
     maxDate: summary.maxDate ?? null,
     originalFileName: summary.originalFileName,
     created_at: match.created_at,
-  }
-}
-
-// Dzień w miesiącu, na którym domyślnie "przecina się" okres wyciągu —
-// stała wartość (nie jest konfigurowalna w Ustawieniach).
-// Zwraca gotową podpowiedź zakresu: od (cutoff+1) dnia poprzedniego
-// miesiąca do (cutoff) dnia bieżącego — np. dla 15: od 16 do 15.
-const STATEMENT_CUTOFF_DAY = 15
-
-export async function getStatementCutoffDay() {
-  const cutoffDay = STATEMENT_CUTOFF_DAY
-  return {
-    cutoffDay,
-    suggestedDayFrom: cutoffDay + 1 > 31 ? 1 : cutoffDay + 1,
-    suggestedDayTo: cutoffDay,
   }
 }
 
@@ -353,6 +350,68 @@ export async function getImportHistoryList() {
     acceptedCount: acceptedByImport.get(row.id) ?? 0,
     rejectedCount: rejectedByImport.get(row.id) ?? 0,
   }))
+}
+
+export type ImportTransaction = {
+  id: number
+  source: 'transaction' | 'staging'
+  date: string
+  title: string | null
+  bank_account: string | null
+  amount: number
+  category: string | null
+  status: string
+  description: string | null
+  tenant: { first_name: string; last_name: string } | null
+}
+
+export async function getImportTransactions(importId: number): Promise<ImportTransaction[]> {
+  const supabase = createServiceClient()
+
+  const [{ data: transactions, error: txError }, { data: staged, error: stagedError }] = await Promise.all([
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).from('transactions')
+      .select('id, date, title, bank_account, amount, category, status, description, tenants(first_name, last_name)')
+      .eq('import_id', importId),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).from('transaction_staging')
+      .select('id, date, title, bank_account, amount, category, suggested_tenant_id, tenants:suggested_tenant_id(first_name, last_name)')
+      .eq('import_id', importId),
+  ])
+
+  if (txError) throw txError
+  if (stagedError) throw stagedError
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const fromTransactions: ImportTransaction[] = ((transactions ?? []) as any[]).map((t) => ({
+    id: t.id,
+    source: 'transaction',
+    date: t.date,
+    title: t.title,
+    bank_account: t.bank_account,
+    amount: Number(t.amount),
+    category: t.category,
+    status: t.status ?? 'UNMATCHED',
+    description: t.description ?? null,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    tenant: (t.tenants as any) ?? null,
+  }))
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const fromStaging: ImportTransaction[] = ((staged ?? []) as any[]).map((s) => ({
+    id: s.id,
+    source: 'staging',
+    date: s.date,
+    title: s.title,
+    bank_account: s.bank_account,
+    amount: Number(s.amount),
+    category: s.category,
+    status: 'PENDING',
+    description: null,
+    tenant: s.tenants ?? null,
+  }))
+
+  return [...fromTransactions, ...fromStaging].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
 }
 
 export async function getFileContent(fileName: string) {

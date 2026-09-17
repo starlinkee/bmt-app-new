@@ -12,12 +12,19 @@ export async function processStatementUploadReminder() {
     return { sent: false, reason: 'Not the 16th' }
   }
 
-  const adminEmail = process.env.APP_ADMIN_EMAIL
+  const supabase = createServiceClient()
+
+  const { data: config } = await supabase
+    .from('app_config')
+    .select('admin_email')
+    .eq('id', 1)
+    .single()
+
+  const adminEmail = config?.admin_email
   if (!adminEmail) {
-    return { sent: false, reason: 'APP_ADMIN_EMAIL not configured' }
+    return { sent: false, reason: 'Adres administratora nie jest ustawiony (Ustawienia)' }
   }
 
-  const supabase = createServiceClient()
   const dedupKey = `${now.getFullYear()}-${now.getMonth() + 1}`
 
   // Atomowe "zastrzeżenie" tego miesiąca - unique constraint na (action_name,

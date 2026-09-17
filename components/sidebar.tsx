@@ -19,6 +19,7 @@ import {
   Receipt,
   Database,
   BellRing,
+  ListChecks,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { logoutAction } from '@/app/login/actions'
@@ -35,6 +36,7 @@ const historyItems = [
   { href: '/historia-obciazen', label: 'Historia obciążeń', icon: ArrowLeftRight },
   { href: '/historia', label: 'Historia operacji', icon: History },
   { href: '/import/history', label: 'Historia przelewów', icon: Banknote },
+  { href: '/historia-importow', label: 'Historia importów', icon: ListChecks },
   { href: '/historia-mediow', label: 'Historia mediów', icon: Receipt },
   { href: '/wiadomosci', label: 'Historia wiadomości', icon: Mail },
 ]
@@ -146,6 +148,9 @@ export function Sidebar() {
           <Database className="h-4 w-4 shrink-0" />
           Baza danych
         </Link>
+        <div className="px-2 py-1.5 pt-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          Ustawienia
+        </div>
         <Link
           href="/automatyzacje"
           className={cn(

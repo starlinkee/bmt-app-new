@@ -5,6 +5,7 @@ type Db = ReturnType<typeof createTestDbClient>
 
 type TenantHandle = {
   propertyId: number
+  propertyName: string
   tenantId: number
   fullName: string
 }
@@ -64,7 +65,7 @@ export const test = base.extend<Fixtures>({
       if (tenantError) throw tenantError
       createdTenantIds.push(tenant.id)
 
-      return { propertyId: property.id, tenantId: tenant.id, fullName: `E2E ${lastName}` }
+      return { propertyId: property.id, propertyName, tenantId: tenant.id, fullName: `E2E ${lastName}` }
     }
 
     await use(factory)

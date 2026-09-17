@@ -40,6 +40,7 @@ export type Database = {
             allow_destructive_test_deletes: boolean
             meter_reading_reminder_subject: string | null
             meter_reading_reminder_body: string | null
+            admin_email: string | null
           }
           Insert: {
           drive_invoices_folder_id?: string
@@ -66,6 +67,7 @@ export type Database = {
             allow_destructive_test_deletes?: boolean
             meter_reading_reminder_subject?: string | null
             meter_reading_reminder_body?: string | null
+            admin_email?: string | null
           }
           Update: {
           drive_invoices_folder_id?: string
@@ -92,6 +94,7 @@ export type Database = {
             allow_destructive_test_deletes?: boolean
             meter_reading_reminder_subject?: string | null
             meter_reading_reminder_body?: string | null
+            admin_email?: string | null
           }
           Relationships: []
       }
