@@ -3,6 +3,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Play, X, CheckCircle2, AlertCircle, Clock, FileText, ImageIcon, File, Download, ExternalLink, FolderOpen, Pencil, Check, Loader2, Plus, Trash2 } from 'lucide-react'
 
 interface Skill {
@@ -389,16 +396,22 @@ export function SkillRunner({ groups = [] }: { groups?: SettlementGroupOption[] 
       {groups.length > 0 && (
         <div className="flex items-center gap-2">
           <label className="text-sm text-muted-foreground">Filtruj po grupie</label>
-          <select
-            value={groupFilter}
-            onChange={e => setGroupFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-            className="text-sm rounded-md border bg-muted/30 px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
+          <Select
+            value={String(groupFilter)}
+            onValueChange={v => setGroupFilter(v === 'all' ? 'all' : Number(v))}
           >
-            <option value="all">Wszystkie</option>
-            {groups.map(g => (
-              <option key={g.id} value={g.id}>{g.name}</option>
-            ))}
-          </select>
+            <SelectTrigger size="sm" className="text-sm">
+              <SelectValue>
+                {groupFilter === 'all' ? 'Wszystkie' : groups.find(g => g.id === groupFilter)?.name}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Wszystkie</SelectItem>
+              {groups.map(g => (
+                <SelectItem key={g.id} value={String(g.id)}>{g.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
 
