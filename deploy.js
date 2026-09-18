@@ -2,6 +2,8 @@ const { Client } = require('ssh2');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { VPS_HOST, VPS_PORT, VPS_USERNAME, VPS_PASSWORD, assertPresent } = require('./scripts/load-deploy-env');
+assertPresent({ VPS_HOST, VPS_PASSWORD }, ['VPS_HOST', 'VPS_PASSWORD']);
 
 const conn = new Client();
 const token = crypto.randomBytes(32).toString('hex');
@@ -31,10 +33,10 @@ conn.on('ready', () => {
     });
   });
 }).connect({
-  host: '***REMOVED-VPS-IP***',
-  port: 22,
-  username: 'root',
-  password: '***REMOVED-VPS-PASSWORD***',
+  host: VPS_HOST,
+  port: VPS_PORT,
+  username: VPS_USERNAME,
+  password: VPS_PASSWORD,
   readyTimeout: 30000
 });
 

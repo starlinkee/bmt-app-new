@@ -38,6 +38,7 @@ yarn-error.log*
 .env*
 !.env.example
 !.env.e2e.example
+!.env.deploy.example
 
 # vercel
 .vercel
@@ -58,6 +59,7 @@ supabase/.temp/
 
 # skill-runner runtime state — lives only on VPS, edited via web UI
 skill-runner/prompts.json
+skill-runner/secrets.env
 data/
 
 # AI skill output and logs
