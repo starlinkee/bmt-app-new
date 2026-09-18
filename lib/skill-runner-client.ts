@@ -10,7 +10,7 @@ function getBaseUrl(): string | null {
 
   const isVercelCloud = process.env.VERCEL_ENV === 'preview' || process.env.VERCEL_ENV === 'production' || process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview' || process.env.NEXT_PUBLIC_VERCEL_ENV === 'production'
   if (isVercelCloud && url.includes('localhost')) {
-    url = url.replace('localhost', '***REMOVED-VPS-IP***')
+    url = url.replace('localhost', '89.167.122.243')
   }
 
   try {
