@@ -42,7 +42,9 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # supabase-js (fabryki testów w e2e/support/db.ts) wymaga natywnego
+          # WebSocket, czyli Node >= 22.
+          node-version: 22
           cache: npm
 
       - name: Install dependencies

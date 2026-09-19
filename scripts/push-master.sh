@@ -62,8 +62,8 @@ else
   echo "  czekam na start testów e2e w GitHub Actions (commit ${SHA:0:7})..."
   RUN_ID=""
   for _ in $(seq 1 60); do
-    RUN_ID="$(gh run list --workflow e2e.yml --commit "$SHA" --limit 20 --json databaseId,conclusion \
-      --jq '[.[] | select(.conclusion != "skipped")][0].databaseId // empty' 2>/dev/null || true)"
+    RUN_ID="$(gh run list --commit "$SHA" --limit 30 --json databaseId,conclusion,workflowName \
+      --jq '[.[] | select(.workflowName == "E2E" and .conclusion != "skipped")][0].databaseId // empty' 2>/dev/null || true)"
     [ -n "$RUN_ID" ] && break
     sleep 10
   done
