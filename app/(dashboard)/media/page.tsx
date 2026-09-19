@@ -251,7 +251,7 @@ export default function MediaPage() {
       ?.map((sgp) => sgp.property_id) ?? []
     const raw = g as Record<string, unknown>
     
-    let parsedTrk: Record<string, string> = {}
+    const parsedTrk: Record<string, string> = {}
     if (raw.tenant_reading_keys && typeof raw.tenant_reading_keys === 'object' && !Array.isArray(raw.tenant_reading_keys)) {
       const trkMap = raw.tenant_reading_keys as Record<string, (string | TenantReadingEntry)[]>
       for (const [tId, entriesArr] of Object.entries(trkMap)) {
@@ -282,7 +282,6 @@ export default function MediaPage() {
   }
 
   function handleSave() {
-    let inputMap: unknown
     const jsonFields: { label: string; value: string }[] = [
       { label: 'Mapowanie wejściowe', value: form.input_mapping_json },
       { label: 'Mapowanie wyjściowe', value: form.output_mapping_json },
@@ -298,7 +297,7 @@ export default function MediaPage() {
         return
       }
     }
-    inputMap = JSON.parse(form.input_mapping_json)
+    const inputMap: unknown = JSON.parse(form.input_mapping_json)
     setJsonError('')
 
     const validSaveKeys = extractValidSaveKeys(inputMap)
@@ -427,8 +426,8 @@ export default function MediaPage() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-16 cursor-pointer select-none" onClick={() => handleSort('id' as any)}>
-              ID<SortIcon col={'id' as any} sortKey={sortKey} sortDir={sortDir} />
+            <TableHead className="w-16 cursor-pointer select-none" onClick={() => handleSort('id')}>
+              ID<SortIcon col="id" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('name')}>
               Nazwa<SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />

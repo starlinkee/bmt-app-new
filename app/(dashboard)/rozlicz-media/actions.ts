@@ -13,7 +13,7 @@ import {
   stripSpreadsheetColors,
 } from '@/lib/sheetsEngine'
 import { copySpreadsheet, deleteFile, ensureMediaSettlementFolder } from '@/lib/driveEngine'
-import { sendMediaEmail } from '@/lib/email'
+import { sendMediaEmail, sendMediaSettlementAdminSummaryEmail } from '@/lib/email'
 import { buildInvoiceNumber, tenantDisplayName } from '@/lib/utils'
 import { getEnvTier } from '@/lib/env'
 
@@ -34,7 +34,7 @@ function sanitizePathSegment(name: string): string {
 
 // Struktura: [bucket "invoices"] / DEVELOPMENT|PREVIEW|PRODUCTION / rok / miesiąc / grupa mediów / plik.pdf
 // Zgodna 1:1 ze strukturą folderów w Google Drive (patrz ensureMediaSettlementFolder).
-async function uploadToSupabaseStorage(supabase: any, envTier: string, year: number, month: number, groupName: string, fileName: string, buffer: Buffer): Promise<string> {
+async function uploadToSupabaseStorage(supabase: ReturnType<typeof createServiceClient>, envTier: string, year: number, month: number, groupName: string, fileName: string, buffer: Buffer): Promise<string> {
   const filePath = `${envTier}/${year}/${month}/${sanitizePathSegment(groupName)}/${sanitizePathSegment(fileName)}`
   const { error } = await supabase.storage.from('invoices').upload(filePath, buffer, {
     contentType: 'application/pdf',
@@ -564,6 +564,24 @@ export async function processSettlement(
     if (r.status === 'fulfilled' && r.value !== null) acc.push(r.value)
     return acc
   }, [])
+
+  // Przypomnienie do administratora z ostatecznymi kwotami tej grupy — do ręcznego
+  // wystawienia rachunków w KSeF. Wysyłka najemcom powyżej jest priorytetowa, więc
+  // ten mail jest best-effort i nie może zawalić całego rozliczenia.
+  try {
+    const { data: adminConfig } = await supabase.from('app_config').select('admin_email').eq('id', 1).single()
+    if (adminConfig?.admin_email) {
+      await sendMediaSettlementAdminSummaryEmail(
+        adminConfig.admin_email,
+        group.name,
+        month,
+        year,
+        results.map((r) => ({ tenantName: r.tenantName, amount: r.amount })),
+      )
+    }
+  } catch (e) {
+    console.error('[media] Błąd wysyłania podsumowania do administratora:', e)
+  }
 
   await logAudit({
     actionName: 'processSettlement',

@@ -164,12 +164,10 @@ export async function importBankStatement(
       }
     }
 
-    const rawDataWithFlag = tx.rawData ? { ...tx.rawData } : {}
+    const rawDataWithFlag: Record<string, unknown> = tx.rawData ? { ...tx.rawData } : {}
     if (autoReject) {
-      // @ts-ignore
       rawDataWithFlag._auto_reject = true
       if (isDuplicate) {
-        // @ts-ignore
         rawDataWithFlag._auto_reject_reason = 'duplicate'
       }
     }

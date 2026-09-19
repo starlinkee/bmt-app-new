@@ -241,8 +241,8 @@ export default function PropertiesPage() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-16 cursor-pointer select-none" onClick={() => handleSort('id' as any)}>
-              ID<SortIcon col={'id' as any} sortKey={sortKey} sortDir={sortDir} />
+            <TableHead className="w-16 cursor-pointer select-none" onClick={() => handleSort('id')}>
+              ID<SortIcon col="id" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('name')}>
               Nazwa<SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />

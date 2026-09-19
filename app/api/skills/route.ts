@@ -5,6 +5,7 @@ export async function GET() {
   const supabase = createServiceClient()
   
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase as any)
       .from('skill_prompts')
       .select('id, label, description, timeout_ms, settlement_group_id')
@@ -13,7 +14,8 @@ export async function GET() {
     if (error) throw error
 
     // Map to expected frontend format
-    const skills = (data as any[]).map((s: any) => ({
+    type SkillPromptRow = { id: string, label: string, description: string, timeout_ms: number, settlement_group_id: number | null }
+    const skills = (data as SkillPromptRow[]).map((s) => ({
       id: s.id,
       label: s.label,
       description: s.description,

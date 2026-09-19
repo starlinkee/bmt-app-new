@@ -34,7 +34,7 @@ function sanitizePathSegment(name: string): string {
 
 // Struktura: [bucket "invoices"] / DEVELOPMENT|PREVIEW|PRODUCTION / rok / miesiąc / grupa mediów / plik.pdf
 // Zgodna 1:1 ze strukturą folderów w Google Drive (patrz ensureMediaSettlementFolder).
-async function uploadToSupabaseStorage(supabase: any, envTier: string, year: number, month: number, groupName: string, fileName: string, buffer: Buffer): Promise<string> {
+async function uploadToSupabaseStorage(supabase: ReturnType<typeof createServiceClient>, envTier: string, year: number, month: number, groupName: string, fileName: string, buffer: Buffer): Promise<string> {
   const filePath = `${envTier}/${year}/${month}/${sanitizePathSegment(groupName)}/${sanitizePathSegment(fileName)}`
   const { error } = await supabase.storage.from('invoices').upload(filePath, buffer, {
     contentType: 'application/pdf',

@@ -323,8 +323,8 @@ export default function ContractsPage() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-16 cursor-pointer select-none" onClick={() => handleSort('id' as any)}>
-              ID<SortIcon col={'id' as any} sortKey={sortKey} sortDir={sortDir} />
+            <TableHead className="w-16 cursor-pointer select-none" onClick={() => handleSort('id')}>
+              ID<SortIcon col="id" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('tenant')}>
               Najemca<SortIcon col="tenant" sortKey={sortKey} sortDir={sortDir} />

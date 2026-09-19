@@ -14,11 +14,18 @@ type ProviderConfig = {
   gmailAppPassword: string | null
 }
 
-async function getProviderConfig(): Promise<ProviderConfig> {
+async function getProviderConfig(senderAccount: 1 | 2 = 1): Promise<ProviderConfig> {
+  const supabase = createServiceClient()
+  const { data: config } = await supabase
+    .from('app_config')
+    .select('gmail_user, gmail_app_password, gmail_user_2, gmail_app_password_2')
+    .eq('id', 1)
+    .single()
+
   return {
     provider: 'gmail_smtp',
-    gmailUser: process.env.GMAIL_USER ?? null,
-    gmailAppPassword: process.env.GMAIL_APP_PASSWORD ?? null,
+    gmailUser: (senderAccount === 2 ? config?.gmail_user_2 : config?.gmail_user) ?? null,
+    gmailAppPassword: (senderAccount === 2 ? config?.gmail_app_password_2 : config?.gmail_app_password) ?? null,
   }
 }
 
@@ -125,7 +132,7 @@ export async function sendRentEmail(
   bodyTemplate?: string | null,
   propertyName?: string | null,
 ) {
-  const cfg = await getProviderConfig()
+  const cfg = await getProviderConfig(senderAccount)
   const vars: Record<string, string> = {
     najemca: tenantName,
     numer_rachunku: invoiceNumber || '',
@@ -163,7 +170,7 @@ export async function sendMediaEmail(
   senderAccount: 1 | 2 = 1,
   propertyName?: string | null,
 ) {
-  const cfg = await getProviderConfig()
+  const cfg = await getProviderConfig(senderAccount)
   const vars: Record<string, string> = {
     imie: tenantName,
     numer_rachunku: invoiceNumber,
@@ -202,7 +209,7 @@ export async function sendStatementEmail(
   bodyTemplate?: string,
   propertyName?: string | null,
 ) {
-  const cfg = await getProviderConfig()
+  const cfg = await getProviderConfig(senderAccount)
   const vars: Record<string, string> = {
     imie: tenantName,
     saldo: formatAmount(balance),
@@ -220,12 +227,40 @@ export async function sendStatementEmail(
   await sendEmail({ to, subject, html, attachments, cfg })
 }
 
-export async function sendStatementUploadReminderEmail(to: string | string[]) {
+const DEFAULT_STATEMENT_UPLOAD_REMINDER_SUBJECT = 'Przypomnienie: wgraj wyciąg z banku'
+const DEFAULT_STATEMENT_UPLOAD_REMINDER_BODY =
+  'Przypomnienie automatyczne z systemu BMT.\n\nDzisiaj 16. dzień miesiąca — czas wgrać wyciąg z konta bankowego do systemu (sekcja Import).\n\nPozdrawiamy,\nBMT'
+
+export async function sendStatementUploadReminderEmail(
+  to: string | string[],
+  subjectTemplate?: string | null,
+  bodyTemplate?: string | null,
+) {
   const cfg = await getProviderConfig()
-  const subject = 'Przypomnienie: wgraj wyciąg z banku'
-  const bodyText =
-    'Przypomnienie automatyczne z systemu BMT.\n\nDzisiaj 16. dzień miesiąca — czas wgrać wyciąg z konta bankowego do systemu (sekcja Import).\n\nPozdrawiamy,\nBMT'
+  const subject = subjectTemplate || DEFAULT_STATEMENT_UPLOAD_REMINDER_SUBJECT
+  const bodyText = bodyTemplate || DEFAULT_STATEMENT_UPLOAD_REMINDER_BODY
   const html = bodyText.split('\n').map((l) => (l ? `<p>${l}</p>` : '<br>')).join('')
+  await sendEmail({ to, subject, html, cfg })
+}
+
+export async function sendMediaSettlementAdminSummaryEmail(
+  to: string | string[],
+  groupName: string,
+  month: number,
+  year: number,
+  entries: { tenantName: string; amount: number }[],
+) {
+  const cfg = await getProviderConfig()
+  const subject = `Rozliczenie mediów – ${groupName} – ${String(month).padStart(2, '0')}/${year}`
+  const rows = entries.length
+    ? entries.map((e) => `<li>${e.tenantName}: ${formatAmount(e.amount)}</li>`).join('')
+    : '<li><em>brak pozycji</em></li>'
+  const total = entries.reduce((sum, e) => sum + e.amount, 0)
+  const html =
+    `<p>Zakończono rozliczenie mediów grupy <strong>${groupName}</strong> za ${String(month).padStart(2, '0')}/${year}.</p>` +
+    `<p>Ostateczne kwoty per najemca (do wystawienia rachunków w KSeF):</p>` +
+    `<ul>${rows}</ul>` +
+    `<p>Suma: <strong>${formatAmount(total)}</strong></p>`
   await sendEmail({ to, subject, html, cfg })
 }
 

@@ -62,7 +62,7 @@ export async function getGroupDetailsForTest(groupId: number) {
   const group = await getSettlementGroup(groupId)
   if (!group) return null
 
-  const properties = (group.settlement_group_properties as any[])?.map(p => ({
+  const properties = (group.settlement_group_properties as { property_id: number, properties?: { name?: string, address1?: string, address2?: string } }[])?.map(p => ({
     id: p.property_id,
     name: p.properties?.name || 'Nieznana nazwa',
     address: [p.properties?.address1, p.properties?.address2].filter(Boolean).join(', ')
@@ -80,12 +80,12 @@ export async function getGroupDetailsForTest(groupId: number) {
     .in('property_id', propertyIds)
 
   const activeTenants = (tenants || [])
-    .filter(t => (t.contracts as any[])?.some(c => c.is_active))
+    .filter(t => (t.contracts as { is_active: boolean }[])?.some(c => c.is_active))
     .map(t => {
       const prop = properties.find(p => p.id === t.property_id)
       return {
         id: t.id,
-        name: tenantDisplayName(t as any),
+        name: tenantDisplayName(t),
         property_id: t.property_id,
         propertyName: prop?.name || 'Nieznany lokal',
         propertyAddress: prop?.address || ''
@@ -204,7 +204,7 @@ export async function generateTestMediaCharge(
   const group = await getSettlementGroup(groupId)
   if (!group) throw new Error('Nie znaleziono grupy')
 
-  const propertyIds = (group.settlement_group_properties as any[])?.map(p => p.property_id) || []
+  const propertyIds = (group.settlement_group_properties as { property_id: number }[])?.map(p => p.property_id) || []
 
   if (propertyIds.length === 0) {
     throw new Error('Grupa nie ma przypisanych żadnych nieruchomości (lokali)')
@@ -254,7 +254,7 @@ export async function generateTestMediaCharge(
   let generatedCount = 0
 
   for (const tenant of tenants) {
-    const activeContract = (tenant.contracts as any[])?.find(c => c.is_active)
+    const activeContract = (tenant.contracts as { id: number, is_active: boolean }[])?.find(c => c.is_active)
 
     if (!activeContract) continue
 
@@ -279,7 +279,7 @@ export async function generateTestMediaCharge(
     
     if (error) {
       console.error('Błąd dodawania testowej noty dla najemca ' + tenant.id, error)
-      throw new Error('Błąd podczas zapisywania w bazie dla najemcy ' + tenantDisplayName(tenant as any))
+      throw new Error('Błąd podczas zapisywania w bazie dla najemcy ' + tenantDisplayName(tenant))
     }
     
     generatedCount++

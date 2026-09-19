@@ -44,6 +44,8 @@ export type Database = {
             admin_email: string | null
             payment_account_1_name: string
             payment_account_2_name: string
+            statement_upload_reminder_subject: string | null
+            statement_upload_reminder_body: string | null
           }
           Insert: {
           drive_invoices_folder_id?: string
@@ -74,6 +76,8 @@ export type Database = {
             admin_email?: string | null
             payment_account_1_name?: string
             payment_account_2_name?: string
+            statement_upload_reminder_subject?: string | null
+            statement_upload_reminder_body?: string | null
           }
           Update: {
           drive_invoices_folder_id?: string
@@ -104,6 +108,8 @@ export type Database = {
             admin_email?: string | null
             payment_account_1_name?: string
             payment_account_2_name?: string
+            statement_upload_reminder_subject?: string | null
+            statement_upload_reminder_body?: string | null
           }
           Relationships: []
       }

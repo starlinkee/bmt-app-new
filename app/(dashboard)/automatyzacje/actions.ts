@@ -131,6 +131,8 @@ export async function upsertAppConfig(data: {
   meter_reading_reminder_subject?: string | null
   meter_reading_reminder_body?: string | null
   meter_reading_closed_message?: string | null
+  statement_upload_reminder_subject?: string | null
+  statement_upload_reminder_body?: string | null
 }) {
   const supabase = createServiceClient()
   const { data: before } = await supabase.from('app_config').select('*').eq('id', 1).single()

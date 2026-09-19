@@ -31,7 +31,7 @@ export default function TestowaniePage() {
   const [groups, setGroups] = useState<{ id: number; name: string }[]>([])
   const [selectedGroup, setSelectedGroup] = useState<string>('')
   
-  const [groupDetails, setGroupDetails] = useState<{ properties: any[], tenants: any[] } | null>(null)
+  const [groupDetails, setGroupDetails] = useState<Awaited<ReturnType<typeof getGroupDetailsForTest>> | null>(null)
   const [tenantAmounts, setTenantAmounts] = useState<Record<string, string>>({})
 
   const [mediaLoading, setMediaLoading] = useState(false)
@@ -181,7 +181,7 @@ export default function TestowaniePage() {
         setGroupDetails(details)
         // Inicjalizujemy puste kwoty dla wszystkich najemców
         const initialAmounts: Record<string, string> = {}
-        details?.tenants.forEach((t: any) => {
+        details?.tenants.forEach((t) => {
           initialAmounts[t.id] = ''
         })
         setTenantAmounts(initialAmounts)
@@ -241,8 +241,8 @@ export default function TestowaniePage() {
         mediaYear
       )
       setMediaResult({ success: true, generated: res.count })
-    } catch (err: any) {
-      setMediaResult({ error: err.message || 'Wystąpił błąd' })
+    } catch (err) {
+      setMediaResult({ error: err instanceof Error ? err.message : 'Wystąpił błąd' })
     } finally {
       setMediaLoading(false)
     }

@@ -210,7 +210,7 @@ export default function MediaPage() {
       ?.map((sgp) => sgp.property_id) ?? []
     const raw = g as Record<string, unknown>
     
-    let parsedTrk: Record<string, string> = {}
+    const parsedTrk: Record<string, string> = {}
     if (raw.tenant_reading_keys && typeof raw.tenant_reading_keys === 'object' && !Array.isArray(raw.tenant_reading_keys)) {
       const trkMap = raw.tenant_reading_keys as Record<string, (string | TenantReadingEntry)[]>
       for (const [tId, entriesArr] of Object.entries(trkMap)) {

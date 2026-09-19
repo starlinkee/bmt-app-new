@@ -53,6 +53,42 @@ export function LateReminderForm({ initialSubject, initialBody }: { initialSubje
   )
 }
 
+export function StatementUploadReminderForm({ initialSubject, initialBody }: { initialSubject: string, initialBody: string }) {
+  const [subject, setSubject] = useState(initialSubject)
+  const [body, setBody] = useState(initialBody)
+  const [pending, startTransition] = useTransition()
+
+  function handleSave() {
+    startTransition(async () => {
+      try {
+        await upsertAppConfig({ statement_upload_reminder_subject: subject, statement_upload_reminder_body: body })
+        toast.success('Szablon zapisany.')
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : JSON.stringify(e)
+        toast.error(`Błąd zapisu: ${msg}`)
+      }
+    })
+  }
+
+  return (
+    <div className="space-y-3 border-t pt-3">
+      <div>
+        <p className="text-sm font-medium">Szablon wiadomości</p>
+      </div>
+      <div className="space-y-1">
+        <Label>Temat wiadomości</Label>
+        <Input value={subject} onChange={(e) => setSubject(e.target.value)} />
+      </div>
+      <div className="space-y-1">
+        <Label>Treść wiadomości</Label>
+        <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={6} />
+      </div>
+      <Button size="sm" onClick={handleSave} disabled={pending}>Zapisz szablon</Button>
+      <SavedNote />
+    </div>
+  )
+}
+
 export function MeterClosedMessageForm({ initialMessage }: { initialMessage: string }) {
   const [message, setMessage] = useState(initialMessage)
   const [pending, startTransition] = useTransition()

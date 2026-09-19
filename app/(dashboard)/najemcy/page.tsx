@@ -173,12 +173,12 @@ export default function TenantsPage() {
   const paymentAccount1Name = (appConfig as unknown as { payment_account_1_name?: string } | undefined)?.payment_account_1_name ?? 'Pekao'
   const paymentAccount2Name = (appConfig as unknown as { payment_account_2_name?: string } | undefined)?.payment_account_2_name ?? 'Millennium'
   const tenantValueFormatters = {
-    payment_account: (v: string) => {
+    payment_account: (v: unknown) => {
       if (v === '1') return paymentAccount1Name
       if (v === '2') return paymentAccount2Name
       return 'Nieprzypisane'
     },
-    property_id: (v: string) => properties.find((p) => String(p.id) === v)?.name ?? '-',
+    property_id: (v: unknown) => properties.find((p) => String(p.id) === v)?.name ?? '-',
   }
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Tenant | null>(null)
@@ -344,8 +344,8 @@ export default function TenantsPage() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-16 cursor-pointer select-none" onClick={() => handleSort('id' as any)}>
-              ID<SortIcon col={'id' as any} sortKey={sortKey} sortDir={sortDir} />
+            <TableHead className="w-16 cursor-pointer select-none" onClick={() => handleSort('id')}>
+              ID<SortIcon col="id" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('name')}>
               Imię i nazwisko<SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />

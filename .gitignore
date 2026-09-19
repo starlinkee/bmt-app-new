@@ -75,3 +75,6 @@ saldo*.pdf
 saldo*.png
 temp_val.txt
 
+
+# lokalna binarka gitleaks (pre-push)
+/.tools/

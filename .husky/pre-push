@@ -1,2 +1,25 @@
+# 1) gitleaks: skan commitów, które idą na origin (na KAŻDY branch)
+GITLEAKS_BIN="$(command -v gitleaks || true)"
+[ -z "$GITLEAKS_BIN" ] && [ -x .tools/gitleaks/gitleaks.exe ] && GITLEAKS_BIN=".tools/gitleaks/gitleaks.exe"
+[ -z "$GITLEAKS_BIN" ] && [ -x .tools/gitleaks/gitleaks ] && GITLEAKS_BIN=".tools/gitleaks/gitleaks"
+if [ -z "$GITLEAKS_BIN" ]; then
+  echo "✗ pre-push: brak gitleaks. Zainstaluj: node scripts/install-gitleaks.mjs (albo dodaj gitleaks do PATH)."
+  exit 1
+fi
+
+echo "▶ pre-push: gitleaks — skan wypychanych commitów…"
+ZERO="0000000000000000000000000000000000000000"
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$ZERO" ] && continue # usuwanie brancha — nie ma czego skanować
+  if [ "$remote_sha" = "$ZERO" ]; then
+    RANGE="$local_sha --not --remotes=origin" # nowy branch: tylko commity, których nie ma jeszcze na origin
+  else
+    RANGE="$remote_sha..$local_sha"
+  fi
+  "$GITLEAKS_BIN" git . --redact --no-banner --log-opts="$RANGE" \
+    || { echo "✗ gitleaks wykrył sekret w $local_ref — push zablokowany. Usuń go z commitów (albo dodaj fingerprint do .gitleaksignore, jeśli to fałszywy alarm)."; exit 1; }
+done
+
+# 2) testy jednostkowe
 echo "▶ pre-push: uruchamiam testy jednostkowe (vitest)…"
 npm run test

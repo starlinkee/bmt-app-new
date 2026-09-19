@@ -1,5 +1,5 @@
 import { getAutomationStatus, getAppConfig, getUpcomingRentCharges, getMediaGroupEmailPreviews } from './actions'
-import { LateReminderForm, MeterReminderForm, MeterClosedMessageForm } from './settings-forms'
+import { LateReminderForm, MeterReminderForm, MeterClosedMessageForm, StatementUploadReminderForm } from './settings-forms'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { formatDateTime, formatAmount } from '@/lib/utils'
 import { Mail, CalendarClock, ClipboardList, Gauge, Receipt } from 'lucide-react'
@@ -59,6 +59,10 @@ export default async function AutomatyzacjePage() {
             <StatusLine
               label="Ostatnio wysłane"
               value={status.lastUploadReminderSentAt ? formatDateTime(status.lastUploadReminderSentAt) : 'jeszcze nigdy'}
+            />
+            <StatementUploadReminderForm
+              initialSubject={(cfg.statement_upload_reminder_subject as string) ?? 'Przypomnienie: wgraj wyciąg z banku'}
+              initialBody={(cfg.statement_upload_reminder_body as string) ?? 'Przypomnienie automatyczne z systemu BMT.\n\nDzisiaj 16. dzień miesiąca — czas wgrać wyciąg z konta bankowego do systemu (sekcja Import).\n\nPozdrawiamy,\nBMT'}
             />
           </CardContent>
         </Card>
@@ -220,6 +224,13 @@ export default async function AutomatyzacjePage() {
               do zapłaty. Nie generujemy przy tym osobnej, formalnie numerowanej noty obciążeniowej — po
               zakończeniu rozliczenia widzisz w aplikacji listę kwot per najemca i wystawiasz rachunki
               ręcznie w KSeF. Treść tego maila ustawia się osobno dla każdej grupy rozliczeniowej, w jej edycji.
+            </p>
+            <p>
+              Dodatkowo, razem z tymi ostatecznymi kwotami dla każdej rozliczanej grupy rozliczeniowej,
+              administrator (adres z zakładki Ustawienia) dostaje mailem przypomnienie z podsumowaniem
+              rozliczenia — listą kwot per najemca i sumą — żeby nie zapomnieć wystawić rachunków w KSeF.
+              Ta wiadomość wychodzi automatycznie zaraz po zakończeniu rozliczenia grupy, jej treść nie
+              jest edytowalna.
             </p>
             {mediaGroupPreviews.length === 0 ? (
               <p className="text-xs text-muted-foreground/80 bg-muted/40 rounded-md px-2 py-1.5 italic">

@@ -16,7 +16,7 @@ export async function processStatementUploadReminder() {
 
   const { data: config } = await supabase
     .from('app_config')
-    .select('admin_email')
+    .select('admin_email, statement_upload_reminder_subject, statement_upload_reminder_body')
     .eq('id', 1)
     .single()
 
@@ -41,7 +41,11 @@ export async function processStatementUploadReminder() {
   }
 
   try {
-    await sendStatementUploadReminderEmail(adminEmail)
+    await sendStatementUploadReminderEmail(
+      adminEmail,
+      config?.statement_upload_reminder_subject,
+      config?.statement_upload_reminder_body,
+    )
     await logAudit({
       actionName: 'statementUploadReminder',
       operation: 'CREATE',
