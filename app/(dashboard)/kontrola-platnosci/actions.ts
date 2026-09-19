@@ -123,7 +123,7 @@ export async function sendBulkStatements() {
 
   let sentCount = 0
   for (const tenant of debtors) {
-    const { data: tDb } = await supabase.from('tenants').select('email, email2, sender_account').eq('id', tenant.id).single()
+    const { data: tDb } = await supabase.from('tenants').select('email, email2').eq('id', tenant.id).single()
     if (!tDb || !tDb.email) continue
 
     const statement = await getStatement(tenant.id)
@@ -133,9 +133,8 @@ export async function sendBulkStatements() {
     const pdfBuffer = await generateStatementPdfBuffer(tenantName, reversedStatement, tenant.balance)
     
     const recipients = [tDb.email, tDb.email2].filter(Boolean) as string[]
-    const senderAccount = (tDb.sender_account ?? 1) === 2 ? 2 : 1
     
-    await sendStatementEmail(recipients, tenantName, tenant.balance, pdfBuffer, senderAccount, config.late_reminder_subject, config.late_reminder_body, tenant.property?.name ?? null)
+    await sendStatementEmail(recipients, tenantName, tenant.balance, pdfBuffer, config.late_reminder_subject, config.late_reminder_body, tenant.property?.name ?? null)
     sentCount++
   }
 
@@ -180,7 +179,7 @@ export async function sendStatementToTenant(tenantId: number) {
     const tenant = await getTenantWithBalance(tenantId)
     if (!tenant) throw new Error('Nie znaleziono najemcy')
 
-    const { data: tDb } = await supabase.from('tenants').select('email, email2, sender_account').eq('id', tenant.id).single()
+    const { data: tDb } = await supabase.from('tenants').select('email, email2').eq('id', tenant.id).single()
     if (!tDb || !tDb.email) throw new Error('Najemca nie ma przypisanego adresu email')
 
     const { getStatement } = await import('@/lib/statement')
@@ -194,8 +193,7 @@ export async function sendStatementToTenant(tenantId: number) {
     const pdfBuffer = await generateStatementPdfBuffer(tenantName, reversedStatement, tenant.balance)
     
     const recipients = [tDb.email, tDb.email2].filter(Boolean) as string[]
-    const senderAccount = (tDb.sender_account ?? 1) === 2 ? 2 : 1
-    await sendStatementEmail(recipients, tenantName, tenant.balance, pdfBuffer, senderAccount, config.late_reminder_subject, config.late_reminder_body, tenant.property?.name ?? null)
+    await sendStatementEmail(recipients, tenantName, tenant.balance, pdfBuffer, config.late_reminder_subject, config.late_reminder_body, tenant.property?.name ?? null)
 
     return { success: true }
   } catch (err: unknown) {

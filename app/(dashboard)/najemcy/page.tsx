@@ -106,7 +106,6 @@ function emptyForm() {
     address1: '',
     address2: '',
     property_id: '',
-    sender_account: '1',
     payment_account: '',
   }
 }
@@ -125,7 +124,6 @@ function tenantToForm(t: Tenant) {
     address1: t.address1 ?? '',
     address2: t.address2 ?? '',
     property_id: String(t.property_id),
-    sender_account: String((t as unknown as { sender_account?: number | null }).sender_account ?? 1),
     payment_account: (t as unknown as { payment_account?: number | null }).payment_account != null
       ? String((t as unknown as { payment_account?: number | null }).payment_account)
       : '',
@@ -145,7 +143,6 @@ const tenantFieldLabels: Record<string, string> = {
   address1: 'Adres',
   address2: 'Adres 2',
   property_id: 'Nieruchomość',
-  sender_account: 'Konto nadawcy',
   payment_account: 'Konto płatności',
 }
 
@@ -281,7 +278,6 @@ export default function TenantsPage() {
       address1: form.address1 || undefined,
       address2: form.address2 || undefined,
       property_id: Number(form.property_id),
-      sender_account: Number(form.sender_account),
       payment_account: form.payment_account ? Number(form.payment_account) : null,
     }
 

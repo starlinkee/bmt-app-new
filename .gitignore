@@ -36,6 +36,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+.env.local
 !.env.example
 !.env.e2e.example
 !.env.deploy.example
@@ -78,3 +79,6 @@ temp_val.txt
 
 # lokalna binarka gitleaks (pre-push)
 /.tools/
+
+# raport ze skanu forensycznego VPS - nie commitować
+report.txt

@@ -10,8 +10,7 @@ import {
   updateSettlementGroup,
   deleteSettlementGroup,
 } from './actions'
-import { SkillRunner } from '@/components/skill-runner'
-import { VpsFileBrowser } from '@/components/vps-file-browser'
+import { UploadedFiles } from '@/components/uploaded-files'
 import { getProperties } from '@/app/(dashboard)/nieruchomosci/actions'
 import { getTenants } from '@/app/(dashboard)/najemcy/actions'
 import { SearchSelect } from '@/components/ui/search-select'
@@ -178,7 +177,6 @@ export default function MediaPage() {
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [filterText, setFilterText] = useState('')
-  const [autoView, setAutoView] = useState<'tasks' | 'files'>('tasks')
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false)
   const [initialForm, setInitialForm] = useState<typeof form | null>(null)
@@ -399,45 +397,7 @@ export default function MediaPage() {
         </TableBody>
       </Table>
 
-      <div className="pt-10 space-y-6">
-        <div className="border-t pt-8">
-          <h2 className="text-xl font-semibold">Ściągnij dokumenty kosztowe z AI</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Skrypty AI i automatyzacje uruchamiane w tle.
-          </p>
-        </div>
-
-        <div className="flex gap-1 border-b">
-          <button
-            onClick={() => setAutoView('tasks')}
-            className={[
-              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
-              autoView === 'tasks'
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground',
-            ].join(' ')}
-          >
-            Zadania AI
-          </button>
-          <button
-            onClick={() => setAutoView('files')}
-            className={[
-              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
-              autoView === 'files'
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground',
-            ].join(' ')}
-          >
-            Pliki
-          </button>
-        </div>
-
-        {autoView === 'tasks' ? (
-          <SkillRunner groups={groups.map((g) => ({ id: g.id, name: g.name }))} />
-        ) : (
-          <VpsFileBrowser />
-        )}
-      </div>
+      <UploadedFiles />
 
       <Dialog open={open} onOpenChange={(o) => { if (!o) handleCancel(); else setOpen(o) }}>
         <DialogContent>

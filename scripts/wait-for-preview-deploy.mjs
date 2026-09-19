@@ -45,14 +45,13 @@ async function main() {
 
   const repoRoot = path.resolve(import.meta.dirname, '..')
   const envVars = {
-    ...parseEnvFile(path.join(repoRoot, '.env.development')),
     ...parseEnvFile(path.join(repoRoot, '.env.local')),
     ...process.env,
   }
 
   const token = envVars.VERCEL_ACCESS_TOKEN
   if (!token) {
-    console.error('Błąd: brak VERCEL_ACCESS_TOKEN (sprawdź .env.local / .env.development).')
+    console.error('Błąd: brak VERCEL_ACCESS_TOKEN (sprawdź .env.local).')
     process.exitCode = 1
     return
   }

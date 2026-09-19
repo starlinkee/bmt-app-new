@@ -154,7 +154,7 @@ export async function getAutomationStatus() {
   const [{ data: config }, { data: lastUploadReminder }, { data: lastRentGeneration }, { data: lastMeterReminder }, meterReminderRecipients] = await Promise.all([
     supabase
       .from('app_config')
-      .select('gmail_user, gmail_user_2, meter_reading_reminder_subject, meter_reading_reminder_body, admin_email')
+      .select('meter_reading_reminder_subject, meter_reading_reminder_body, admin_email')
       .eq('id', 1)
       .single(),
     supabase
@@ -193,8 +193,6 @@ export async function getAutomationStatus() {
 
   return {
     adminEmail: config?.admin_email ?? null,
-    gmailUser1: config?.gmail_user ?? null,
-    gmailUser2: config?.gmail_user_2 ?? null,
     meterReadingReminderSubject: config?.meter_reading_reminder_subject ?? null,
     lastUploadReminderSentAt: lastUploadReminder?.created_at ?? null,
     lastRentGenerationAt: lastRentGeneration?.created_at ?? null,

@@ -14,18 +14,20 @@ type ProviderConfig = {
   gmailAppPassword: string | null
 }
 
-async function getProviderConfig(senderAccount: 1 | 2 = 1): Promise<ProviderConfig> {
+// Nadawca = adres administratora z ustawień (app_config.admin_email),
+// hasło aplikacji Gmail pochodzi ze zmiennej środowiskowej GMAIL_APP_PASSWORD.
+async function getProviderConfig(): Promise<ProviderConfig> {
   const supabase = createServiceClient()
   const { data: config } = await supabase
     .from('app_config')
-    .select('gmail_user, gmail_app_password, gmail_user_2, gmail_app_password_2')
+    .select('admin_email')
     .eq('id', 1)
     .single()
 
   return {
     provider: 'gmail_smtp',
-    gmailUser: (senderAccount === 2 ? config?.gmail_user_2 : config?.gmail_user) ?? null,
-    gmailAppPassword: (senderAccount === 2 ? config?.gmail_app_password_2 : config?.gmail_app_password) ?? null,
+    gmailUser: config?.admin_email?.trim() || null,
+    gmailAppPassword: process.env.GMAIL_APP_PASSWORD || null,
   }
 }
 
@@ -52,8 +54,11 @@ async function sendEmail({ to, subject, html, attachments = [], cfg }: SendParam
   const isPreview = process.env.VERCEL_ENV === 'preview' || process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview';
 
   if (cfg.provider === 'gmail_smtp') {
-    if (!cfg.gmailUser || !cfg.gmailAppPassword) {
-      throw new Error('Gmail SMTP skonfigurowany ale brak adresu lub hasła aplikacji.')
+    if (!cfg.gmailUser) {
+      throw new Error('Brak adresu administratora w ustawieniach (/ustawienia) — jest używany jako adres nadawcy.')
+    }
+    if (!cfg.gmailAppPassword) {
+      throw new Error('Brak zmiennej środowiskowej GMAIL_APP_PASSWORD (hasło aplikacji Gmail).')
     }
     const transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
@@ -127,12 +132,11 @@ export async function sendRentEmail(
   month: number,
   year: number,
   pdfBuffer?: Buffer,
-  senderAccount: 1 | 2 = 1,
   subjectTemplate?: string | null,
   bodyTemplate?: string | null,
   propertyName?: string | null,
 ) {
-  const cfg = await getProviderConfig(senderAccount)
+  const cfg = await getProviderConfig()
   const vars: Record<string, string> = {
     najemca: tenantName,
     numer_rachunku: invoiceNumber || '',
@@ -167,10 +171,9 @@ export async function sendMediaEmail(
   pdfAttachments: { filename: string; buffer: Buffer }[] = [],
   subjectTemplate?: string | null,
   bodyTemplate?: string | null,
-  senderAccount: 1 | 2 = 1,
   propertyName?: string | null,
 ) {
-  const cfg = await getProviderConfig(senderAccount)
+  const cfg = await getProviderConfig()
   const vars: Record<string, string> = {
     imie: tenantName,
     numer_rachunku: invoiceNumber,
@@ -204,12 +207,11 @@ export async function sendStatementEmail(
   tenantName: string,
   balance: number,
   pdfBuffer: Buffer,
-  senderAccount: 1 | 2 = 1,
   subjectTemplate?: string,
   bodyTemplate?: string,
   propertyName?: string | null,
 ) {
-  const cfg = await getProviderConfig(senderAccount)
+  const cfg = await getProviderConfig()
   const vars: Record<string, string> = {
     imie: tenantName,
     saldo: formatAmount(balance),

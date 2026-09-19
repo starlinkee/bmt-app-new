@@ -19,10 +19,6 @@ export type Database = {
           drive_invoices_folder_id: string
           email_provider: string
           email_provider_2: string
-          gmail_app_password: string | null
-          gmail_app_password_2: string | null
-          gmail_user: string | null
-          gmail_user_2: string | null
           id: number
           late_reminder_subject: string
           late_reminder_body: string
@@ -51,10 +47,6 @@ export type Database = {
           drive_invoices_folder_id?: string
           email_provider?: string
           email_provider_2?: string
-          gmail_app_password?: string | null
-          gmail_app_password_2?: string | null
-          gmail_user?: string | null
-          gmail_user_2?: string | null
           id?: number
           late_reminder_subject?: string
           late_reminder_body?: string
@@ -83,10 +75,6 @@ export type Database = {
           drive_invoices_folder_id?: string
           email_provider?: string
           email_provider_2?: string
-          gmail_app_password?: string | null
-          gmail_app_password_2?: string | null
-          gmail_user?: string | null
-          gmail_user_2?: string | null
           id?: number
           late_reminder_subject?: string
           late_reminder_body?: string
@@ -446,7 +434,6 @@ export type Database = {
           phone: string | null
           property_id: number
           reading_token: string
-          sender_account: number
           payment_account: number | null
           tenant_type: string
         }
@@ -464,7 +451,6 @@ export type Database = {
           phone?: string | null
           property_id: number
           reading_token?: string
-          sender_account?: number
           payment_account?: number | null
           tenant_type?: string
         }
@@ -482,7 +468,6 @@ export type Database = {
           phone?: string | null
           property_id?: number
           reading_token?: string
-          sender_account?: number
           payment_account?: number | null
           tenant_type?: string
         }

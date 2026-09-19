@@ -24,12 +24,12 @@ export async function getRentPreview(month: number, year: number) {
   const [contractsResult, appConfigResult] = await Promise.all([
     supabase
       .from('contracts')
-      .select('*, tenants(id, first_name, last_name, tenant_type, company_name, email, email2, nip, address1, address2, property_id, sender_account, properties(name))')
+      .select('*, tenants(id, first_name, last_name, tenant_type, company_name, email, email2, nip, address1, address2, property_id, properties(name))')
       .eq('is_active', true)
       .not('id', 'in', existingContractIds.length ? `(${existingContractIds.join(',')})` : '(-1)'),
     supabase
       .from('app_config')
-      .select('gmail_user, gmail_user_2')
+      .select('admin_email')
       .eq('id', 1)
       .single(),
   ])
@@ -51,8 +51,7 @@ export async function getRentPreview(month: number, year: number) {
   return {
     withEmail,
     withoutEmail,
-    senderEmail1: appConfigResult.data?.gmail_user ?? null,
-    senderEmail2: appConfigResult.data?.gmail_user_2 ?? null,
+    senderEmail: appConfigResult.data?.admin_email ?? null,
     // Liczba aktywnych umów pominiętych, bo mają już rachunek RENT za ten
     // miesiąc/rok (patrz filtr .not('id', 'in', ...) powyżej) - pokazujemy to
     // w panelu testowym, żeby "wygenerowano 0" nie wyglądało jak błąd.
@@ -87,7 +86,6 @@ export async function generateRents(month: number, year: number, source: RentGen
         nip?: string | null
         address1?: string | null
         address2?: string | null
-        sender_account?: number | null
       } | null
       if (!tenant) return null
 

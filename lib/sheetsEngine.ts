@@ -3,7 +3,30 @@ import { google } from 'googleapis'
 function parseServiceAccountJson() {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON ?? ''
   const json = raw.startsWith('{') ? raw : Buffer.from(raw, 'base64').toString('utf-8')
-  return JSON.parse(json)
+  try {
+    return JSON.parse(json)
+  } catch {
+    // Częsty błąd przy wklejaniu do env: surowe znaki nowej linii w private_key.
+    // Escapujemy znaki sterujące tylko wewnątrz literałów stringów.
+    let out = ''
+    let inString = false
+    let escaped = false
+    for (const ch of json) {
+      if (inString) {
+        if (escaped) { escaped = false; out += ch; continue }
+        if (ch === '\\') { escaped = true; out += ch; continue }
+        if (ch === '"') { inString = false; out += ch; continue }
+        if (ch === '\n') { out += '\\n'; continue }
+        if (ch === '\r') { continue }
+        if (ch === '\t') { out += '\\t'; continue }
+        out += ch
+      } else {
+        if (ch === '"') inString = true
+        out += ch
+      }
+    }
+    return JSON.parse(out)
+  }
 }
 
 let _serviceAccountAuth: InstanceType<typeof google.auth.GoogleAuth> | null = null

@@ -2,7 +2,7 @@
 # Odpowiednik `push-master`, ale bez mergowania do master - tylko commit + push
 # bieżącego brancha (np. dev), co triggeruje Vercel Preview Deployment.
 #
-#   0. LOKALNIE: db push na bazę dev (.env.development) - żeby baza dev miała
+#   0. LOKALNIE: db push na bazę dev (.env.local) - żeby baza dev miała
 #      nowy schemat od razu, bez czekania na build na Vercelu
 #   1. commit + push na bieżący branch
 #   2. LOKALNIE: testy jednostkowe (vitest) muszą przejść - inaczej stop
@@ -19,19 +19,22 @@ CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 log() { printf '\n\033[1;36m▶ %s\033[0m\n' "$1"; }
 fail() { printf '\n\033[1;31m✗ %s\033[0m\n' "$1"; exit 1; }
 
-log "0/3 Db push na bazę dev (.env.development)"
-if [ -f .env.development ]; then
-  set -a
-  source .env.development
-  set +a
-  if [ -n "${SUPABASE_DB_URL:-}" ]; then
-    npx supabase db push --db-url "$SUPABASE_DB_URL" --yes \
-      || fail "Db push na bazę dev nie powiódł się. Napraw migrację zanim spróbujesz znowu."
-  else
-    echo "  (pomijam - brak SUPABASE_DB_URL w .env.development)"
-  fi
+log "0/3 Db push na bazę dev (.env.local)"
+if [ -f .env.local ]; then
+  # W subshellu, żeby zmienne z .env.local (m.in. VERCEL=1) nie wyciekły do
+  # kolejnych kroków (vitest, playwright).
+  (
+    set -a
+    source .env.local
+    set +a
+    if [ -n "${SUPABASE_DB_URL:-}" ]; then
+      npx supabase db push --db-url "$SUPABASE_DB_URL" --yes
+    else
+      echo "  (pomijam - brak SUPABASE_DB_URL w .env.local)"
+    fi
+  ) || fail "Db push na bazę dev nie powiódł się. Napraw migrację zanim spróbujesz znowu."
 else
-  echo "  (pomijam - brak .env.development)"
+  echo "  (pomijam - brak .env.local)"
 fi
 
 log "1/3 Commit + push brancha '$CURRENT_BRANCH'"
