@@ -1,10 +1,28 @@
 # Testy e2e (Playwright)
 
-Uruchamiane **lokalnie**, ale celujące w konkretny deploy **preview** na Vercelu
-i jego bazę Supabase (środowisko `preview`). Nie dotykają produkcji ani lokalnego
-`next dev`.
+Uruchamiane **w GitHub Actions** (`.github/workflows/e2e.yml`) po każdym udanym
+deployu **preview** na Vercelu, przeciwko temu deployowi i jego bazie Supabase
+(środowisko `preview`). Nie dotykają produkcji ani lokalnego `next dev`.
+`scripts/push-master.sh` czeka na wynik tego workflow przed mergem do master.
 
-## Konfiguracja (jednorazowo)
+## Sekrety w GitHubie (jednorazowo)
+
+Settings → Secrets and variables → Actions → New repository secret:
+
+| Sekret | Skąd |
+|---|---|
+| `VERCEL_PROTECTION_BYPASS_SECRET` | Vercel → projekt → Settings → Deployment Protection → Protection Bypass for Automation |
+| `E2E_LOGIN_EMAIL` | e-mail testowego konta w aplikacji |
+| `E2E_LOGIN_PASSWORD` | hasło tego konta |
+| `E2E_SUPABASE_URL` | URL projektu Supabase używanego przez preview |
+| `E2E_SUPABASE_SECRET_KEY` | klucz **secret** (`sb_secret_…`) tego projektu: Supabase → Settings → API Keys |
+
+Klucze legacy (`eyJ…`, anon/service_role) są w Supabase wyłączone - potrzebny jest
+nowy klucz secret.
+
+## Uruchamianie lokalne (opcjonalnie)
+
+Do ręcznego odpalenia `npm run test:e2e` na swoim komputerze:
 
 1. `cp .env.e2e.example .env.e2e`
 2. `E2E_BASE_URL` — URL deploya preview z Vercela.

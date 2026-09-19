@@ -1,0 +1,65 @@
+name: E2E
+
+# Testy Playwright na świeżym deploymencie PREVIEW z Vercela.
+# Vercel po zbudowaniu deploya zgłasza do GitHuba zdarzenie `deployment_status`
+# z jego adresem - dzięki temu nie trzeba odpytywać API Vercela ani mieć jego tokena.
+# Uwaga: to zdarzenie generuje też stany pending/in_progress; job je pomija (`if`),
+# więc przy sprawdzaniu wyniku ignoruj przebiegi ze statusem "skipped"
+# (scripts/push-master.sh już to robi).
+on:
+  deployment_status:
+
+concurrency:
+  group: e2e-${{ github.event.deployment.sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: playwright (preview)
+    if: >-
+      github.event.deployment_status.state == 'success' &&
+      contains(github.event.deployment.environment, 'Preview')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      # Adres konkretnego deploya preview tego commita.
+      E2E_BASE_URL: ${{ github.event.deployment_status.environment_url || github.event.deployment_status.target_url }}
+      # Sekrety - GitHub → Settings → Secrets and variables → Actions.
+      VERCEL_PROTECTION_BYPASS_SECRET: ${{ secrets.VERCEL_PROTECTION_BYPASS_SECRET }}
+      E2E_LOGIN_EMAIL: ${{ secrets.E2E_LOGIN_EMAIL }}
+      E2E_LOGIN_PASSWORD: ${{ secrets.E2E_LOGIN_PASSWORD }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SUPABASE_SECRET_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Testy e2e
+        run: npm run test:e2e
+
+      - name: Raport Playwright
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

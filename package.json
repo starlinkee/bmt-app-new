@@ -6,9 +6,7 @@
     "skill-runner"
   ],
   "scripts": {
-    "dev:next": "next dev",
-    "dev:skill": "npm run start -w skill-runner",
-    "dev": "concurrently -c \"cyan,magenta\" -n \"next,skill\" \"npm run dev:next\" \"npm run dev:skill\"",
+    "dev": "next dev",
     "build": "next build",
     "vercel-build": "node scripts/vercel-build.mjs && next build",
     "start": "next start",

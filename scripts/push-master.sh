@@ -5,8 +5,9 @@
 #      nowy schemat od razu, bez czekania na build na Vercelu
 #   1. commit + push na bieżący branch (dev)
 #   2. LOKALNIE: testy jednostkowe (vitest) muszą przejść - inaczej stop
-#   3. e2e (Playwright) na ŚWIEŻO zbudowanym deploymencie preview tego commita
-#      - inaczej stop (pomijane, jeśli brak .env.e2e - patrz e2e/README.md)
+#   3. e2e (Playwright) w GitHub Actions (.github/workflows/e2e.yml) na ŚWIEŻO
+#      zbudowanym deploymencie preview tego commita - czekamy na wynik,
+#      inaczej stop (pomijane, jeśli brak zalogowanego `gh`)
 #   4. merge dev do master i push master
 #   5. checkout z powrotem na dev + rebase na master
 
@@ -51,14 +52,24 @@ git push origin "$CURRENT_BRANCH"
 SHA="$(git rev-parse HEAD)"
 echo "  commit: $SHA"
 
-log "3/5 Testy e2e (Playwright) na świeżym deploymencie preview tego commita"
-if [ ! -f .env.e2e ]; then
-  echo "  (pomijam - brak .env.e2e; jednorazowa konfiguracja: patrz e2e/README.md)"
+log "3/5 Testy e2e (GitHub Actions) na świeżym deploymencie preview tego commita"
+if ! command -v gh >/dev/null 2>&1 || ! gh auth status >/dev/null 2>&1; then
+  echo "  (pomijam - brak zalogowanego GitHub CLI: uruchom 'gh auth login')"
 else
-  PREVIEW_HOST="$(node scripts/wait-for-preview-deploy.mjs "$SHA" "$CURRENT_BRANCH")" \
-    || fail "Nie doczekano się gotowego deploya preview dla $SHA - nic nie zostało wypchnięte na master."
-  if ! E2E_BASE_URL="https://$PREVIEW_HOST" npm run test:e2e; then
-    fail "Testy e2e NIE przeszły na https://$PREVIEW_HOST. Napraw je zanim spróbujesz znowu - nic nie zostało wypchnięte na master."
+  # Workflow startuje dopiero, gdy Vercel zbuduje preview (zdarzenie
+  # deployment_status). Stany pending/in_progress dają przebiegi "skipped" -
+  # pomijamy je, żeby nie wziąć ich za zaliczony test.
+  echo "  czekam na start testów e2e w GitHub Actions (commit ${SHA:0:7})..."
+  RUN_ID=""
+  for _ in $(seq 1 60); do
+    RUN_ID="$(gh run list --workflow e2e.yml --commit "$SHA" --limit 20 --json databaseId,conclusion \
+      --jq '[.[] | select(.conclusion != "skipped")][0].databaseId // empty' 2>/dev/null || true)"
+    [ -n "$RUN_ID" ] && break
+    sleep 10
+  done
+  [ -n "$RUN_ID" ] || fail "Nie wystartowały testy e2e w GitHub Actions dla $SHA (deploy preview nieudany lub po 10 min nie gotowy) - nic nie zostało wypchnięte na master."
+  if ! gh run watch "$RUN_ID" --exit-status; then
+    fail "Testy e2e NIE przeszły: $(gh run view "$RUN_ID" --json url --jq .url). Napraw je zanim spróbujesz znowu - nic nie zostało wypchnięte na master."
   fi
 fi
 
