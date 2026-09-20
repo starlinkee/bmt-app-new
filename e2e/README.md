@@ -3,7 +3,7 @@
 Uruchamiane **w GitHub Actions** (`.github/workflows/e2e.yml`) po każdym udanym
 deployu **preview** na Vercelu, przeciwko temu deployowi i jego bazie Supabase
 (środowisko `preview`). Nie dotykają produkcji ani lokalnego `next dev`.
-`scripts/push-master.sh` czeka na wynik tego workflow przed mergem do master.
+`scripts/push-preview.sh` czeka na wynik tego workflow, a dopiero potem otwiera i merguje PR dev → master.
 
 ## Sekrety w GitHubie (jednorazowo)
 

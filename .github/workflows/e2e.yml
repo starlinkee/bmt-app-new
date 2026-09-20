@@ -5,7 +5,7 @@ name: E2E
 # z jego adresem - dzięki temu nie trzeba odpytywać API Vercela ani mieć jego tokena.
 # Uwaga: to zdarzenie generuje też stany pending/in_progress; job je pomija (`if`),
 # więc przy sprawdzaniu wyniku ignoruj przebiegi ze statusem "skipped"
-# (scripts/push-master.sh już to robi).
+# (scripts/push-preview.sh już to robi).
 on:
   deployment_status:
 
