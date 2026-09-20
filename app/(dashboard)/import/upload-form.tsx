@@ -96,6 +96,7 @@ export function UploadForm() {
     maxDate?: string | null
     savedFileName?: string
     docSlot?: number | null
+    source?: 'csv' | 'pdf'
   } | null>(null)
 
   const [lastImport, setLastImport] = useState<{
@@ -136,7 +137,7 @@ export function UploadForm() {
       const content = decodeFileText(ev.target?.result as ArrayBuffer)
       startTransition(async () => {
         const res = await importBankStatement(content, file.name, undefined, undefined, 0)
-        setResult(res)
+        setResult({ ...res, source: 'csv' })
         setBannerDismissed(false)
         toast.success('Import zakończony.')
 
@@ -212,6 +213,7 @@ export function UploadForm() {
           duplicates: res1.duplicates + res2.duplicates,
           minDate: [res1.minDate, res2.minDate].filter(Boolean).sort()[0] ?? null,
           maxDate: [res1.maxDate, res2.maxDate].filter(Boolean).sort().slice(-1)[0] ?? null,
+          source: 'pdf' as const,
         }
 
         setResult(merged)
@@ -232,6 +234,45 @@ export function UploadForm() {
         toast.error('Błąd podczas importu wyciągów PDF.')
       }
     })
+  }
+
+  function renderSummary() {
+    if (!result) return null
+    // Wyciągi PDF też pokazują nominalny okres 16.–15. (jak CSV), liczony z dat transakcji
+    const nominal = result.docSlot === 0 || result.source === 'pdf'
+    return (
+          <CardFooter className="flex-col items-stretch gap-4 pt-4 border-t border-border/50 bg-background/50">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-500" />
+              Podsumowanie importu ({result.bank}
+              {nominal && (result.minDate || result.maxDate)
+                ? <>, {nominalCsvPeriodLabel((result.minDate ?? result.maxDate)!)}</>
+                : result.minDate && result.maxDate && <>, {result.minDate} do {result.maxDate}</>})
+            </div>
+            <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+              <span className="text-muted-foreground">
+                Z sugestią najemcy: <span className="font-medium text-green-600 dark:text-green-400">{result.withSuggestion}</span>
+              </span>
+              <span className="text-muted-foreground">
+                Bez dopasowania: <span className="font-medium text-amber-600 dark:text-amber-400">{result.withoutSuggestion}</span>
+              </span>
+              <span className="text-muted-foreground">
+                Pominięte: <span className="font-medium">{result.skipped}</span>
+              </span>
+              {result.duplicates > 0 && (
+                <span className="text-red-600 dark:text-red-400 font-medium flex items-center gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  Możliwe duplikaty: {result.duplicates}
+                </span>
+              )}
+            </div>
+            {(result.withSuggestion + result.withoutSuggestion) > 0 && (
+              <Link href="/import/reconcile" className={buttonVariants({ className: 'w-full', size: 'lg' })}>
+                Przejdź do zatwierdzania transakcji ({result.withSuggestion + result.withoutSuggestion})
+              </Link>
+            )}
+          </CardFooter>
+    )
   }
 
   const showDuplicateBanner =
@@ -342,39 +383,7 @@ export function UploadForm() {
           )}
         </CardContent>
 
-        {result && (
-          <CardFooter className="flex-col items-stretch gap-4 pt-4 border-t border-border/50 bg-background/50">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-500" />
-              Podsumowanie importu ({result.bank}
-              {result.docSlot === 0 && (result.minDate || result.maxDate)
-                ? <>, {nominalCsvPeriodLabel((result.minDate ?? result.maxDate)!)}</>
-                : result.minDate && result.maxDate && <>, {result.minDate} do {result.maxDate}</>})
-            </div>
-            <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
-              <span className="text-muted-foreground">
-                Z sugestią najemcy: <span className="font-medium text-green-600 dark:text-green-400">{result.withSuggestion}</span>
-              </span>
-              <span className="text-muted-foreground">
-                Bez dopasowania: <span className="font-medium text-amber-600 dark:text-amber-400">{result.withoutSuggestion}</span>
-              </span>
-              <span className="text-muted-foreground">
-                Pominięte: <span className="font-medium">{result.skipped}</span>
-              </span>
-              {result.duplicates > 0 && (
-                <span className="text-red-600 dark:text-red-400 font-medium flex items-center gap-1.5">
-                  <AlertTriangle className="h-3.5 w-3.5" />
-                  Możliwe duplikaty: {result.duplicates}
-                </span>
-              )}
-            </div>
-            {(result.withSuggestion + result.withoutSuggestion) > 0 && (
-              <Link href="/import/reconcile" className={buttonVariants({ className: 'w-full', size: 'lg' })}>
-                Przejdź do zatwierdzania transakcji ({result.withSuggestion + result.withoutSuggestion})
-              </Link>
-            )}
-          </CardFooter>
-        )}
+        {result?.source !== 'pdf' && renderSummary()}
       </Card>
 
       <Card className="shadow-sm">
@@ -487,6 +496,7 @@ export function UploadForm() {
             </div>
           )}
         </CardContent>
+        {result?.source === 'pdf' && renderSummary()}
       </Card>
 
       <div className="pt-8 border-t">

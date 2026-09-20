@@ -569,7 +569,13 @@ export default function TenantsPage() {
                 onValueChange={(v) => setForm({ ...form, payment_account: !v || v === 'none' ? '' : v })}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue>
+                    {form.payment_account === '1'
+                      ? paymentAccount1Name
+                      : form.payment_account === '2'
+                        ? paymentAccount2Name
+                        : 'Nieprzypisane'}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Nieprzypisane</SelectItem>
