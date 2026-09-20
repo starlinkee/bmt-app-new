@@ -1,11 +1,17 @@
 # Testy e2e (Playwright)
 
-Uruchamiane **w GitHub Actions** (`.github/workflows/e2e.yml`) po każdym udanym
-deployu **preview** na Vercelu, przeciwko temu deployowi i jego bazie Supabase
-(środowisko `preview`). Nie dotykają produkcji ani lokalnego `next dev`.
-`scripts/push-preview.sh` czeka na wynik tego workflow, a dopiero potem otwiera PR dev → master (merge ręcznie na GitHubie).
+Uruchamiane **lokalnie** przez `scripts/push-preview.sh`: po pushu skrypt czeka
+na deploy **preview** tego commita na Vercelu (GitHub API), odpala Playwrighta
+przeciwko jego URL-owi i bazie Supabase (środowisko `preview`), a po zielonych
+testach otwiera PR branch → master (merge ręcznie na GitHubie). Nie dotykają
+produkcji ani lokalnego `next dev`. Nie zużywają minut GitHub Actions.
+Konfiguracja: `.env.e2e` (sekcja „Uruchamianie lokalne” niżej); `E2E_BASE_URL`
+skrypt nadpisuje adresem świeżego deploya.
 
-## Sekrety w GitHubie (jednorazowo)
+`.github/workflows/e2e.yml` to tylko ręczny zapas (`workflow_dispatch`, z
+podanym adresem preview), wymagający sekretów poniżej.
+
+## Sekrety w GitHubie (tylko dla ręcznego workflow)
 
 Settings → Secrets and variables → Actions → New repository secret:
 

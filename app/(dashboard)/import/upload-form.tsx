@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useTransition, useEffect, useRef } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import Link from 'next/link'
-import { importBankStatement, getLastImportInfo, getLastImportSlotRange } from './actions'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { importBankStatement, getLastImportInfo, getLastImportSlotRange, getImportKindStatuses } from './actions'
 import { formatDateTime } from '@/lib/utils'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
@@ -119,6 +119,30 @@ export function UploadForm() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const queryClient = useQueryClient()
 
+  // Kiedy wykonano ostatni import i kiedy zatwierdzono ostatni import —
+  // osobno dla CSV i dla wyciągów PDF.
+  const { data: kindStatuses } = useQuery({
+    queryKey: ['importKindStatuses'],
+    queryFn: () => getImportKindStatuses(),
+  })
+
+  // "Wykonano" = późniejsza z dat: wgrania pliku i zatwierdzenia (zatwierdzenie
+  // zawsze następuje po wgraniu, więc bez tego daty wyglądałyby na sprzeczne).
+  function latestOf(a?: string | null, b?: string | null) {
+    return a && b ? (a > b ? a : b) : (a ?? b ?? null)
+  }
+
+  function renderApprovedLine(approvedAt: string | null | undefined) {
+    return (
+      <p className="text-muted-foreground">
+        Ostatni zatwierdzony import:{' '}
+        <strong className="text-foreground font-medium">
+          {approvedAt ? formatDateTime(approvedAt) : 'brak'}
+        </strong>
+      </p>
+    )
+  }
+
   // --- Wgrywanie pliku CSV (sekcja główna, slot 0) ---
   // Docelowo import robiony jest 16. dnia miesiąca, a plik CSV generowany w
   // banku (Pekao SA) obejmuje okres od 16. dnia poprzedniego miesiąca do
@@ -146,6 +170,7 @@ export function UploadForm() {
           if (info) setLastImport(info)
         }).catch(console.error)
         queryClient.invalidateQueries({ queryKey: ['importHistory'] })
+        queryClient.invalidateQueries({ queryKey: ['importKindStatuses'] })
       })
     }
     reader.readAsArrayBuffer(file)
@@ -229,6 +254,7 @@ export function UploadForm() {
         }).catch(console.error)
         refreshLastPdfRanges()
         queryClient.invalidateQueries({ queryKey: ['importHistory'] })
+        queryClient.invalidateQueries({ queryKey: ['importKindStatuses'] })
       } catch (err) {
         console.error(err)
         toast.error('Błąd podczas importu wyciągów PDF.')
@@ -362,8 +388,9 @@ export function UploadForm() {
               <div className="space-y-1.5">
                 <p className="font-medium text-foreground">Ostatni import</p>
                 <p className="text-muted-foreground">
-                  Wykonano {formatDateTime(lastImport.created_at)}
+                  Wykonano {formatDateTime(latestOf(kindStatuses?.csv.lastImportAt ?? lastImport.created_at, kindStatuses?.csv.lastApprovedAt)!)}
                 </p>
+                {renderApprovedLine(kindStatuses?.csv.lastApprovedAt)}
                 {lastImport?.docSlot === 0 && (lastImport?.minDate || lastImport?.maxDate) ? (
                   <p className="text-muted-foreground mt-2">
                     Okres: <strong className="text-foreground font-medium">{nominalCsvPeriodLabel((lastImport.minDate ?? lastImport.maxDate)!)}</strong>
@@ -482,8 +509,9 @@ export function UploadForm() {
                   return (
                     <>
                       <p className="text-muted-foreground">
-                        Wykonano {formatDateTime(latest.created_at)}
+                        Wykonano {formatDateTime(latestOf(kindStatuses?.pdf.lastImportAt ?? latest.created_at, kindStatuses?.pdf.lastApprovedAt)!)}
                       </p>
+                      {renderApprovedLine(kindStatuses?.pdf.lastApprovedAt)}
                       {anchor && (
                         <p className="text-muted-foreground mt-2">
                           Okres: <strong className="text-foreground font-medium">{nominalCsvPeriodLabel(anchor)}</strong>

@@ -1,17 +1,14 @@
 name: E2E
 
-# Testy Playwright na świeżym deploymencie PREVIEW z Vercela.
-# Vercel po zbudowaniu deploya zgłasza do GitHuba zdarzenie `deployment_status`
-# z jego adresem - dzięki temu nie trzeba odpytywać API Vercela ani mieć jego tokena.
-# Uwaga: to zdarzenie generuje też stany pending/in_progress; job je pomija (`if`),
-# więc przy sprawdzaniu wyniku ignoruj przebiegi ze statusem "skipped"
-# (scripts/push-preview.sh już to robi).
+# Testy e2e standardowo chodzą LOKALNIE (scripts/push-preview.sh) - nie zużywają
+# minut GitHub Actions. Ten workflow jest tylko ręcznym zapasem: Actions →
+# E2E → Run workflow, z podanym adresem deploya preview.
 on:
-  deployment_status:
-
-concurrency:
-  group: e2e-${{ github.event.deployment.sha }}
-  cancel-in-progress: true
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Adres deploya preview z Vercela
+        required: true
 
 permissions:
   contents: read
@@ -19,15 +16,11 @@ permissions:
 jobs:
   e2e:
     name: playwright (preview)
-    if: >-
-      github.event.deployment_status.state == 'success' &&
-      contains(github.event.deployment.environment, 'Preview')
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     env:
-      # Adres konkretnego deploya preview tego commita.
-      E2E_BASE_URL: ${{ github.event.deployment_status.environment_url || github.event.deployment_status.target_url }}
+      E2E_BASE_URL: ${{ inputs.base_url }}
       # Sekrety - GitHub → Settings → Secrets and variables → Actions.
       VERCEL_PROTECTION_BYPASS_SECRET: ${{ secrets.VERCEL_PROTECTION_BYPASS_SECRET }}
       E2E_LOGIN_EMAIL: ${{ secrets.E2E_LOGIN_EMAIL }}
@@ -37,8 +30,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.deployment.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -47,14 +38,9 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
-
-      - name: Testy e2e
-        run: npm run test:e2e
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
 
       - name: Raport Playwright
         if: failure()
