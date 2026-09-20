@@ -241,8 +241,8 @@ export default function PropertiesPage() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-16 cursor-pointer select-none" onClick={() => handleSort('id' as any)}>
-              ID<SortIcon col={'id' as any} sortKey={sortKey} sortDir={sortDir} />
+            <TableHead className="w-16 cursor-pointer select-none" onClick={() => handleSort('id')}>
+              ID<SortIcon col="id" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('name')}>
               Nazwa<SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />
@@ -261,7 +261,7 @@ export default function PropertiesPage() {
         </TableHeader>
         <TableBody>
           {sorted.map((p) => (
-            <TableRow key={p.id}>
+            <TableRow key={p.id} data-testid="property-row" data-property-id={p.id}>
               <TableCell className="text-muted-foreground">{p.id}</TableCell>
               <TableCell className="font-medium">{p.name}</TableCell>
               <TableCell>
@@ -277,6 +277,7 @@ export default function PropertiesPage() {
                   <Button
                     variant="ghost"
                     size="icon"
+                    aria-label="Edytuj nieruchomość"
                     onClick={() => openEdit(p)}
                   >
                     <Pencil className="h-4 w-4" />
@@ -284,6 +285,7 @@ export default function PropertiesPage() {
                   <Button
                     variant="ghost"
                     size="icon"
+                    aria-label="Usuń nieruchomość"
                     onClick={() => handleDelete(p)}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -311,15 +313,17 @@ export default function PropertiesPage() {
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label>Nazwa</Label>
+              <Label htmlFor="property-name">Nazwa</Label>
               <Input
+                id="property-name"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
             </div>
             <div className="space-y-1">
-              <Label>Adres *</Label>
+              <Label htmlFor="property-address1">Adres *</Label>
               <Input
+                id="property-address1"
                 value={form.address1}
                 onChange={(e) =>
                   setForm({ ...form, address1: e.target.value })

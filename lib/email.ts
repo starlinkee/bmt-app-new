@@ -14,11 +14,20 @@ type ProviderConfig = {
   gmailAppPassword: string | null
 }
 
+// Nadawca = adres administratora z ustawień (app_config.admin_email),
+// hasło aplikacji Gmail pochodzi ze zmiennej środowiskowej GMAIL_APP_PASSWORD.
 async function getProviderConfig(): Promise<ProviderConfig> {
+  const supabase = createServiceClient()
+  const { data: config } = await supabase
+    .from('app_config')
+    .select('admin_email')
+    .eq('id', 1)
+    .single()
+
   return {
     provider: 'gmail_smtp',
-    gmailUser: process.env.GMAIL_USER ?? null,
-    gmailAppPassword: process.env.GMAIL_APP_PASSWORD ?? null,
+    gmailUser: config?.admin_email?.trim() || null,
+    gmailAppPassword: process.env.GMAIL_APP_PASSWORD || null,
   }
 }
 
@@ -45,8 +54,11 @@ async function sendEmail({ to, subject, html, attachments = [], cfg }: SendParam
   const isPreview = process.env.VERCEL_ENV === 'preview' || process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview';
 
   if (cfg.provider === 'gmail_smtp') {
-    if (!cfg.gmailUser || !cfg.gmailAppPassword) {
-      throw new Error('Gmail SMTP skonfigurowany ale brak adresu lub hasła aplikacji.')
+    if (!cfg.gmailUser) {
+      throw new Error('Brak adresu administratora w ustawieniach (/ustawienia) — jest używany jako adres nadawcy.')
+    }
+    if (!cfg.gmailAppPassword) {
+      throw new Error('Brak zmiennej środowiskowej GMAIL_APP_PASSWORD (hasło aplikacji Gmail).')
     }
     const transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
@@ -120,7 +132,6 @@ export async function sendRentEmail(
   month: number,
   year: number,
   pdfBuffer?: Buffer,
-  senderAccount: 1 | 2 = 1,
   subjectTemplate?: string | null,
   bodyTemplate?: string | null,
   propertyName?: string | null,
@@ -160,7 +171,6 @@ export async function sendMediaEmail(
   pdfAttachments: { filename: string; buffer: Buffer }[] = [],
   subjectTemplate?: string | null,
   bodyTemplate?: string | null,
-  senderAccount: 1 | 2 = 1,
   propertyName?: string | null,
 ) {
   const cfg = await getProviderConfig()
@@ -197,7 +207,6 @@ export async function sendStatementEmail(
   tenantName: string,
   balance: number,
   pdfBuffer: Buffer,
-  senderAccount: 1 | 2 = 1,
   subjectTemplate?: string,
   bodyTemplate?: string,
   propertyName?: string | null,
@@ -220,12 +229,40 @@ export async function sendStatementEmail(
   await sendEmail({ to, subject, html, attachments, cfg })
 }
 
-export async function sendStatementUploadReminderEmail(to: string | string[]) {
+const DEFAULT_STATEMENT_UPLOAD_REMINDER_SUBJECT = 'Przypomnienie: wgraj wyciąg z banku'
+const DEFAULT_STATEMENT_UPLOAD_REMINDER_BODY =
+  'Przypomnienie automatyczne z systemu BMT.\n\nDzisiaj 16. dzień miesiąca — czas wgrać wyciąg z konta bankowego do systemu (sekcja Import).\n\nPozdrawiamy,\nBMT'
+
+export async function sendStatementUploadReminderEmail(
+  to: string | string[],
+  subjectTemplate?: string | null,
+  bodyTemplate?: string | null,
+) {
   const cfg = await getProviderConfig()
-  const subject = 'Przypomnienie: wgraj wyciąg z banku'
-  const bodyText =
-    'Przypomnienie automatyczne z systemu BMT.\n\nDzisiaj 16. dzień miesiąca — czas wgrać wyciąg z konta bankowego do systemu (sekcja Import).\n\nPozdrawiamy,\nBMT'
+  const subject = subjectTemplate || DEFAULT_STATEMENT_UPLOAD_REMINDER_SUBJECT
+  const bodyText = bodyTemplate || DEFAULT_STATEMENT_UPLOAD_REMINDER_BODY
   const html = bodyText.split('\n').map((l) => (l ? `<p>${l}</p>` : '<br>')).join('')
+  await sendEmail({ to, subject, html, cfg })
+}
+
+export async function sendMediaSettlementAdminSummaryEmail(
+  to: string | string[],
+  groupName: string,
+  month: number,
+  year: number,
+  entries: { tenantName: string; amount: number }[],
+) {
+  const cfg = await getProviderConfig()
+  const subject = `Rozliczenie mediów – ${groupName} – ${String(month).padStart(2, '0')}/${year}`
+  const rows = entries.length
+    ? entries.map((e) => `<li>${e.tenantName}: ${formatAmount(e.amount)}</li>`).join('')
+    : '<li><em>brak pozycji</em></li>'
+  const total = entries.reduce((sum, e) => sum + e.amount, 0)
+  const html =
+    `<p>Zakończono rozliczenie mediów grupy <strong>${groupName}</strong> za ${String(month).padStart(2, '0')}/${year}.</p>` +
+    `<p>Ostateczne kwoty per najemca (do wystawienia rachunków w KSeF):</p>` +
+    `<ul>${rows}</ul>` +
+    `<p>Suma: <strong>${formatAmount(total)}</strong></p>`
   await sendEmail({ to, subject, html, cfg })
 }
 

@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
   const supabase = createServiceClient()
 
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase as any)
       .from('skill_prompts')
       .select('prompt')
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   const body = await req.json().catch(() => ({})) as Record<string, unknown>
-  const { skillId, content, label, description, timeoutMs } = body
+  const { skillId, content, label, description, timeoutMs, settlementGroupId } = body
 
   if (!isValidSkillId(skillId)) {
     return NextResponse.json({ error: 'Invalid skillId' }, { status: 400 })
@@ -48,6 +49,7 @@ export async function PUT(req: NextRequest) {
   const supabase = createServiceClient()
 
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase as any)
       .from('skill_prompts')
       .upsert({
@@ -56,6 +58,7 @@ export async function PUT(req: NextRequest) {
         label: label || skillId,
         description: description || '',
         timeout_ms: timeoutMs || 300000,
+        settlement_group_id: (settlementGroupId as number | null | undefined) ?? null,
         updated_at: new Date().toISOString()
       })
       
@@ -77,6 +80,7 @@ export async function DELETE(req: NextRequest) {
   const supabase = createServiceClient()
 
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase as any)
       .from('skill_prompts')
       .delete()

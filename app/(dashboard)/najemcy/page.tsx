@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import { getTenants, createTenant, updateTenant, deleteTenant } from './actions'
 import { getProperties } from '@/app/(dashboard)/nieruchomosci/actions'
-import { getAppConfig } from '@/app/(dashboard)/ustawienia/actions'
+import { getAppConfig } from '@/app/(dashboard)/automatyzacje/actions'
 import { QUERY_KEYS } from '@/lib/queryKeys'
 import { ConfirmEditDialog, hasChanges } from '@/components/ui/confirm-edit-dialog'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -106,7 +106,7 @@ function emptyForm() {
     address1: '',
     address2: '',
     property_id: '',
-    sender_account: '1',
+    payment_account: '',
   }
 }
 
@@ -124,7 +124,9 @@ function tenantToForm(t: Tenant) {
     address1: t.address1 ?? '',
     address2: t.address2 ?? '',
     property_id: String(t.property_id),
-    sender_account: String((t as unknown as { sender_account?: number | null }).sender_account ?? 1),
+    payment_account: (t as unknown as { payment_account?: number | null }).payment_account != null
+      ? String((t as unknown as { payment_account?: number | null }).payment_account)
+      : '',
   }
 }
 
@@ -141,7 +143,7 @@ const tenantFieldLabels: Record<string, string> = {
   address1: 'Adres',
   address2: 'Adres 2',
   property_id: 'Nieruchomość',
-  sender_account: 'Konto nadawcy',
+  payment_account: 'Konto płatności',
 }
 
 function SortIcon({ col, sortKey, sortDir }: { col: SortKey, sortKey: SortKey, sortDir: SortDir }) {
@@ -165,6 +167,16 @@ export default function TenantsPage() {
     queryKey: ['app_config'],
     queryFn: getAppConfig,
   })
+  const paymentAccount1Name = (appConfig as unknown as { payment_account_1_name?: string } | undefined)?.payment_account_1_name ?? 'Pekao'
+  const paymentAccount2Name = (appConfig as unknown as { payment_account_2_name?: string } | undefined)?.payment_account_2_name ?? 'Millennium'
+  const tenantValueFormatters = {
+    payment_account: (v: unknown) => {
+      if (v === '1') return paymentAccount1Name
+      if (v === '2') return paymentAccount2Name
+      return 'Nieprzypisane'
+    },
+    property_id: (v: unknown) => properties.find((p) => String(p.id) === v)?.name ?? '-',
+  }
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Tenant | null>(null)
   const [form, setForm] = useState(emptyForm())
@@ -266,7 +278,7 @@ export default function TenantsPage() {
       address1: form.address1 || undefined,
       address2: form.address2 || undefined,
       property_id: Number(form.property_id),
-      sender_account: Number(form.sender_account),
+      payment_account: form.payment_account ? Number(form.payment_account) : null,
     }
 
     startTransition(async () => {
@@ -328,8 +340,8 @@ export default function TenantsPage() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-16 cursor-pointer select-none" onClick={() => handleSort('id' as any)}>
-              ID<SortIcon col={'id' as any} sortKey={sortKey} sortDir={sortDir} />
+            <TableHead className="w-16 cursor-pointer select-none" onClick={() => handleSort('id')}>
+              ID<SortIcon col="id" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('name')}>
               Imię i nazwisko<SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />
@@ -353,7 +365,7 @@ export default function TenantsPage() {
         </TableHeader>
         <TableBody>
           {sortedTenants.map((t) => (
-            <TableRow key={t.id}>
+            <TableRow key={t.id} data-testid="tenant-row" data-tenant-id={t.id}>
               <TableCell className="text-muted-foreground">{t.id}</TableCell>
               <TableCell className="font-medium">
                 <div>{t.first_name} {t.last_name}</div>
@@ -408,10 +420,10 @@ export default function TenantsPage() {
               </TableCell>
               <TableCell>
                 <div className="flex gap-1 justify-end">
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(t)}>
+                  <Button variant="ghost" size="icon" aria-label="Edytuj najemcę" onClick={() => openEdit(t)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(t)}>
+                  <Button variant="ghost" size="icon" aria-label="Usuń najemcę" onClick={() => handleDelete(t)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
@@ -438,15 +450,17 @@ export default function TenantsPage() {
           <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>Imię *</Label>
+                <Label htmlFor="tenant-first-name">Imię *</Label>
                 <Input
+                  id="tenant-first-name"
                   value={form.first_name}
                   onChange={(e) => setForm({ ...form, first_name: e.target.value })}
                 />
               </div>
               <div className="space-y-1">
-                <Label>Nazwisko *</Label>
+                <Label htmlFor="tenant-last-name">Nazwisko *</Label>
                 <Input
+                  id="tenant-last-name"
                   value={form.last_name}
                   onChange={(e) => setForm({ ...form, last_name: e.target.value })}
                 />
@@ -531,8 +545,9 @@ export default function TenantsPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label>Telefon</Label>
+              <Label htmlFor="tenant-phone">Telefon</Label>
               <Input
+                id="tenant-phone"
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
               />
@@ -546,6 +561,22 @@ export default function TenantsPage() {
                 }
                 rows={3}
               />
+            </div>
+            <div className="space-y-1">
+              <Label>Konto płatności</Label>
+              <Select
+                value={form.payment_account || 'none'}
+                onValueChange={(v) => setForm({ ...form, payment_account: !v || v === 'none' ? '' : v })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nieprzypisane</SelectItem>
+                  <SelectItem value="1">{paymentAccount1Name}</SelectItem>
+                  <SelectItem value="2">{paymentAccount2Name}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>
@@ -567,6 +598,7 @@ export default function TenantsPage() {
         originalData={editing ? tenantToForm(editing) : null}
         newData={form}
         labels={tenantFieldLabels}
+        valueFormatters={tenantValueFormatters}
       />
 
       <ConfirmEditDialog
@@ -580,6 +612,7 @@ export default function TenantsPage() {
         originalData={editing ? tenantToForm(editing) : emptyForm()}
         newData={form}
         labels={tenantFieldLabels}
+        valueFormatters={tenantValueFormatters}
       />
     </div>
   )

@@ -3,6 +3,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Play, X, CheckCircle2, AlertCircle, Clock, FileText, ImageIcon, File, Download, ExternalLink, FolderOpen, Pencil, Check, Loader2, Plus, Trash2 } from 'lucide-react'
 
 interface Skill {
@@ -10,6 +17,12 @@ interface Skill {
   label: string
   description: string
   timeoutMs: number
+  groupId: number | null
+}
+
+interface SettlementGroupOption {
+  id: number
+  name: string
 }
 
 type JobStatus = 'idle' | 'running' | 'done' | 'error'
@@ -142,9 +155,9 @@ function saveToStorage(jobs: Record<string, Job>) {
   localStorage.setItem(LS_KEY, JSON.stringify(jobs))
 }
 
-const EMPTY_NEW_SKILL = { id: '', label: '', description: '', timeoutMinutes: '5', prompt: '' }
+const EMPTY_NEW_SKILL = { id: '', label: '', description: '', timeoutMinutes: '5', prompt: '', groupId: '' as number | '' }
 
-export function SkillRunner() {
+export function SkillRunner({ groups = [] }: { groups?: SettlementGroupOption[] }) {
   const [skills, setSkills] = useState<Skill[]>([])
   const [skillsLoading, setSkillsLoading] = useState(true)
   const [jobs, setJobs] = useState<Record<string, Job>>({})
@@ -157,10 +170,13 @@ export function SkillRunner() {
   const [promptDraft, setPromptDraft] = useState('')
   const [promptLoading, setPromptLoading] = useState(false)
   const [promptSaving, setPromptSaving] = useState(false)
+  const [editGroupId, setEditGroupId] = useState<number | ''>('')
 
   const [creating, setCreating] = useState(false)
   const [newSkill, setNewSkill] = useState(EMPTY_NEW_SKILL)
   const [createSaving, setCreateSaving] = useState(false)
+
+  const [groupFilter, setGroupFilter] = useState<number | 'all'>('all')
 
   async function fetchSkills() {
     try {
@@ -256,6 +272,7 @@ export function SkillRunner() {
   async function openEdit(skillId: string) {
     setEditingSkill(skillId)
     setPromptDraft('')
+    setEditGroupId(skills.find(s => s.id === skillId)?.groupId ?? '')
     setPromptLoading(true)
     try {
       const res = await fetch(`/api/skill-prompts?skillId=${skillId}`)
@@ -275,11 +292,12 @@ export function SkillRunner() {
       const res = await fetch('/api/skill-prompts', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ skillId: editingSkill, content: promptDraft }),
+        body: JSON.stringify({ skillId: editingSkill, content: promptDraft, settlementGroupId: editGroupId || null }),
       })
       if (!res.ok) throw new Error()
       toast.success('Prompt zapisany.')
       setEditingSkill(null)
+      await fetchSkills()
     } catch {
       toast.error('Błąd zapisu promptu.')
     } finally {
@@ -299,6 +317,7 @@ export function SkillRunner() {
           label: newSkill.label || newSkill.id,
           description: newSkill.description,
           timeoutMs: Math.max(1, parseFloat(newSkill.timeoutMinutes) || 5) * 60 * 1000,
+          settlementGroupId: newSkill.groupId || null,
         }),
       })
       if (!res.ok) throw new Error()
@@ -364,6 +383,7 @@ export function SkillRunner() {
 
   const runningCount = Object.values(jobs).filter(j => j?.status === 'running').length
   const newSkillIdError = newSkill.id && !/^[a-z0-9-]+$/.test(newSkill.id)
+  const visibleSkills = groupFilter === 'all' ? skills : skills.filter(s => s.groupId === groupFilter)
 
   return (
     <div className="space-y-4">
@@ -373,6 +393,28 @@ export function SkillRunner() {
         </p>
       )}
 
+      {groups.length > 0 && (
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-muted-foreground">Filtruj po grupie</label>
+          <Select
+            value={String(groupFilter)}
+            onValueChange={v => setGroupFilter(v === 'all' ? 'all' : Number(v))}
+          >
+            <SelectTrigger size="sm" className="text-sm">
+              <SelectValue>
+                {groupFilter === 'all' ? 'Wszystkie' : groups.find(g => g.id === groupFilter)?.name}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Wszystkie</SelectItem>
+              {groups.map(g => (
+                <SelectItem key={g.id} value={String(g.id)}>{g.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       {skillsLoading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -380,7 +422,7 @@ export function SkillRunner() {
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {skills.map(skill => {
+          {visibleSkills.map(skill => {
             const job = jobs[skill.id]
             const status = job?.status ?? 'idle'
             const isRunning = status === 'running'
@@ -436,6 +478,21 @@ export function SkillRunner() {
 
                 {editingSkill === skill.id && (
                   <div className="flex flex-col gap-2">
+                    {groups.length > 0 && (
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1 block">Grupa rozliczeniowa</label>
+                        <select
+                          value={editGroupId}
+                          onChange={e => setEditGroupId(e.target.value === '' ? '' : Number(e.target.value))}
+                          className="w-full text-sm rounded-md border bg-muted/30 px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
+                        >
+                          <option value="">Brak</option>
+                          {groups.map(g => (
+                            <option key={g.id} value={g.id}>{g.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                     {promptLoading ? (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -547,6 +604,22 @@ export function SkillRunner() {
                     className="w-full text-sm rounded-md border bg-muted/30 px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
                   />
                 </div>
+
+                {groups.length > 0 && (
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Grupa rozliczeniowa</label>
+                    <select
+                      value={newSkill.groupId}
+                      onChange={e => setNewSkill(p => ({ ...p, groupId: e.target.value === '' ? '' : Number(e.target.value) }))}
+                      className="w-full text-sm rounded-md border bg-muted/30 px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
+                    >
+                      <option value="">Brak</option>
+                      {groups.map(g => (
+                        <option key={g.id} value={g.id}>{g.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">Timeout (minuty)</label>

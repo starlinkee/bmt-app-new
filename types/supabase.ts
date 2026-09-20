@@ -19,10 +19,6 @@ export type Database = {
           drive_invoices_folder_id: string
           email_provider: string
           email_provider_2: string
-          gmail_app_password: string | null
-          gmail_app_password_2: string | null
-          gmail_user: string | null
-          gmail_user_2: string | null
           id: number
           late_reminder_subject: string
           late_reminder_body: string
@@ -40,15 +36,17 @@ export type Database = {
             allow_destructive_test_deletes: boolean
             meter_reading_reminder_subject: string | null
             meter_reading_reminder_body: string | null
+            meter_reading_closed_message: string | null
+            admin_email: string | null
+            payment_account_1_name: string
+            payment_account_2_name: string
+            statement_upload_reminder_subject: string | null
+            statement_upload_reminder_body: string | null
           }
           Insert: {
           drive_invoices_folder_id?: string
           email_provider?: string
           email_provider_2?: string
-          gmail_app_password?: string | null
-          gmail_app_password_2?: string | null
-          gmail_user?: string | null
-          gmail_user_2?: string | null
           id?: number
           late_reminder_subject?: string
           late_reminder_body?: string
@@ -66,15 +64,17 @@ export type Database = {
             allow_destructive_test_deletes?: boolean
             meter_reading_reminder_subject?: string | null
             meter_reading_reminder_body?: string | null
+            meter_reading_closed_message?: string | null
+            admin_email?: string | null
+            payment_account_1_name?: string
+            payment_account_2_name?: string
+            statement_upload_reminder_subject?: string | null
+            statement_upload_reminder_body?: string | null
           }
           Update: {
           drive_invoices_folder_id?: string
           email_provider?: string
           email_provider_2?: string
-          gmail_app_password?: string | null
-          gmail_app_password_2?: string | null
-          gmail_user?: string | null
-          gmail_user_2?: string | null
           id?: number
           late_reminder_subject?: string
           late_reminder_body?: string
@@ -92,6 +92,12 @@ export type Database = {
             allow_destructive_test_deletes?: boolean
             meter_reading_reminder_subject?: string | null
             meter_reading_reminder_body?: string | null
+            meter_reading_closed_message?: string | null
+            admin_email?: string | null
+            payment_account_1_name?: string
+            payment_account_2_name?: string
+            statement_upload_reminder_subject?: string | null
+            statement_upload_reminder_body?: string | null
           }
           Relationships: []
       }
@@ -428,7 +434,7 @@ export type Database = {
           phone: string | null
           property_id: number
           reading_token: string
-          sender_account: number
+          payment_account: number | null
           tenant_type: string
         }
         Insert: {
@@ -445,7 +451,7 @@ export type Database = {
           phone?: string | null
           property_id: number
           reading_token?: string
-          sender_account?: number
+          payment_account?: number | null
           tenant_type?: string
         }
         Update: {
@@ -462,7 +468,7 @@ export type Database = {
           phone?: string | null
           property_id?: number
           reading_token?: string
-          sender_account?: number
+          payment_account?: number | null
           tenant_type?: string
         }
         Relationships: [

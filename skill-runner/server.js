@@ -24,7 +24,6 @@ function loadEnvFile(filePath) {
 loadEnvFile(path.join(__dirname, '.env'))
 loadEnvFile(path.join(__dirname, 'secrets.env'))
 loadEnvFile(path.join(__dirname, '..', '.env.local'))
-loadEnvFile(path.join(__dirname, '..', '.env.development'))
 
 function stripAnsi(raw) {
   return raw

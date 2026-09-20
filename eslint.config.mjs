@@ -16,6 +16,15 @@ const eslintConfig = defineConfig([
     // parametr `use`, co reguła react-hooks/rules-of-hooks błędnie czyta jako
     // wywołanie hooka `use()`.
     "e2e/**",
+    // Doraźne skrypty CommonJS uruchamiane bezpośrednio przez `node`, poza
+    // aplikacją Next.js — konwersja require() -> import zepsułaby ich
+    // wykonanie (brak "type": "module" w package.json).
+    "check_vps.js",
+    "deploy.js",
+    "deploy_vps.js",
+    "deploy_vps_pm2.js",
+    "deploy_vps_update.js",
+    "scripts/load-deploy-env.js",
   ]),
 ]);
 

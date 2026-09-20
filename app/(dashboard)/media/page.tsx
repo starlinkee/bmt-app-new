@@ -251,7 +251,7 @@ export default function MediaPage() {
       ?.map((sgp) => sgp.property_id) ?? []
     const raw = g as Record<string, unknown>
     
-    let parsedTrk: Record<string, string> = {}
+    const parsedTrk: Record<string, string> = {}
     if (raw.tenant_reading_keys && typeof raw.tenant_reading_keys === 'object' && !Array.isArray(raw.tenant_reading_keys)) {
       const trkMap = raw.tenant_reading_keys as Record<string, (string | TenantReadingEntry)[]>
       for (const [tId, entriesArr] of Object.entries(trkMap)) {
@@ -282,7 +282,6 @@ export default function MediaPage() {
   }
 
   function handleSave() {
-    let inputMap: unknown
     const jsonFields: { label: string; value: string }[] = [
       { label: 'Mapowanie wejściowe', value: form.input_mapping_json },
       { label: 'Mapowanie wyjściowe', value: form.output_mapping_json },
@@ -298,7 +297,7 @@ export default function MediaPage() {
         return
       }
     }
-    inputMap = JSON.parse(form.input_mapping_json)
+    const inputMap: unknown = JSON.parse(form.input_mapping_json)
     setJsonError('')
 
     const validSaveKeys = extractValidSaveKeys(inputMap)
@@ -427,8 +426,8 @@ export default function MediaPage() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-16 cursor-pointer select-none" onClick={() => handleSort('id' as any)}>
-              ID<SortIcon col={'id' as any} sortKey={sortKey} sortDir={sortDir} />
+            <TableHead className="w-16 cursor-pointer select-none" onClick={() => handleSort('id')}>
+              ID<SortIcon col="id" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
             <TableHead className="cursor-pointer select-none" onClick={() => handleSort('name')}>
               Nazwa<SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />
@@ -447,7 +446,7 @@ export default function MediaPage() {
         </TableHeader>
         <TableBody>
           {sorted.map((g) => (
-            <TableRow key={g.id}>
+            <TableRow key={g.id} data-testid="group-row" data-group-id={g.id}>
               <TableCell className="text-muted-foreground">{g.id}</TableCell>
               <TableCell className="font-medium">{g.name}</TableCell>
               <TableCell>
@@ -466,10 +465,10 @@ export default function MediaPage() {
                       <FileSpreadsheet className="h-4 w-4" />
                     </a>
                   )}
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(g)}>
+                  <Button variant="ghost" size="icon" aria-label="Edytuj grupę" onClick={() => openEdit(g)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(g)}>
+                  <Button variant="ghost" size="icon" aria-label="Usuń grupę" onClick={() => handleDelete(g)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
@@ -495,15 +494,17 @@ export default function MediaPage() {
           </DialogHeader>
           <div className="space-y-3 max-h-[75vh] overflow-y-auto pr-1">
             <div className="space-y-1">
-              <Label>Nazwa</Label>
+              <Label htmlFor="group-name">Nazwa</Label>
               <Input
+                id="group-name"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
             </div>
             <div className="space-y-1">
-              <Label>ID arkusza Google</Label>
+              <Label htmlFor="group-spreadsheet-id">ID arkusza Google</Label>
               <Input
+                id="group-spreadsheet-id"
                 value={form.spreadsheet_id}
                 onChange={(e) => setForm({ ...form, spreadsheet_id: e.target.value })}
                 placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"
@@ -527,7 +528,7 @@ export default function MediaPage() {
             <div className="space-y-3 p-3 border rounded-md bg-muted/20">
               <Label className="text-base">Liczniki do podania przez najemcę</Label>
               <p className="text-xs text-muted-foreground mb-2">
-                Zaznacz najemców, którzy będą sami podawać odczyty i wpisz dla nich odpowiednie klucze po przecinku (z mapowania wejściowego).
+                Zaznacz najemców, którzy będą sami podawać odczyty i wpisz dla nich odpowiednie klucze po przecinku (wartości &quot;save_key&quot; z mapowania wejściowego).
                 Format: <code className="text-[11px]">klucz:Etykieta dla najemcy</code> — etykieta jest opcjonalna, bez niej najemca zobaczy techniczny klucz.
               </p>
               
@@ -588,7 +589,7 @@ export default function MediaPage() {
                                 }
                               })
                             }}
-                            placeholder="np. jp64_cieplaWodaLokal1:Ciepła woda, jp64_coLokal1:CO"
+                            placeholder='np. save_key:Ciepła woda, save_key:CO'
                             className={`h-8 text-sm ${unknownKeys.length > 0 || isEmptyChecked ? 'border-destructive focus-visible:ring-destructive' : ''}`}
                           />
                           {isEmptyChecked && (

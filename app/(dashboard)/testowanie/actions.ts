@@ -62,7 +62,7 @@ export async function getGroupDetailsForTest(groupId: number) {
   const group = await getSettlementGroup(groupId)
   if (!group) return null
 
-  const properties = (group.settlement_group_properties as any[])?.map(p => ({
+  const properties = (group.settlement_group_properties as { property_id: number, properties?: { name?: string, address1?: string, address2?: string } }[])?.map(p => ({
     id: p.property_id,
     name: p.properties?.name || 'Nieznana nazwa',
     address: [p.properties?.address1, p.properties?.address2].filter(Boolean).join(', ')
@@ -80,12 +80,12 @@ export async function getGroupDetailsForTest(groupId: number) {
     .in('property_id', propertyIds)
 
   const activeTenants = (tenants || [])
-    .filter(t => (t.contracts as any[])?.some(c => c.is_active))
+    .filter(t => (t.contracts as { is_active: boolean }[])?.some(c => c.is_active))
     .map(t => {
       const prop = properties.find(p => p.id === t.property_id)
       return {
         id: t.id,
-        name: tenantDisplayName(t as any),
+        name: tenantDisplayName(t),
         property_id: t.property_id,
         propertyName: prop?.name || 'Nieznany lokal',
         propertyAddress: prop?.address || ''
@@ -152,6 +152,46 @@ export async function zeroAllTenantBalances() {
   }
 }
 
+// Kasuje CAŁĄ historię przelewów z `transactions` - w odróżnieniu od
+// zeroAllTenantBalances() (która celowo zostawia w spokoju wiersze bez
+// tenant_id, np. REJECTED_OWN_TRANSFER/REJECTED_DUPLICATE/REJECTED_OTHER/
+// SKIPPED/UNMATCHED - patrz app/(dashboard)/import/actions.ts) ta akcja nie
+// filtruje po tenant_id w ogóle, więc czyści też odrzucone transakcje i
+// wykryte duplikaty. Ten sam mechanizm odblokowania triggera co wyżej -
+// działa wyłącznie gdy isTestClockAllowed() zwraca true, więc nigdy na
+// prawdziwej produkcji.
+export async function clearAllTransactionHistory() {
+  if (!isTestClockAllowed()) {
+    throw new Error('Niedozwolone na tym środowisku')
+  }
+
+  const supabase = createServiceClient()
+
+  const { error: unlockError } = await supabase
+    .from('app_config')
+    .update({ allow_destructive_test_deletes: true })
+    .eq('id', 1)
+
+  if (unlockError) {
+    throw new Error('Nie udało się odblokować usuwania w tym środowisku: ' + unlockError.message)
+  }
+
+  const { error: txError, count: deletedTransactions } = await supabase
+    .from('transactions')
+    .delete({ count: 'exact' })
+    .not('id', 'is', null)
+
+  if (txError) {
+    console.error('Błąd kasowania historii transakcji', txError)
+    throw new Error('Błąd podczas kasowania historii transakcji: ' + txError.message)
+  }
+
+  return {
+    success: true,
+    deletedTransactions: deletedTransactions ?? 0,
+  }
+}
+
 export async function generateTestMediaCharge(
   groupId: number,
   tenantAmounts: Record<string, number>,
@@ -164,7 +204,7 @@ export async function generateTestMediaCharge(
   const group = await getSettlementGroup(groupId)
   if (!group) throw new Error('Nie znaleziono grupy')
 
-  const propertyIds = (group.settlement_group_properties as any[])?.map(p => p.property_id) || []
+  const propertyIds = (group.settlement_group_properties as { property_id: number }[])?.map(p => p.property_id) || []
 
   if (propertyIds.length === 0) {
     throw new Error('Grupa nie ma przypisanych żadnych nieruchomości (lokali)')
@@ -214,7 +254,7 @@ export async function generateTestMediaCharge(
   let generatedCount = 0
 
   for (const tenant of tenants) {
-    const activeContract = (tenant.contracts as any[])?.find(c => c.is_active)
+    const activeContract = (tenant.contracts as { id: number, is_active: boolean }[])?.find(c => c.is_active)
 
     if (!activeContract) continue
 
@@ -239,7 +279,7 @@ export async function generateTestMediaCharge(
     
     if (error) {
       console.error('Błąd dodawania testowej noty dla najemca ' + tenant.id, error)
-      throw new Error('Błąd podczas zapisywania w bazie dla najemcy ' + tenantDisplayName(tenant as any))
+      throw new Error('Błąd podczas zapisywania w bazie dla najemcy ' + tenantDisplayName(tenant))
     }
     
     generatedCount++

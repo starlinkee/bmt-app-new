@@ -17,26 +17,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { TableFilterBar } from '@/components/ui/table-filter-bar'
 import { ArrowLeft, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
-
-const STATUS_LABELS: Record<string, string> = {
-  MATCHED: 'Dopasowana',
-  MANUAL: 'Ręczna',
-  REJECTED_OWN_TRANSFER: 'Przelew własny',
-  REJECTED_DUPLICATE: 'Duplikat',
-  REJECTED_OTHER: 'Odrzucona',
-  UNMATCHED: 'Nieznana',
-  SKIPPED: 'Pominięta'
-}
-
-const STATUS_VARIANTS: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-  MATCHED: 'default',
-  MANUAL: 'outline',
-  REJECTED_OWN_TRANSFER: 'secondary',
-  REJECTED_DUPLICATE: 'secondary',
-  REJECTED_OTHER: 'destructive',
-  UNMATCHED: 'destructive',
-  SKIPPED: 'secondary'
-}
+import { TRANSACTION_STATUS_LABELS as STATUS_LABELS, TRANSACTION_STATUS_VARIANTS as STATUS_VARIANTS } from '@/lib/transactionStatus'
 
 type Transaction = Awaited<ReturnType<typeof getAllTransactions>>[number]
 type SortKey = 'date' | 'title' | 'bank_account' | 'tenant' | 'amount' | 'status' | 'created_at' | 'category'

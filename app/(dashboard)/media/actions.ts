@@ -34,7 +34,7 @@ function sanitizePathSegment(name: string): string {
 
 // Struktura: [bucket "invoices"] / DEVELOPMENT|PREVIEW|PRODUCTION / rok / miesiąc / grupa mediów / plik.pdf
 // Zgodna 1:1 ze strukturą folderów w Google Drive (patrz ensureMediaSettlementFolder).
-async function uploadToSupabaseStorage(supabase: any, envTier: string, year: number, month: number, groupName: string, fileName: string, buffer: Buffer): Promise<string> {
+async function uploadToSupabaseStorage(supabase: ReturnType<typeof createServiceClient>, envTier: string, year: number, month: number, groupName: string, fileName: string, buffer: Buffer): Promise<string> {
   const filePath = `${envTier}/${year}/${month}/${sanitizePathSegment(groupName)}/${sanitizePathSegment(fileName)}`
   const { error } = await supabase.storage.from('invoices').upload(filePath, buffer, {
     contentType: 'application/pdf',
@@ -205,34 +205,30 @@ export async function getMediaEmailPreview(groupId: number) {
   const [tenantsResult, appConfigResult] = await Promise.all([
     supabase
       .from('tenants')
-      .select('id, email, email2, sender_account, contracts(is_active, has_media_invoice)')
+      .select('id, email, email2, contracts(is_active, has_media_invoice)')
       .in('id', tenantIds),
     supabase
       .from('app_config')
-      .select('gmail_user, gmail_user_2')
+      .select('admin_email')
       .eq('id', 1)
       .single(),
   ])
 
-  const recipients1: string[] = []
-  const recipients2: string[] = []
+  const recipients: string[] = []
   for (const t of tenantsResult.data ?? []) {
     const hasMediaContract = (t.contracts as { is_active: boolean; has_media_invoice: boolean }[] | undefined)?.some(
       (c) => c.is_active && c.has_media_invoice
     )
     if (!hasMediaContract) continue
     if (!t.email) continue
-    const acc = ((t as { sender_account?: number | null }).sender_account ?? 1) === 2 ? 2 : 1
     const emails = [t.email, (t as Record<string, unknown>).email2 as string | null].filter(Boolean) as string[]
-    if (acc === 2) recipients2.push(...emails)
-    else recipients1.push(...emails)
+    recipients.push(...emails)
   }
 
   const entries: { email: string | null; count: number; recipients: string[] }[] = []
-  if (recipients1.length > 0) entries.push({ email: appConfigResult.data?.gmail_user ?? null, count: recipients1.length, recipients: recipients1 })
-  if (recipients2.length > 0) entries.push({ email: appConfigResult.data?.gmail_user_2 ?? null, count: recipients2.length, recipients: recipients2 })
+  if (recipients.length > 0) entries.push({ email: appConfigResult.data?.admin_email ?? null, count: recipients.length, recipients })
 
-  return { entries, total: recipients1.length + recipients2.length }
+  return { entries, total: recipients.length }
 }
 
 export async function getSettlementForMonth(
@@ -531,7 +527,6 @@ export async function processSettlement(
           }))
 
         const recipients = [tenant.email, tenant.email2].filter(Boolean) as string[]
-        const senderAccount = ((tenant as Record<string, unknown>).sender_account as number ?? 1) === 2 ? 2 : 1
         try {
           await sendMediaEmail(
             recipients,
@@ -543,7 +538,6 @@ export async function processSettlement(
             attachments,
             (group as Record<string, unknown>).email_subject_template as string | null,
             (group as Record<string, unknown>).email_body_template as string | null,
-            senderAccount,
             (tenant.properties as { name: string } | null)?.name ?? null,
           )
         } catch (e) {

@@ -24,6 +24,35 @@ To ma teraz realne konsekwencje deployowe: `npm run vercel-build` (zob. `scripts
 Jeśli mimo wszystko ktoś zmieni coś ręcznie w Studio: jak najszybciej dopisz odpowiadającą migrację w `supabase/migrations` i napraw historię przez `migration repair`, zamiast zostawiać rozjazd do wykrycia przy następnym deployu.
 <!-- END:bmt-db-migrations-rules -->
 
+<!-- BEGIN:bmt-e2e-tests -->
+# Testy e2e (Playwright)
+
+Pliki w `e2e/`, uruchamiane lokalnie przeciwko deployowi preview (nie przeciwko
+lokalnemu `next dev` ani produkcji) — szczegóły konfiguracji i uruchamiania w
+`e2e/README.md`.
+
+Aktualnie zaimplementowane pokrycie:
+- `umowy.spec.ts` — dodawanie/edycja/usuwanie umowy, filtr tekstowy i
+  fasetowy po najemcy, rewaluacja czynszu.
+- `najemcy.spec.ts` — dodawanie/edycja/usuwanie najemcy, filtr tekstowy i
+  fasetowy po nieruchomości.
+- `nieruchomosci.spec.ts` — dodawanie/edycja/usuwanie nieruchomości, filtr
+  tekstowy i fasetowy po typie.
+- `media.spec.ts` — dodawanie/edycja/usuwanie grupy rozliczeniowej mediów
+  (tylko CRUD definicji grupy), filtr tekstowy.
+
+Świadomie pominięte: samo generowanie/wysyłka not obciążeniowych — rozlicz-media
+(przepływ realnie wysyła e-maile i generuje PDF-y przez Google Sheets — do
+ręcznej weryfikacji).
+
+Pozostałe moduły (kontrola płatności, rozliczanie mediów, import, automatyzacje,
+ustawienia itd.) nie mają jeszcze testów e2e.
+
+Nowe testy: trzymaj się wzorca z `umowy.spec.ts` / `najemcy.spec.ts` — dane
+wejściowe przez fabryki w `e2e/support/fixtures.ts` (bezpośrednio w bazie,
+szybciej niż przez UI), a samo zachowanie UI klikane w przeglądarce.
+<!-- END:bmt-e2e-tests -->
+
 <!-- BEGIN:bmt-todos -->
 # TODOs / Reminders
 

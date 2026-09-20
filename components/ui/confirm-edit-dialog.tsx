@@ -19,14 +19,15 @@ interface ConfirmEditDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onConfirm: () => void
-  originalData: Record<string, any> | null
-  newData: Record<string, any>
+  originalData: Record<string, unknown> | null
+  newData: Record<string, unknown>
   title?: string
   message?: string
   confirmLabel?: string
   confirmVariant?: 'default' | 'destructive'
   pending?: boolean
   labels?: Record<string, string>
+  valueFormatters?: Record<string, (val: unknown) => string>
 }
 
 export interface FieldDiff {
@@ -36,7 +37,7 @@ export interface FieldDiff {
   new: string
 }
 
-export function formatValue(val: any): string {
+export function formatValue(val: unknown): string {
   if (val === null || val === undefined) return '-'
   if (typeof val === 'boolean') return val ? 'Tak' : 'Nie'
   if (typeof val === 'object') return JSON.stringify(val)
@@ -44,16 +45,18 @@ export function formatValue(val: any): string {
 }
 
 export function computeDiffs(
-  originalData: Record<string, any> | null,
-  newData: Record<string, any> | null,
-  labels: Record<string, string> = {}
+  originalData: Record<string, unknown> | null,
+  newData: Record<string, unknown> | null,
+  labels: Record<string, string> = {},
+  valueFormatters: Record<string, (val: unknown) => string> = {}
 ): FieldDiff[] {
   const diffs: FieldDiff[] = []
 
   if (originalData && newData) {
     for (const key of Object.keys(newData)) {
-      const origVal = formatValue(originalData[key])
-      const newVal = formatValue(newData[key])
+      const format = valueFormatters[key] ?? formatValue
+      const origVal = format(originalData[key])
+      const newVal = format(newData[key])
 
       if (origVal !== newVal) {
         diffs.push({ key, label: labels[key] || key, old: origVal, new: newVal })
@@ -65,8 +68,8 @@ export function computeDiffs(
 }
 
 export function hasChanges(
-  originalData: Record<string, any> | null,
-  newData: Record<string, any> | null
+  originalData: Record<string, unknown> | null,
+  newData: Record<string, unknown> | null
 ): boolean {
   return computeDiffs(originalData, newData).length > 0
 }
@@ -83,8 +86,9 @@ export function ConfirmEditDialog({
   confirmVariant = 'default',
   pending = false,
   labels = {},
+  valueFormatters = {},
 }: ConfirmEditDialogProps) {
-  const diffs = computeDiffs(originalData, newData, labels)
+  const diffs = computeDiffs(originalData, newData, labels, valueFormatters)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

@@ -35,6 +35,7 @@ export default function ReconcilePage() {
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [selectedTenants, setSelectedTenants] = useState<Record<number, string>>({})
   const [selectedCategories, setSelectedCategories] = useState<Record<number, Category>>({})
+  const [dismissNotes, setDismissNotes] = useState<Record<number, string>>({})
   const [bannerDismissed, setBannerDismissed] = useState(false)
   const [pending, startTransition] = useTransition()
   const router = useRouter()
@@ -105,14 +106,18 @@ export default function ReconcilePage() {
 
     const toDismiss = selectedTxs
       .filter((tx) => isRejectValue(selectedTenants[tx.id]))
-      .map((tx) => ({ txId: tx.id, reason: dismissReasonForValue(selectedTenants[tx.id]) }))
+      .map((tx) => ({
+        txId: tx.id,
+        reason: dismissReasonForValue(selectedTenants[tx.id]),
+        note: dismissNotes[tx.id],
+      }))
 
     startTransition(async () => {
       if (toReconcile.length > 0) {
         await reconcileMany(toReconcile)
       }
-      for (const { txId, reason } of toDismiss) {
-        await dismissTransaction(txId, reason)
+      for (const { txId, reason, note } of toDismiss) {
+        await dismissTransaction(txId, reason, note)
       }
       toast.success(`Przetworzono ${selectedTxs.length} transakcji.`)
       
@@ -216,11 +221,12 @@ export default function ReconcilePage() {
           const rawData = ((tx as any).raw_data ?? {}) as Record<string, string>
           const rawEntries = Object.entries(rawData).filter(([, v]) => v)
           const category = selectedCategories[tx.id]
+          const needsAction = !(selectedTenants[tx.id] && (category || isRejectValue(selectedTenants[tx.id])))
 
           return (
             <div
               key={tx.id}
-              className={`rounded-lg border bg-card p-4 space-y-3 ${tx.is_duplicate ? 'border-red-300 dark:border-red-800' : ''} ${isRejectValue(selectedTenants[tx.id]) ? 'bg-muted/40 border-dashed' : ''}`}
+              className={`rounded-lg border bg-card p-4 space-y-3 ${tx.is_duplicate ? 'border-red-300 dark:border-red-800' : ''} ${isRejectValue(selectedTenants[tx.id]) ? 'bg-muted/40 border-dashed' : ''} ${needsAction ? 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30' : ''}`}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -305,10 +311,27 @@ export default function ReconcilePage() {
                           return next
                         })
                       }
+                      if (!isRejectValue(v)) {
+                        setDismissNotes((prev) => {
+                          const next = { ...prev }
+                          delete next[tx.id]
+                          return next
+                        })
+                      }
                     }}
                     placeholder="Wyszukaj najemcę..."
                   />
-                  {!isRejectValue(selectedTenants[tx.id]) && (
+                  {isRejectValue(selectedTenants[tx.id]) ? (
+                    <input
+                      type="text"
+                      value={dismissNotes[tx.id] ?? ''}
+                      onChange={(e) =>
+                        setDismissNotes((prev) => ({ ...prev, [tx.id]: e.target.value }))
+                      }
+                      placeholder="Powód odrzucenia (opcjonalnie)"
+                      className="mt-1.5 w-full px-2.5 py-1.5 text-xs rounded-md border bg-muted/40 focus:bg-background outline-none focus:ring-1 focus:ring-ring"
+                    />
+                  ) : (
                   <div className="flex items-center gap-2 mt-1.5 p-1.5 bg-muted/40 rounded-md border">
                     <span className="text-xs font-semibold text-muted-foreground min-w-[50px] pl-1">Rodzaj:</span>
                     <button

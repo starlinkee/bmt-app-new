@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useTransition, useEffect, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import Link from 'next/link'
-import { importBankStatement, getLastImportInfo, getLastImportSlotRange, getStatementCutoffDay } from './actions'
+import { importBankStatement, getLastImportInfo, getLastImportSlotRange } from './actions'
 import { formatDateTime } from '@/lib/utils'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
@@ -26,6 +27,63 @@ function decodeFileText(buffer: ArrayBuffer): string {
   }
 }
 
+function fmtDM(d: Date): string {
+  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+// Nominalny okres wyciągu CSV (Pekao): zawsze od 16. dnia jednego miesiąca do
+// 15. dnia kolejnego miesiąca włącznie. WAŻNE: liczony na podstawie faktycznej
+// daty transakcji z pliku (np. najwcześniejszej), a NIE daty wgrania pliku do
+// aplikacji — plik można wgrać z opóźnieniem (np. w grudniu uzupełnić braki
+// za czerwiec/lipiec) i wtedy ma pokazywać czerwiec/lipiec, a nie grudzień.
+// Dana data zawsze należy do dokładnie jednego okna 16–15: jeśli jej dzień
+// miesiąca to 16 lub więcej, okno zaczyna się w tym samym miesiącu (16.) i
+// kończy w kolejnym (15.); jeśli dzień to 1–15, okno zaczęło się w
+// poprzednim miesiącu (16.) i kończy się w tym samym (15.).
+function windowContaining(date: Date): { start: Date; end: Date } {
+  if (date.getDate() >= 16) {
+    return {
+      start: new Date(date.getFullYear(), date.getMonth(), 16),
+      end: new Date(date.getFullYear(), date.getMonth() + 1, 15),
+    }
+  }
+  return {
+    start: new Date(date.getFullYear(), date.getMonth() - 1, 16),
+    end: new Date(date.getFullYear(), date.getMonth(), 15),
+  }
+}
+
+function nominalCsvPeriodLabel(anchorDate: string | Date): string {
+  const d = typeof anchorDate === 'string' ? new Date(anchorDate) : anchorDate
+  const { start, end } = windowContaining(d)
+  return `${fmtDM(start)} – ${fmtDM(end)}`
+}
+
+// To samo co nominalCsvPeriodLabel, ale dla jednego z dwóch osobnych PDF-ów
+// (bank daje tylko pełne miesiące): dla slotu 1 (dayFrom=16, "poprzedni
+// miesiąc") pokazujemy 16.–koniec miesiąca, dla slotu 2 (dayTo=15, "bieżący
+// miesiąc") pokazujemy 1.–15. Miesiąc brany jest z faktycznej daty transakcji
+// w danym pliku (anchorDate), nie z daty wgrania.
+function nominalPdfSlotPeriodLabel(
+  dayFrom: number | null,
+  dayTo: number | null,
+  anchorDate: string | Date,
+): string {
+  const d = typeof anchorDate === 'string' ? new Date(anchorDate) : anchorDate
+
+  if (dayFrom) {
+    const start = new Date(d.getFullYear(), d.getMonth(), dayFrom)
+    const end = new Date(d.getFullYear(), d.getMonth() + 1, 0) // ostatni dzień tego miesiąca
+    return `${fmtDM(start)} – ${fmtDM(end)}`
+  }
+  if (dayTo) {
+    const start = new Date(d.getFullYear(), d.getMonth(), 1)
+    const end = new Date(d.getFullYear(), d.getMonth(), dayTo)
+    return `${fmtDM(start)} – ${fmtDM(end)}`
+  }
+  return ''
+}
+
 export function UploadForm() {
   const [result, setResult] = useState<{
     bank: string
@@ -37,14 +95,16 @@ export function UploadForm() {
     minDate?: string | null
     maxDate?: string | null
     savedFileName?: string
+    docSlot?: number | null
   } | null>(null)
-  
+
   const [lastImport, setLastImport] = useState<{
     minDate?: string | null
     maxDate?: string | null
     savedFileName?: string
     originalFileName?: string
     created_at?: string
+    docSlot?: number | null
   } | null>(null)
 
   useEffect(() => {
@@ -56,30 +116,16 @@ export function UploadForm() {
   const [bannerDismissed, setBannerDismissed] = useState(false)
   const [pending, startTransition] = useTransition()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const DAYS_OF_MONTH = Array.from({ length: 31 }, (_, i) => i + 1)
-
-  // Dzień graniczny skonfigurowany w Ustawieniach (domyślnie 15) — używany do
-  // podpowiadania zakresu dni dla dokumentu (zwykle: od 16. dnia poprzedniego
-  // miesiąca do 15. dnia bieżącego).
-  const [cutoffInfo, setCutoffInfo] = useState<{ cutoffDay: number; suggestedDayFrom: number; suggestedDayTo: number } | null>(null)
+  const queryClient = useQueryClient()
 
   // --- Wgrywanie pliku CSV (sekcja główna, slot 0) ---
-  // Zakres dni NIE jest tu podpowiadany automatycznie — zależy wyłącznie od
-  // tego, jaki zakres użytkownik sam wybrał przy generowaniu pliku CSV w banku.
-  const [csvDayFrom, setCsvDayFrom] = useState<number | ''>('')
-  const [csvDayTo, setCsvDayTo] = useState<number | ''>('')
-
-  useEffect(() => {
-    getStatementCutoffDay().then((info) => {
-      setCutoffInfo(info)
-      // Zakres dni dla tego dokumentu NIE jest automatycznie podpowiadany —
-      // zależy od tego, jaki zakres użytkownik sam wygenerował w CSV z banku.
-      // Wskazówka (16.–15.) jest tylko tekstową instrukcją w opisie karty.
-    }).catch(console.error)
-  }, [])
-
-  // undefined = jeszcze nie sprawdzono (trwa pobieranie), null = sprawdzono i nie ma historii
-  const [lastCsvRange, setLastCsvRange] = useState<{ dayFrom: number | null; dayTo: number | null; created_at?: string } | null | undefined>(undefined)
+  // Docelowo import robiony jest 16. dnia miesiąca, a plik CSV generowany w
+  // banku (Pekao SA) obejmuje okres od 16. dnia poprzedniego miesiąca do
+  // 15. dnia bieżącego miesiąca włącznie — w Pekao da się wygenerować
+  // wyciąg za dokładnie taki zakres dat, więc nie ma potrzeby przycinania
+  // dni w aplikacji tak jak w sekcji PDF poniżej (tam bank daje tylko pełne
+  // miesiące, stąd konieczność wgrywania dwóch osobnych PDF-ów i przycinania
+  // ich zakresów w kodzie).
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -89,7 +135,7 @@ export function UploadForm() {
     reader.onload = (ev) => {
       const content = decodeFileText(ev.target?.result as ArrayBuffer)
       startTransition(async () => {
-        const res = await importBankStatement(content, file.name, csvDayFrom || undefined, csvDayTo || undefined, 0)
+        const res = await importBankStatement(content, file.name, undefined, undefined, 0)
         setResult(res)
         setBannerDismissed(false)
         toast.success('Import zakończony.')
@@ -98,7 +144,7 @@ export function UploadForm() {
         getLastImportInfo().then(info => {
           if (info) setLastImport(info)
         }).catch(console.error)
-        getLastImportSlotRange(0).then((info) => setLastCsvRange(info)).catch(console.error)
+        queryClient.invalidateQueries({ queryKey: ['importHistory'] })
       })
     }
     reader.readAsArrayBuffer(file)
@@ -106,12 +152,15 @@ export function UploadForm() {
   }
 
   // --- Wgrywanie 2 wyciągów PDF (osobne konto, format PDF, całe miesiące) ---
+  // Zakres dni dla tej sekcji jest STAŁY i celowo nieedytowalny w UI: wyciąg 1
+  // (poprzedni miesiąc) obejmuje zawsze od 16. dnia włącznie do końca miesiąca,
+  // wyciąg 2 (bieżący miesiąc) zawsze tylko do 15. dnia włącznie. Dzięki temu
+  // nawet spóźnione dostarczenie wyciągów nigdy nie policzy transakcji błędnie
+  // (nie ma ryzyka nakładania się okresów ani pominięcia dni).
+  const PDF_STATEMENT_1_DAY_FROM = 16
+  const PDF_STATEMENT_2_DAY_TO = 15
   const [pdfFile1, setPdfFile1] = useState<File | null>(null)
   const [pdfFile2, setPdfFile2] = useState<File | null>(null)
-  const [pdfFrom1, setPdfFrom1] = useState<number | ''>('')
-  const [pdfTo1, setPdfTo1] = useState<number | ''>('')
-  const [pdfFrom2, setPdfFrom2] = useState<number | ''>('')
-  const [pdfTo2, setPdfTo2] = useState<number | ''>('')
   const [pdfPending, startPdfTransition] = useTransition()
   const fileInput1Ref = useRef<HTMLInputElement>(null)
   const fileInput2Ref = useRef<HTMLInputElement>(null)
@@ -120,8 +169,8 @@ export function UploadForm() {
   // miesiąca nie znamy jeszcze zakresu, ale poprzedni import (poprzedni miesiąc)
   // możemy podpowiedzieć.
   // undefined = jeszcze nie sprawdzono (trwa pobieranie), null = sprawdzono i nie ma historii
-  const [lastPdfRange1, setLastPdfRange1] = useState<{ dayFrom: number | null; dayTo: number | null; created_at?: string } | null | undefined>(undefined)
-  const [lastPdfRange2, setLastPdfRange2] = useState<{ dayFrom: number | null; dayTo: number | null; created_at?: string } | null | undefined>(undefined)
+  const [lastPdfRange1, setLastPdfRange1] = useState<{ dayFrom: number | null; dayTo: number | null; minDate?: string | null; maxDate?: string | null; created_at?: string } | null | undefined>(undefined)
+  const [lastPdfRange2, setLastPdfRange2] = useState<{ dayFrom: number | null; dayTo: number | null; minDate?: string | null; maxDate?: string | null; created_at?: string } | null | undefined>(undefined)
 
   function refreshLastPdfRanges() {
     getLastImportSlotRange(1).then((info) => setLastPdfRange1(info)).catch(console.error)
@@ -129,7 +178,6 @@ export function UploadForm() {
   }
 
   useEffect(() => {
-    getLastImportSlotRange(0).then((info) => setLastCsvRange(info)).catch(console.error)
     refreshLastPdfRanges()
   }, [])
 
@@ -152,8 +200,8 @@ export function UploadForm() {
           readFileAsDataUrl(pdfFile2),
         ])
 
-        const res1 = await importBankStatement(content1, pdfFile1.name, pdfFrom1 || undefined, pdfTo1 || undefined, 1)
-        const res2 = await importBankStatement(content2, pdfFile2.name, pdfFrom2 || undefined, pdfTo2 || undefined, 2)
+        const res1 = await importBankStatement(content1, pdfFile1.name, PDF_STATEMENT_1_DAY_FROM, undefined, 1)
+        const res2 = await importBankStatement(content2, pdfFile2.name, undefined, PDF_STATEMENT_2_DAY_TO, 2)
 
         const merged = {
           bank: `${res1.bank} + ${res2.bank}`,
@@ -170,10 +218,6 @@ export function UploadForm() {
         setBannerDismissed(false)
         setPdfFile1(null)
         setPdfFile2(null)
-        setPdfFrom1('')
-        setPdfTo1('')
-        setPdfFrom2('')
-        setPdfTo2('')
         if (fileInput1Ref.current) fileInput1Ref.current.value = ''
         if (fileInput2Ref.current) fileInput2Ref.current.value = ''
         toast.success('Oba wyciągi PDF zostały zaimportowane.')
@@ -182,6 +226,7 @@ export function UploadForm() {
           if (info) setLastImport(info)
         }).catch(console.error)
         refreshLastPdfRanges()
+        queryClient.invalidateQueries({ queryKey: ['importHistory'] })
       } catch (err) {
         console.error(err)
         toast.error('Błąd podczas importu wyciągów PDF.')
@@ -231,7 +276,9 @@ export function UploadForm() {
             Wgraj wyciąg CSV (Pekao SA)
           </CardTitle>
           <CardDescription>
-            Wybierz plik w formacie .csv pobrany z konta w Pekao SA
+            Wybierz plik w formacie .csv pobrany z konta w Pekao SA. Docelowo import rób 16. dnia
+            miesiąca, generując w banku plik CSV za okres od 16. dnia poprzedniego miesiąca do
+            15. dnia bieżącego miesiąca włącznie.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -268,92 +315,31 @@ export function UploadForm() {
             />
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="space-y-2 rounded-lg border border-border/50 p-4">
-              <p className="text-sm font-medium">Zakres dni brany z pliku</p>
-              <p className="text-xs text-muted-foreground">
-                Opcjonalnie ogranicz zakres do dni miesiąca — przydatne, gdy okres rozliczeniowy
-                nie pokrywa się z pełnym miesiącem kalendarzowym. Wybór zakresu zależy od tego,
-                jaki okres wybrano przy generowaniu pliku CSV w banku.
-              </p>
-              <p className="text-xs text-muted-foreground/80 italic">
-                Zalecany sposób pracy: import rób 16. dnia miesiąca, generując w banku CSV
-                za okres od 16. dnia poprzedniego miesiąca do 15. dnia bieżącego miesiąca.
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <label className="space-y-1">
-                  <span className="text-xs text-muted-foreground">Od dnia</span>
-                  <select
-                    value={csvDayFrom}
-                    disabled={pending}
-                    onChange={(e) => setCsvDayFrom(e.target.value ? Number(e.target.value) : '')}
-                    className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
-                  >
-                    <option value="">—</option>
-                    {DAYS_OF_MONTH.map((d) => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="space-y-1">
-                  <span className="text-xs text-muted-foreground">Do dnia</span>
-                  <select
-                    value={csvDayTo}
-                    disabled={pending}
-                    onChange={(e) => setCsvDayTo(e.target.value ? Number(e.target.value) : '')}
-                    className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
-                  >
-                    <option value="">—</option>
-                    {DAYS_OF_MONTH.map((d) => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              {lastCsvRange === null ? (
-                <p className="text-xs text-muted-foreground/60 italic px-0.5">
-                  Brak wcześniejszego importu dla tego dokumentu — nie wgrywano go jeszcze.
+          {lastImport?.created_at && (
+            <div className="flex items-start gap-3 text-sm bg-muted/40 p-4 rounded-lg border border-border/50">
+              <Info className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
+              <div className="space-y-1.5">
+                <p className="font-medium text-foreground">Ostatni import</p>
+                <p className="text-muted-foreground">
+                  Wykonano {formatDateTime(lastImport.created_at)}
                 </p>
-              ) : lastCsvRange ? (
-                lastCsvRange.dayFrom || lastCsvRange.dayTo ? (
-                  <p className="text-xs text-muted-foreground/80 bg-muted/40 rounded-md px-2 py-1.5">
-                    Poprzednio dla tego dokumentu: <strong className="text-foreground font-medium">{lastCsvRange.dayFrom ?? '—'}</strong>
-                    {' '}do{' '}
-                    <strong className="text-foreground font-medium">{lastCsvRange.dayTo ?? '—'}</strong>
-                    {lastCsvRange.created_at && (
-                      <> ({formatDateTime(lastCsvRange.created_at)})</>
-                    )}
+                {lastImport?.docSlot === 0 && (lastImport?.minDate || lastImport?.maxDate) ? (
+                  <p className="text-muted-foreground mt-2">
+                    Okres: <strong className="text-foreground font-medium">{nominalCsvPeriodLabel((lastImport.minDate ?? lastImport.maxDate)!)}</strong>
                   </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground/60 italic px-0.5">
-                    Przy poprzednim imporcie tego dokumentu nie ograniczano zakresu dni.
+                ) : lastImport?.minDate && lastImport?.maxDate && (
+                  <p className="text-muted-foreground mt-2">
+                    Okres: <strong className="text-foreground font-medium">{lastImport.minDate}</strong> – <strong className="text-foreground font-medium">{lastImport.maxDate}</strong>
                   </p>
-                )
-              ) : null}
-            </div>
-
-            {lastImport?.created_at && (
-              <div className="flex items-start gap-3 text-sm bg-muted/40 p-4 rounded-lg border border-border/50">
-                <Info className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
-                <div className="space-y-1.5">
-                  <p className="font-medium text-foreground">Ostatni import</p>
-                  <p className="text-muted-foreground">
-                    Wykonano {formatDateTime(lastImport.created_at)}
+                )}
+                {(lastImport.originalFileName || lastImport.savedFileName) && (
+                  <p className="text-xs text-muted-foreground/80 mt-1">
+                    Plik: {lastImport.originalFileName || lastImport.savedFileName?.replace('import_', '').substring(0, 12) + '...'}
                   </p>
-                  {lastImport?.minDate && lastImport?.maxDate && (
-                    <p className="text-muted-foreground mt-2">
-                      Okres: <strong className="text-foreground font-medium">{lastImport.minDate}</strong> – <strong className="text-foreground font-medium">{lastImport.maxDate}</strong>
-                    </p>
-                  )}
-                  {(lastImport.originalFileName || lastImport.savedFileName) && (
-                    <p className="text-xs text-muted-foreground/80 mt-1">
-                      Plik: {lastImport.originalFileName || lastImport.savedFileName?.replace('import_', '').substring(0, 12) + '...'}
-                    </p>
-                  )}
-                </div>
+                )}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </CardContent>
 
         {result && (
@@ -361,7 +347,9 @@ export function UploadForm() {
             <div className="flex items-center gap-2 text-sm font-medium">
               <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-500" />
               Podsumowanie importu ({result.bank}
-              {result.minDate && result.maxDate && <>, {result.minDate} do {result.maxDate}</>})
+              {result.docSlot === 0 && (result.minDate || result.maxDate)
+                ? <>, {nominalCsvPeriodLabel((result.minDate ?? result.maxDate)!)}</>
+                : result.minDate && result.maxDate && <>, {result.minDate} do {result.maxDate}</>})
             </div>
             <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
               <span className="text-muted-foreground">
@@ -397,17 +385,17 @@ export function UploadForm() {
           </CardTitle>
           <CardDescription>
             Dla konta w Millennium, z którego pobierasz tylko pełne wyciągi miesięczne w PDF, wgraj naraz wyciąg za
-            poprzedni i bieżący miesiąc. Możesz opcjonalnie ograniczyć zakres dat brany z każdego pliku
-            {cutoffInfo ? (
-              <> (np. poprzedni miesiąc: od {cutoffInfo.suggestedDayFrom}., bieżący: do {cutoffInfo.suggestedDayTo}.)</>
-            ) : null}, żeby uniknąć nakładających się transakcji. Dzień graniczny można zmienić w Ustawieniach.
+            poprzedni i bieżący miesiąc. Zakres dat brany z każdego pliku jest stały i nie do zmiany: wyciąg za
+            poprzedni miesiąc obejmuje zawsze transakcje od {PDF_STATEMENT_1_DAY_FROM}. dnia włącznie do końca
+            miesiąca, a wyciąg za bieżący miesiąc — tylko do {PDF_STATEMENT_2_DAY_TO}. dnia włącznie. Dzięki temu
+            nawet spóźnione dostarczenie wyciągów nigdy nie spowoduje błędnego policzenia transakcji.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid sm:grid-cols-2 gap-6">
             {[
-              { file: pdfFile1, setFile: setPdfFile1, from: pdfFrom1, setFrom: setPdfFrom1, to: pdfTo1, setTo: setPdfTo1, label: 'Wyciąg 1 (np. poprzedni miesiąc)', ref: fileInput1Ref, lastRange: lastPdfRange1 },
-              { file: pdfFile2, setFile: setPdfFile2, from: pdfFrom2, setFrom: setPdfFrom2, to: pdfTo2, setTo: setPdfTo2, label: 'Wyciąg 2 (np. bieżący miesiąc)', ref: fileInput2Ref, lastRange: lastPdfRange2 },
+              { file: pdfFile1, setFile: setPdfFile1, label: 'Wyciąg 1 (poprzedni miesiąc)', rangeLabel: `od ${PDF_STATEMENT_1_DAY_FROM}. dnia do końca miesiąca`, ref: fileInput1Ref, lastRange: lastPdfRange1 },
+              { file: pdfFile2, setFile: setPdfFile2, label: 'Wyciąg 2 (bieżący miesiąc)', rangeLabel: `do ${PDF_STATEMENT_2_DAY_TO}. dnia włącznie`, ref: fileInput2Ref, lastRange: lastPdfRange2 },
             ].map((slot, idx) => (
               <div key={idx} className="space-y-3 rounded-lg border border-border/50 p-4">
                 <p className="text-sm font-medium">{slot.label}</p>
@@ -435,38 +423,8 @@ export function UploadForm() {
                   className="hidden"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Opcjonalnie ogranicz zakres do dni miesiąca (Ty wiesz, ile dni ma dany miesiąc)
+                  Zakres dni (stały, nieedytowalny): <strong className="text-foreground font-medium">{slot.rangeLabel}</strong>
                 </p>
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="space-y-1">
-                    <span className="text-xs text-muted-foreground">Od dnia</span>
-                    <select
-                      value={slot.from}
-                      disabled={pdfPending}
-                      onChange={(e) => slot.setFrom(e.target.value ? Number(e.target.value) : '')}
-                      className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
-                    >
-                      <option value="">—</option>
-                      {DAYS_OF_MONTH.map((d) => (
-                        <option key={d} value={d}>{d}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="space-y-1">
-                    <span className="text-xs text-muted-foreground">Do dnia</span>
-                    <select
-                      value={slot.to}
-                      disabled={pdfPending}
-                      onChange={(e) => slot.setTo(e.target.value ? Number(e.target.value) : '')}
-                      className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
-                    >
-                      <option value="">—</option>
-                      {DAYS_OF_MONTH.map((d) => (
-                        <option key={d} value={d}>{d}</option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
                 {slot.lastRange === null ? (
                   <p className="text-xs text-muted-foreground/60 italic px-0.5">
                     Brak wcześniejszego importu dla tego dokumentu — nie wgrywano go jeszcze.
@@ -474,9 +432,12 @@ export function UploadForm() {
                 ) : slot.lastRange ? (
                   slot.lastRange.dayFrom || slot.lastRange.dayTo ? (
                     <p className="text-xs text-muted-foreground/80 bg-muted/40 rounded-md px-2 py-1.5">
-                      Poprzednio dla tego dokumentu: <strong className="text-foreground font-medium">{slot.lastRange.dayFrom ?? '—'}</strong>
-                      {' '}do{' '}
-                      <strong className="text-foreground font-medium">{slot.lastRange.dayTo ?? '—'}</strong>
+                      Poprzednio dla tego dokumentu:{' '}
+                      <strong className="text-foreground font-medium">
+                        {slot.lastRange.minDate ?? slot.lastRange.maxDate
+                          ? nominalPdfSlotPeriodLabel(slot.lastRange.dayFrom, slot.lastRange.dayTo, (slot.lastRange.minDate ?? slot.lastRange.maxDate)!)
+                          : `${slot.lastRange.dayFrom ?? '—'} do ${slot.lastRange.dayTo ?? '—'}`}
+                      </strong>
                       {slot.lastRange.created_at && (
                         <> ({formatDateTime(slot.lastRange.created_at)})</>
                       )}
@@ -497,6 +458,34 @@ export function UploadForm() {
           >
             {pdfPending ? 'Importowanie...' : 'Zatwierdź i zaimportuj oba PDF'}
           </Button>
+
+          {(lastPdfRange1?.created_at || lastPdfRange2?.created_at) && (
+            <div className="flex items-start gap-3 text-sm bg-muted/40 p-4 rounded-lg border border-border/50">
+              <Info className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
+              <div className="space-y-1.5">
+                <p className="font-medium text-foreground">Ostatni import</p>
+                {(() => {
+                  const latest = [lastPdfRange1, lastPdfRange2]
+                    .filter((r): r is { dayFrom: number | null; dayTo: number | null; minDate?: string | null; maxDate?: string | null; created_at?: string } => !!r?.created_at)
+                    .sort((a, b) => (a.created_at! > b.created_at! ? -1 : 1))[0]
+                  if (!latest?.created_at) return null
+                  const anchor = latest.minDate ?? latest.maxDate
+                  return (
+                    <>
+                      <p className="text-muted-foreground">
+                        Wykonano {formatDateTime(latest.created_at)}
+                      </p>
+                      {anchor && (
+                        <p className="text-muted-foreground mt-2">
+                          Okres: <strong className="text-foreground font-medium">{nominalCsvPeriodLabel(anchor)}</strong>
+                        </p>
+                      )}
+                    </>
+                  )
+                })()}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

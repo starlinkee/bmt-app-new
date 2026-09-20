@@ -3,7 +3,7 @@ import dotenv from 'dotenv'
 import path from 'path'
 
 // Zmienne wskazujące na środowisko preview (Vercel) i jego bazę Supabase.
-// Trzymane osobno od .env.local / .env.development, bo to inne środowisko.
+// Trzymane osobno od .env.local, bo to inne środowisko.
 dotenv.config({ path: path.resolve(__dirname, '.env.e2e') })
 
 const baseURL = process.env.E2E_BASE_URL

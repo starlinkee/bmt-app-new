@@ -1,0 +1,3 @@
+# Fałszywe trafienia: placeholder sk_test_... w ci.yml (nie jest prawdziwym kluczem)
+956f84e904c83cae8b26eb0187c29f6c5cb4bfe3:.github/workflows/ci.yml:stripe-access-token:40
+9557eaa1c9d31d53d67f864591caeb48dcccf32a:.github/workflows/ci.yml:stripe-access-token:40

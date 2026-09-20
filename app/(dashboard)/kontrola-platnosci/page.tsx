@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { useQuery } from '@tanstack/react-query'
 import { getTenantsWithBalances, sendStatementToTenant, getGlobalPaymentStats } from './actions'
 import { QUERY_KEYS } from '@/lib/queryKeys'
-import { formatAmount } from '@/lib/utils'
+import { formatAmount, formatDateTime } from '@/lib/utils'
 import {
   Table,
   TableBody,
@@ -85,6 +85,7 @@ export default function KontrolaPlatnosciPage() {
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [filterText, setFilterText] = useState('')
   const [sendingTenantIds, setSendingTenantIds] = useState<Set<number>>(new Set())
+  const [sendingAll, setSendingAll] = useState(false)
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -101,6 +102,47 @@ export default function KontrolaPlatnosciPage() {
   const sorted = sortTenants(filtered, sortKey, sortDir)
 
   const totalBalance = tenants.reduce((sum, t) => sum + t.balance, 0)
+  const debtors = tenants.filter((t) => t.balance < 0)
+
+  async function handleSendToAllDebtors() {
+    if (debtors.length === 0) return
+    if (!confirm(`Wysłać podsumowanie salda do ${debtors.length} najemców z ujemnym saldem?`)) return
+
+    setSendingAll(true)
+    setSendingTenantIds((prev) => {
+      const next = new Set(prev)
+      for (const t of debtors) next.add(t.id)
+      return next
+    })
+
+    let sent = 0
+    let failed = 0
+    for (const t of debtors) {
+      try {
+        const res = await sendStatementToTenant(t.id)
+        if (res.success) {
+          sent++
+        } else {
+          failed++
+        }
+      } catch {
+        failed++
+      } finally {
+        setSendingTenantIds((prev) => {
+          const next = new Set(prev)
+          next.delete(t.id)
+          return next
+        })
+      }
+    }
+
+    setSendingAll(false)
+    if (failed === 0) {
+      toast.success(`Wysłano ${sent} wiadomości.`)
+    } else {
+      toast.error(`Wysłano ${sent} wiadomości, ${failed} nie powiodło się.`)
+    }
+  }
 
   return (
     <div className="p-6 space-y-4">
@@ -130,8 +172,16 @@ export default function KontrolaPlatnosciPage() {
               </span>
             </div>
           </div>
-          <Button 
-            size="sm" 
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={sendingAll || debtors.length === 0}
+            onClick={handleSendToAllDebtors}
+          >
+            {sendingAll ? 'Wysyłanie...' : `Wyślij do wszystkich zadłużonych (${debtors.length})`}
+          </Button>
+          <Button
+            size="sm"
             variant="outline"
             onClick={() => router.push('/wiadomosci')}
           >
@@ -161,20 +211,21 @@ export default function KontrolaPlatnosciPage() {
             <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort('balance')}>
               Saldo<SortIcon col="balance" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
+            <TableHead>Ostatnia kontrola</TableHead>
             <TableHead className="w-16"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {isLoading && (
             <TableRow>
-              <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                 Ładowanie…
               </TableCell>
             </TableRow>
           )}
           {!isLoading && sorted.length === 0 && (
             <TableRow>
-              <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                 {filterText ? 'Brak wyników dla podanego filtra' : 'Brak najemców'}
               </TableCell>
             </TableRow>
@@ -203,6 +254,21 @@ export default function KontrolaPlatnosciPage() {
                 }`}
               >
                 {formatAmount(t.balance)}
+              </TableCell>
+              <TableCell className="text-muted-foreground">
+                {!t.paymentAccount ? (
+                  <span>Brak konta</span>
+                ) : !t.lastImportAt ? (
+                  <>
+                    <div>Brak importu</div>
+                    <div className="text-xs">{t.paymentAccountLabel}</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-foreground">{formatDateTime(t.lastImportAt)}</div>
+                    <div className="text-xs">{t.paymentAccountLabel}</div>
+                  </>
+                )}
               </TableCell>
               <TableCell>
                 <Button

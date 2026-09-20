@@ -5,6 +5,7 @@ type Db = ReturnType<typeof createTestDbClient>
 
 type TenantHandle = {
   propertyId: number
+  propertyName: string
   tenantId: number
   fullName: string
 }
@@ -18,10 +19,27 @@ type ContractOverrides = Partial<{
   is_active: boolean
 }>
 
+type PropertyOverrides = Partial<{
+  name: string
+  address1: string
+  address2: string | null
+  type: string
+}>
+type PropertyHandle = { propertyId: number; propertyName: string }
+
+type SettlementGroupOverrides = Partial<{
+  name: string
+  spreadsheet_id: string
+  property_ids: number[]
+}>
+type SettlementGroupHandle = { id: number; name: string }
+
 type Fixtures = {
   db: Db
   makeTenant: () => Promise<TenantHandle>
   makeContract: (tenantId: number, overrides?: ContractOverrides) => Promise<{ id: number }>
+  makeProperty: (overrides?: PropertyOverrides) => Promise<PropertyHandle>
+  makeSettlementGroup: (overrides?: SettlementGroupOverrides) => Promise<SettlementGroupHandle>
 }
 
 export const test = base.extend<Fixtures>({
@@ -64,7 +82,7 @@ export const test = base.extend<Fixtures>({
       if (tenantError) throw tenantError
       createdTenantIds.push(tenant.id)
 
-      return { propertyId: property.id, tenantId: tenant.id, fullName: `E2E ${lastName}` }
+      return { propertyId: property.id, propertyName, tenantId: tenant.id, fullName: `E2E ${lastName}` }
     }
 
     await use(factory)
@@ -100,6 +118,75 @@ export const test = base.extend<Fixtures>({
       return { id: data.id as number }
     }
     await use(factory)
+  },
+
+  // Fabryka nieruchomości bez najemcy — do testów nieruchomości, które nie
+  // chcą przez to ciągnąć za sobą sprzątania najemcy/umów jak `makeTenant`.
+  makeProperty: async ({ db }, use) => {
+    const createdPropertyIds: number[] = []
+
+    async function factory(overrides: PropertyOverrides = {}): Promise<PropertyHandle> {
+      const unique = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+      const propertyName = overrides.name ?? `${E2E_PREFIX}Nieruchomość ${unique}`
+
+      const { data, error } = await db
+        .from('properties')
+        .insert({
+          name: propertyName,
+          address1: overrides.address1 ?? 'ul. Testowa 1',
+          address2: overrides.address2 ?? undefined,
+          type: overrides.type ?? 'Mieszkanie',
+        })
+        .select()
+        .single()
+      if (error) throw error
+      createdPropertyIds.push(data.id)
+
+      return { propertyId: data.id, propertyName }
+    }
+
+    await use(factory)
+
+    for (const propertyId of createdPropertyIds) {
+      await db.from('properties').delete().eq('id', propertyId)
+    }
+  },
+
+  // Fabryka grup rozliczeniowych mediów, zakładanych bezpośrednio w bazie
+  // (z pominięciem UI) - do testów edycji/usuwania/filtrowania.
+  makeSettlementGroup: async ({ db }, use) => {
+    const createdGroupIds: number[] = []
+
+    async function factory(overrides: SettlementGroupOverrides = {}): Promise<SettlementGroupHandle> {
+      const unique = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+      const name = overrides.name ?? `${E2E_PREFIX}Grupa ${unique}`
+
+      const { data, error } = await db
+        .from('settlement_groups')
+        .insert({ name, spreadsheet_id: overrides.spreadsheet_id ?? '' })
+        .select()
+        .single()
+      if (error) throw error
+      createdGroupIds.push(data.id)
+
+      if (overrides.property_ids?.length) {
+        await db.from('settlement_group_properties').insert(
+          overrides.property_ids.map((propertyId) => ({
+            settlement_group_id: data.id,
+            property_id: propertyId,
+          })),
+        )
+      }
+
+      return { id: data.id, name }
+    }
+
+    await use(factory)
+
+    for (const groupId of createdGroupIds) {
+      await db.from('settlement_group_properties').delete().eq('settlement_group_id', groupId)
+      await db.from('settlement_groups').delete().eq('id', groupId)
+    }
   },
 })
 

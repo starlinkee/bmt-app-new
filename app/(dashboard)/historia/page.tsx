@@ -100,7 +100,6 @@ const FIELD_LABELS: Record<string, string> = {
   address2:                 'Adres 2',
   property_id:              'ID lokalu',
   tenant_type:              'Typ najemcy',
-  sender_account:           'Konto nadawcy',
   // transactions / staging
   amount:                   'Kwota',
   date:                     'Data',
