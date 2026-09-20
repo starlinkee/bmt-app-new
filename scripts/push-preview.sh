@@ -10,8 +10,8 @@
 #   3. e2e (Playwright) w GitHub Actions (.github/workflows/e2e.yml) na ŚWIEŻO
 #      zbudowanym deploymencie preview tego commita - czekamy na wynik,
 #      inaczej stop (wymaga zalogowanego `gh`)
-#   4. PR dev -> master i jego merge (dopiero po zielonych testach)
-#   5. powrót na dev + rebase na master
+#   4. PR dev -> master (dopiero po zielonych testach) - merge ręcznie
+#      przyciskiem na GitHubie
 
 set -euo pipefail
 
@@ -23,7 +23,7 @@ CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 log() { printf '\n\033[1;36m▶ %s\033[0m\n' "$1"; }
 fail() { printf '\n\033[1;31m✗ %s\033[0m\n' "$1"; exit 1; }
 
-log "0/5 Db push na bazę dev (.env.local)"
+log "0/4 Db push na bazę dev (.env.local)"
 if [ -f .env.local ]; then
   # W subshellu, żeby zmienne z .env.local (m.in. VERCEL=1) nie wyciekły do
   # kolejnych kroków (vitest, playwright).
@@ -41,11 +41,11 @@ else
   echo "  (pomijam - brak .env.local)"
 fi
 
-log "1/5 Commit + push brancha '$CURRENT_BRANCH'"
+log "1/4 Commit + push brancha '$CURRENT_BRANCH'"
 git add .
 git commit -m 'update' || echo "  (nic do commitowania)"
 
-log "2/5 Testy jednostkowe (vitest) - lokalna bramka przed pushem"
+log "2/4 Testy jednostkowe (vitest) - lokalna bramka przed pushem"
 if ! npm run test; then
   fail "Testy jednostkowe NIE przeszły. Napraw je zanim spróbujesz znowu - nic nie zostało wypchnięte na master."
 fi
@@ -54,7 +54,7 @@ git push origin "$CURRENT_BRANCH"
 SHA="$(git rev-parse HEAD)"
 echo "  commit: $SHA"
 
-log "3/5 Testy e2e (GitHub Actions) na świeżym deploymencie preview tego commita"
+log "3/4 Testy e2e (GitHub Actions) na świeżym deploymencie preview tego commita"
 if ! command -v gh >/dev/null 2>&1 || ! gh auth status >/dev/null 2>&1; then
   fail "Brak zalogowanego GitHub CLI (uruchom 'gh auth login') - bez niego nie da się zweryfikować e2e ani otworzyć PR. Nic nie trafiło na master."
 else
@@ -75,17 +75,13 @@ else
   fi
 fi
 
-log "4/5 PR '$CURRENT_BRANCH' -> master i merge"
+log "4/4 PR '$CURRENT_BRANCH' -> master (bez merge)"
 [ "$CURRENT_BRANCH" != "master" ] || fail "Jesteś na master - przełącz się na branch roboczy (np. dev)."
 PR_URL="$(gh pr list --head "$CURRENT_BRANCH" --base master --state open --json url --jq '.[0].url // empty')"
 if [ -z "$PR_URL" ]; then
-  PR_URL="$(gh pr create --base master --head "$CURRENT_BRANCH"     --title "Release: $CURRENT_BRANCH -> master (${SHA:0:7})"     --body "Automatycznie z scripts/push-preview.sh po zielonych testach jednostkowych i e2e.")"
+  PR_URL="$(gh pr create --base master --head "$CURRENT_BRANCH"     --title "Release: $CURRENT_BRANCH -> master (${SHA:0:7})"     --body "Otwarty przez scripts/push-preview.sh po zielonych testach jednostkowych i e2e. Merge ręcznie.")"
 fi
 echo "  PR: $PR_URL"
-gh pr merge "$PR_URL" --merge || fail "Merge PR nie powiódł się: $PR_URL"
 
-log "5/5 Powrót na '$CURRENT_BRANCH' i rebase na master"
-git fetch origin master
-git rebase origin/master
-
-log "Gotowe. master zaktualizowany przez PR po testach jednostkowych i e2e."
+log "Gotowe. Testy zielone, PR czeka na ręczny merge przyciskiem na GitHubie: $PR_URL"
+echo "  Po merge: git fetch origin master && git rebase origin/master"
