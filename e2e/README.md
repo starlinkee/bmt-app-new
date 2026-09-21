@@ -68,6 +68,13 @@ płatności, rozliczanie mediów, import, automatyzacje, ustawienia itd.).
   współdzielona między wszystkimi Twoimi uruchomieniami, więc testy nigdy nie
   powinny operować na realnych rekordach ani zakładać, że są jedynym testem
   działającym w danej chwili na tej bazie.
+- **Sprzątanie jest obowiązkowe i głośne.** Rekordy z fabryk sprzątają się same;
+  rekordy tworzone przez UI trzeba zarejestrować fixture'em
+  `cleanupUiCreated(kind, name)` PRZED akcją w UI (nie `try/finally` z ręcznym
+  `delete` - ten ginął przy timeoutach i połykał błędy FK). Helpery w
+  `e2e/support/db.ts` rzucają błąd, gdy usunięcie się nie uda. Dodatkowo
+  `e2e/global-teardown.ts` po całym przebiegu kasuje wszystko z prefiksem
+  `E2E_TEST__` (siatka bezpieczeństwa po padniętych/ubitych testach).
 - **Rewaluacja jest szczególnie wrażliwa** — dialog "Rewaluuj" domyślnie
   zaznacza WSZYSTKIE aktywne umowy w bazie, więc test ręcznie odznacza
   "Wszystkie aktywne" i zaznacza wyłącznie umowę testową przed zatwierdzeniem.
