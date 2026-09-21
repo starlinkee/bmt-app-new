@@ -8,32 +8,29 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/nieruchomosci')
 })
 
-test('dodawanie nieruchomości przez UI', async ({ page, db }) => {
+test('dodawanie nieruchomości przez UI', async ({ page, cleanupUiCreated }) => {
   // Ta nieruchomość powstaje przez formularz UI (nie przez `makeProperty`),
-  // więc nie jest śledzona przez żadną fabrykę - sprzątamy ją bezpośrednio
-  // w bazie w `finally`, żeby nie zostawić śmiecia nawet jeśli asercja zawiedzie.
+  // więc rejestrujemy ją do sprzątania w fixture (działa też po padzie testu).
   const unique = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
   const name = `E2E_TEST__UI_Nieruchomość ${unique}`
 
-  try {
-    await page.getByRole('button', { name: 'Dodaj' }).click()
-    const dialog = page.getByRole('dialog', { name: 'Nowa nieruchomość' })
+  cleanupUiCreated('property', name)
 
-    await dialog.getByLabel('Nazwa').fill(name)
-    await dialog.getByLabel('Adres *').fill('ul. Testowa 99')
-    await dialog.getByRole('combobox').click()
-    await page.getByRole('option', { name: 'Mieszkanie' }).click()
+  await page.getByRole('button', { name: 'Dodaj' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Nowa nieruchomość' })
 
-    await dialog.getByRole('button', { name: 'Zapisz' }).click()
+  await dialog.getByLabel('Nazwa').fill(name)
+  await dialog.getByLabel('Adres *').fill('ul. Testowa 99')
+  await dialog.getByRole('combobox').click()
+  await page.getByRole('option', { name: 'Mieszkanie' }).click()
 
-    await expect(page.getByText('Nieruchomość dodana.')).toBeVisible()
+  await dialog.getByRole('button', { name: 'Zapisz' }).click()
 
-    const row = page.locator('[data-testid="property-row"]', { hasText: name })
-    await expect(row).toBeVisible()
-    await expect(row).toContainText('Mieszkanie')
-  } finally {
-    await db.from('properties').delete().eq('name', name)
-  }
+  await expect(page.getByText('Nieruchomość dodana.')).toBeVisible()
+
+  const row = page.locator('[data-testid="property-row"]', { hasText: name })
+  await expect(row).toBeVisible()
+  await expect(row).toContainText('Mieszkanie')
 })
 
 test('edycja nieruchomości', async ({ page, makeProperty }) => {

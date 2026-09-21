@@ -16,6 +16,7 @@ export default defineConfig({
   workers: 4,
   reporter: [['html', { open: 'never' }]],
   timeout: 30_000,
+  globalTeardown: './e2e/global-teardown.ts',
 
   use: {
     baseURL,

@@ -8,7 +8,7 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/najemcy')
 })
 
-test('dodawanie najemcy przez UI', async ({ page, db, makeTenant }) => {
+test('dodawanie najemcy przez UI', async ({ page, cleanupUiCreated, makeTenant }) => {
   // Nieruchomość zakładamy przez fixture (istniejący najemca z tej fixture
   // nie jest tu używany) - testujemy dodanie NOWEGO najemcy do niej przez
   // formularz UI, a nie przez `makeTenant`. W przeciwieństwie do kontraktu
@@ -22,26 +22,24 @@ test('dodawanie najemcy przez UI', async ({ page, db, makeTenant }) => {
   const unique = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
   const lastName = `E2E_TEST__UI_Najemca ${unique}`
 
-  try {
-    await page.getByRole('button', { name: 'Dodaj' }).click()
-    const dialog = page.getByRole('dialog', { name: 'Nowy najemca' })
+  cleanupUiCreated('tenant', lastName)
 
-    await dialog.getByLabel('Imię *').fill('E2E')
-    await dialog.getByLabel('Nazwisko *').fill(lastName)
+  await page.getByRole('button', { name: 'Dodaj' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Nowy najemca' })
 
-    await dialog.getByTestId('search-select-input').click()
-    await dialog.getByTestId('search-select-input').fill(propertyName)
-    await dialog.getByTestId('search-select-option').filter({ hasText: propertyName }).click()
+  await dialog.getByLabel('Imię *').fill('E2E')
+  await dialog.getByLabel('Nazwisko *').fill(lastName)
 
-    await dialog.getByRole('button', { name: 'Zapisz' }).click()
+  await dialog.getByTestId('search-select-input').click()
+  await dialog.getByTestId('search-select-input').fill(propertyName)
+  await dialog.getByTestId('search-select-option').filter({ hasText: propertyName }).click()
 
-    await expect(page.getByText('Najemca dodany.')).toBeVisible()
+  await dialog.getByRole('button', { name: 'Zapisz' }).click()
 
-    const row = page.locator('[data-testid="tenant-row"]', { hasText: lastName })
-    await expect(row).toBeVisible()
-  } finally {
-    await db.from('tenants').delete().eq('last_name', lastName)
-  }
+  await expect(page.getByText('Najemca dodany.')).toBeVisible()
+
+  const row = page.locator('[data-testid="tenant-row"]', { hasText: lastName })
+  await expect(row).toBeVisible()
 })
 
 test('edycja najemcy', async ({ page, makeTenant }) => {

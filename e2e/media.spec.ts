@@ -12,27 +12,24 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/media')
 })
 
-test('dodawanie grupy rozliczeniowej przez UI', async ({ page, db }) => {
+test('dodawanie grupy rozliczeniowej przez UI', async ({ page, cleanupUiCreated }) => {
   // Ta grupa powstaje przez formularz UI (nie przez `makeSettlementGroup`),
-  // więc nie jest śledzona przez żadną fabrykę - sprzątamy ją bezpośrednio
-  // w bazie w `finally`, żeby nie zostawić śmiecia nawet jeśli asercja zawiedzie.
+  // więc rejestrujemy ją do sprzątania w fixture (działa też po padzie testu).
   const unique = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
   const name = `E2E_TEST__UI_Grupa ${unique}`
 
-  try {
-    await page.getByRole('button', { name: 'Dodaj' }).click()
-    const dialog = page.getByRole('dialog', { name: 'Nowa grupa' })
+  cleanupUiCreated('settlementGroup', name)
 
-    await dialog.getByLabel('Nazwa').fill(name)
-    await dialog.getByRole('button', { name: 'Zapisz' }).click()
+  await page.getByRole('button', { name: 'Dodaj' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Nowa grupa' })
 
-    await expect(page.getByText('Grupa dodana.')).toBeVisible()
+  await dialog.getByLabel('Nazwa').fill(name)
+  await dialog.getByRole('button', { name: 'Zapisz' }).click()
 
-    const row = page.locator('[data-testid="group-row"]', { hasText: name })
-    await expect(row).toBeVisible()
-  } finally {
-    await db.from('settlement_groups').delete().eq('name', name)
-  }
+  await expect(page.getByText('Grupa dodana.')).toBeVisible()
+
+  const row = page.locator('[data-testid="group-row"]', { hasText: name })
+  await expect(row).toBeVisible()
 })
 
 test('edycja grupy rozliczeniowej', async ({ page, makeSettlementGroup }) => {

@@ -1,5 +1,11 @@
 import { test as base, expect } from '@playwright/test'
-import { createTestDbClient, E2E_PREFIX } from './db'
+import {
+  createTestDbClient,
+  E2E_PREFIX,
+  deleteProperties,
+  deleteSettlementGroups,
+  deleteTenants,
+} from './db'
 
 type Db = ReturnType<typeof createTestDbClient>
 
@@ -34,8 +40,14 @@ type SettlementGroupOverrides = Partial<{
 }>
 type SettlementGroupHandle = { id: number; name: string }
 
+type UiCreatedKind = 'tenant' | 'property' | 'settlementGroup'
+
 type Fixtures = {
   db: Db
+  // Rejestruje rekord tworzony przez UI (nie przez fabrykę) do posprzątania po
+  // teście. Wołać PRZED akcją w UI - teardown fixture'a odpala się nawet gdy
+  // test padnie lub przekroczy timeout.
+  cleanupUiCreated: (kind: UiCreatedKind, name: string) => void
   makeTenant: () => Promise<TenantHandle>
   makeContract: (tenantId: number, overrides?: ContractOverrides) => Promise<{ id: number }>
   makeProperty: (overrides?: PropertyOverrides) => Promise<PropertyHandle>
@@ -45,6 +57,26 @@ type Fixtures = {
 export const test = base.extend<Fixtures>({
   db: async ({}, use) => {
     await use(createTestDbClient())
+  },
+
+  cleanupUiCreated: async ({ db }, use) => {
+    const tracked: { kind: UiCreatedKind; name: string }[] = []
+    await use((kind, name) => {
+      tracked.push({ kind, name })
+    })
+
+    for (const { kind, name } of tracked) {
+      if (kind === 'tenant') {
+        const { data } = await db.from('tenants').select('id').eq('last_name', name)
+        await deleteTenants(db, (data ?? []).map((r) => r.id))
+      } else if (kind === 'property') {
+        const { data } = await db.from('properties').select('id').eq('name', name)
+        await deleteProperties(db, (data ?? []).map((r) => r.id))
+      } else {
+        const { data } = await db.from('settlement_groups').select('id').eq('name', name)
+        await deleteSettlementGroups(db, (data ?? []).map((r) => r.id))
+      }
+    }
   },
 
   // Fabryka najemców: każde wywołanie zakłada świeżą nieruchomość + najemcę
@@ -87,13 +119,8 @@ export const test = base.extend<Fixtures>({
 
     await use(factory)
 
-    for (const tenantId of createdTenantIds) {
-      await db.from('contracts').delete().eq('tenant_id', tenantId)
-      await db.from('tenants').delete().eq('id', tenantId)
-    }
-    for (const propertyId of createdPropertyIds) {
-      await db.from('properties').delete().eq('id', propertyId)
-    }
+    await deleteTenants(db, createdTenantIds)
+    await deleteProperties(db, createdPropertyIds)
   },
 
   // Fabryka umów zakładanych bezpośrednio w bazie (z pominięciem UI) - do testów,
@@ -147,9 +174,7 @@ export const test = base.extend<Fixtures>({
 
     await use(factory)
 
-    for (const propertyId of createdPropertyIds) {
-      await db.from('properties').delete().eq('id', propertyId)
-    }
+    await deleteProperties(db, createdPropertyIds)
   },
 
   // Fabryka grup rozliczeniowych mediów, zakładanych bezpośrednio w bazie
@@ -183,10 +208,7 @@ export const test = base.extend<Fixtures>({
 
     await use(factory)
 
-    for (const groupId of createdGroupIds) {
-      await db.from('settlement_group_properties').delete().eq('settlement_group_id', groupId)
-      await db.from('settlement_groups').delete().eq('id', groupId)
-    }
+    await deleteSettlementGroups(db, createdGroupIds)
   },
 })
 
