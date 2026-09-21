@@ -34,7 +34,7 @@ export async function getTenantsWithBalances() {
     await Promise.all([
       supabase
         .from('tenants')
-        .select('id, first_name, last_name, company_name, email, email2, payment_account, properties(name, address1)'),
+        .select('id, first_name, last_name, company_name, email, email2, bank_accounts_as_text, payment_account, properties(name, address1)'),
       supabase
         .from('transactions')
         .select('tenant_id, amount')
@@ -71,6 +71,10 @@ export async function getTenantsWithBalances() {
         company_name: t.company_name,
         email: (t as unknown as { email: string | null }).email,
         email2: (t as unknown as { email2: string | null }).email2,
+        bankAccounts: (t.bank_accounts_as_text ?? '')
+          .split(/[\r\n,;]+/)
+          .map((s: string) => s.trim())
+          .filter(Boolean),
         property: t.properties as unknown as { name: string; address1: string } | null,
         balance: (txMap.get(t.id) ?? 0) - (invMap.get(t.id) ?? 0),
         totalInflows: txMap.get(t.id) ?? 0,
