@@ -256,6 +256,13 @@ export default function ReconcilePage() {
                       <dd className="font-mono text-xs break-all">{value}</dd>
                     </div>
                   ))}
+                  {/* raw_data z PDF (Millennium) nie zawiera numeru konta — dokładamy go z kolumny bank_account */}
+                  {tx.bank_account && !rawEntries.some(([, v]) => String(v).replace(/\s/g, '').includes(tx.bank_account!.replace(/\s/g, ''))) && (
+                    <div className="contents">
+                      <dt className="text-muted-foreground whitespace-nowrap">Konto nadawcy</dt>
+                      <dd className="font-mono text-xs break-all">{tx.bank_account}</dd>
+                    </div>
+                  )}
                 </dl>
               ) : (
                 <div className="text-sm space-y-1">

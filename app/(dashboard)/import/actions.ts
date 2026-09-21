@@ -301,6 +301,68 @@ export async function getLastImportSlotRange(docSlot: ImportDocSlot) {
   }
 }
 
+export type ImportKind = 'csv' | 'pdf'
+
+export type ImportKindStatus = {
+  lastImportAt: string | null
+  lastApprovedAt: string | null
+}
+
+// Dla każdego rodzaju importu (CSV / 2 wyciągi PDF) zwraca: kiedy wykonano
+// ostatni import oraz kiedy zatwierdzono ostatni import. "Zatwierdzony import"
+// to import, w którym nic już nie czeka na decyzję (brak rekordów w
+// transaction_staging) i przynajmniej jedna transakcja została zatwierdzona
+// (MATCHED); data zatwierdzenia = moment zapisania ostatniej takiej transakcji.
+// Wszystko liczone na żywo z import_id, więc nic nie trzeba osobno utrzymywać.
+export async function getImportKindStatuses(): Promise<Record<ImportKind, ImportKindStatus>> {
+  const supabase = createServiceClient()
+  const { data, error } = await supabase
+    .from('audit_log')
+    .select('id, after_data, created_at')
+    .eq('action_name', 'importBankStatement')
+    .order('created_at', { ascending: false })
+
+  const result: Record<ImportKind, ImportKindStatus> = {
+    csv: { lastImportAt: null, lastApprovedAt: null },
+    pdf: { lastImportAt: null, lastApprovedAt: null },
+  }
+  if (error || !data || data.length === 0) return result
+
+  const kindOf = (afterData: unknown): ImportKind => {
+    const s = (afterData ?? {}) as { docSlot?: number | null; pdfSlot?: number | null; originalFileName?: string }
+    const slot = s.docSlot ?? s.pdfSlot
+    if (slot === 1 || slot === 2) return 'pdf'
+    if (slot == null && s.originalFileName?.toLowerCase().endsWith('.pdf')) return 'pdf'
+    return 'csv'
+  }
+
+  const importIds = data.map((row) => row.id)
+  const [{ data: pendingRows }, { data: matchedRows }] = await Promise.all([
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).from('transaction_staging').select('import_id').in('import_id', importIds) as Promise<{ data: { import_id: number }[] | null }>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).from('transactions').select('import_id, created_at').eq('status', 'MATCHED').in('import_id', importIds) as Promise<{ data: { import_id: number; created_at: string }[] | null }>,
+  ])
+
+  const pending = new Set((pendingRows ?? []).map((r) => r.import_id))
+  const lastMatchedAt = new Map<number, string>()
+  for (const row of matchedRows ?? []) {
+    const prev = lastMatchedAt.get(row.import_id)
+    if (!prev || row.created_at > prev) lastMatchedAt.set(row.import_id, row.created_at)
+  }
+
+  // data jest posortowana malejąco po created_at
+  for (const row of data) {
+    const status = result[kindOf(row.after_data)]
+    if (!status.lastImportAt) status.lastImportAt = row.created_at
+    const approvedAt = lastMatchedAt.get(row.id)
+    if (approvedAt && !pending.has(row.id) && (!status.lastApprovedAt || approvedAt > status.lastApprovedAt)) {
+      status.lastApprovedAt = approvedAt
+    }
+  }
+  return result
+}
+
 export async function getImportHistoryList() {
   const supabase = createServiceClient()
   const { data, error } = await supabase
