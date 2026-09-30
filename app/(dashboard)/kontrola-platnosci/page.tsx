@@ -306,7 +306,20 @@ export default function KontrolaPlatnosciPage() {
                 {t.property?.name || t.property?.address1 || '—'}
               </TableCell>
               <TableCell className="text-muted-foreground">
-                {t.paymentAccountLabel ?? '—'}
+                <div>{t.paymentAccountLabel ?? '—'}</div>
+                {t.bankAccounts.length > 0 && (
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <span className="font-mono">{t.bankAccounts[0]}</span>
+                    {t.bankAccounts.length > 1 && (
+                      <span
+                        className="inline-flex items-center justify-center rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground cursor-help"
+                        title={t.bankAccounts.slice(1).join('\n')}
+                      >
+                        +{t.bankAccounts.length - 1}
+                      </span>
+                    )}
+                  </div>
+                )}
               </TableCell>
               <TableCell className="text-right text-muted-foreground">
                 {formatAmount(t.totalInflows)}

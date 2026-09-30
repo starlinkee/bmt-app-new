@@ -76,7 +76,7 @@ function NavItem({ href, label, icon: Icon, activeHref, bold }: { href: string, 
 
 const bottomHrefs = ['/testowanie', '/baza-danych', '/automatyzacje', '/ustawienia']
 
-export function Sidebar() {
+export function Sidebar({ isProduction = false }: { isProduction?: boolean }) {
   const pathname = usePathname()
   const activeHref = getBestMatchingHref(pathname, [
     ...actionItems.map((i) => i.href),
@@ -88,7 +88,14 @@ export function Sidebar() {
   return (
     <aside className="flex h-full w-max min-w-[224px] pr-2 flex-col border-r bg-sidebar" style={{ fontSize: '115%' }}>
       <Link href="/" className="flex h-14 items-center border-b px-4 hover:bg-accent/50 transition-colors">
-        <span className="font-semibold tracking-tight">BMT Nieruchomości</span>
+        <span
+          className={cn(
+            'font-semibold tracking-tight',
+            isProduction && 'text-blue-500 [text-shadow:0_0_8px_rgb(59_130_246_/_0.8),0_0_18px_rgb(59_130_246_/_0.5)]',
+          )}
+        >
+          BMT Nieruchomości
+        </span>
       </Link>
       <div className="px-4 py-2 pb-0">
         <LiveClock />
