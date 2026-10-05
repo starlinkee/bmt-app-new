@@ -20,6 +20,7 @@ import {
   Database,
   BellRing,
   ListChecks,
+  CalendarClock,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { logoutAction } from '@/app/login/actions'
@@ -45,6 +46,13 @@ const actionItems = [
   { href: '/kontrola-platnosci', label: 'Kontrola płatności', icon: ClipboardList },
   { href: '/rozlicz-media', label: 'Rozlicz media', icon: Gauge },
   { href: '/import', label: 'Import CSV', icon: Upload },
+]
+
+// Niebezpieczne zakładki (wsteczne dopisywanie czynszów i mediów) - widoczne
+// tylko gdy włączone w Ustawieniach (app_config.backfill_rents_enabled).
+const backfillItems = [
+  { href: '/rozlicz-w-przeszlosci', label: 'Rozlicz w przeszłości', icon: CalendarClock },
+  { href: '/media-w-przeszlosci', label: 'Media w przeszłości', icon: CalendarClock },
 ]
 
 function getBestMatchingHref(pathname: string, hrefs: string[]): string | undefined {
@@ -76,10 +84,11 @@ function NavItem({ href, label, icon: Icon, activeHref, bold }: { href: string, 
 
 const bottomHrefs = ['/testowanie', '/baza-danych', '/automatyzacje', '/ustawienia']
 
-export function Sidebar({ isProduction = false }: { isProduction?: boolean }) {
+export function Sidebar({ isProduction = false, showBackfill = false }: { isProduction?: boolean; showBackfill?: boolean }) {
   const pathname = usePathname()
+  const visibleActionItems = showBackfill ? [...actionItems, ...backfillItems] : actionItems
   const activeHref = getBestMatchingHref(pathname, [
-    ...actionItems.map((i) => i.href),
+    ...visibleActionItems.map((i) => i.href),
     ...dataItems.map((i) => i.href),
     ...historyItems.map((i) => i.href),
     ...bottomHrefs,
@@ -105,7 +114,7 @@ export function Sidebar({ isProduction = false }: { isProduction?: boolean }) {
           Akcje
         </div>
         <ul className="space-y-0.5 px-2 mb-4">
-          {actionItems.map((item) => (
+          {visibleActionItems.map((item) => (
             <NavItem key={item.href} {...item} activeHref={activeHref} bold />
           ))}
         </ul>
