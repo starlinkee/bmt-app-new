@@ -40,6 +40,7 @@ export type Database = {
             admin_email: string | null
             payment_account_1_name: string
             payment_account_2_name: string
+            backfill_rents_enabled: boolean
             statement_upload_reminder_subject: string | null
             statement_upload_reminder_body: string | null
           }
@@ -68,6 +69,7 @@ export type Database = {
             admin_email?: string | null
             payment_account_1_name?: string
             payment_account_2_name?: string
+            backfill_rents_enabled?: boolean
             statement_upload_reminder_subject?: string | null
             statement_upload_reminder_body?: string | null
           }
@@ -96,6 +98,7 @@ export type Database = {
             admin_email?: string | null
             payment_account_1_name?: string
             payment_account_2_name?: string
+            backfill_rents_enabled?: boolean
             statement_upload_reminder_subject?: string | null
             statement_upload_reminder_body?: string | null
           }

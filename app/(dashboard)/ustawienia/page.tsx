@@ -1,18 +1,22 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { getAppConfig, upsertAppConfig } from './actions'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 
 export default function SettingsPage() {
   const [ignoredSourceAccounts, setIgnoredSourceAccounts] = useState('')
   const [adminEmail, setAdminEmail] = useState('')
   const [paymentAccount1Name, setPaymentAccount1Name] = useState('')
   const [paymentAccount2Name, setPaymentAccount2Name] = useState('')
+  const [backfillRentsEnabled, setBackfillRentsEnabled] = useState(false)
   const [pending, startTransition] = useTransition()
+  const router = useRouter()
 
   useEffect(() => {
     startTransition(async () => {
@@ -23,6 +27,7 @@ export default function SettingsPage() {
         setAdminEmail(cfg.admin_email as string ?? '')
         setPaymentAccount1Name(cfg.payment_account_1_name as string ?? 'Pekao')
         setPaymentAccount2Name(cfg.payment_account_2_name as string ?? 'Millennium')
+        setBackfillRentsEnabled(cfg.backfill_rents_enabled === true)
       }
     })
   }, [])
@@ -35,8 +40,10 @@ export default function SettingsPage() {
           admin_email: adminEmail || null,
           payment_account_1_name: paymentAccount1Name,
           payment_account_2_name: paymentAccount2Name,
+          backfill_rents_enabled: backfillRentsEnabled,
         })
         toast.success('Ustawienia zapisane.')
+        router.refresh()
       } catch (e) {
         const msg = e instanceof Error ? e.message : JSON.stringify(e)
         toast.error(`Błąd zapisu: ${msg}`)
@@ -102,6 +109,19 @@ export default function SettingsPage() {
             rows={4}
             placeholder="Np. 12345678901234567890123456"
           />
+        </div>
+
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold">Zakładki &quot;Rozlicz w przeszłości&quot; i &quot;Media w przeszłości&quot;</h2>
+          <p className="text-sm text-muted-foreground mt-1 mb-3">
+            Pokazuje w menu Akcje zakładki do wstecznego dopisywania czynszów i historycznych
+            rachunków za media. To niebezpieczne operacje (zmieniają salda najemców) — włączaj je
+            tylko na czas uzupełniania historii, a potem wyłącz.
+          </p>
+          <label className="flex items-center gap-3 text-sm">
+            <Switch checked={backfillRentsEnabled} onCheckedChange={setBackfillRentsEnabled} />
+            {backfillRentsEnabled ? 'Zakładki widoczne' : 'Zakładki ukryte'}
+          </label>
         </div>
 
         <Button onClick={handleSave} disabled={pending}>

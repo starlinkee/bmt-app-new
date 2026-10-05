@@ -19,6 +19,7 @@ export async function upsertAppConfig(data: {
   admin_email?: string | null
   payment_account_1_name?: string
   payment_account_2_name?: string
+  backfill_rents_enabled?: boolean
 }) {
   const supabase = createServiceClient()
   const { data: before } = await supabase.from('app_config').select('*').eq('id', 1).single()
@@ -29,4 +30,6 @@ export async function upsertAppConfig(data: {
   }
   await logAudit({ actionName: 'upsertAppConfig', tableName: 'app_config', operation: 'UPDATE', recordId: '1', beforeData: before, afterData: after })
   revalidatePath('/ustawienia')
+  // Widoczność zakładki "Rozlicz w przeszłości" w menu zależy od app_config.
+  revalidatePath('/', 'layout')
 }
