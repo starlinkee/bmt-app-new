@@ -4,6 +4,7 @@ import "./globals.css";
 import { ReactQueryProvider } from "@/lib/query-client";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { RecoveryHashRedirect } from "@/components/auth/recovery-hash-redirect";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -30,6 +31,7 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="light" disableTransitionOnChange>
           <ReactQueryProvider>{children}</ReactQueryProvider>
           <ThemeToggle />
+          <RecoveryHashRedirect />
         </ThemeProvider>
       </body>
     </html>

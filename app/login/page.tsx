@@ -1,13 +1,24 @@
 'use client'
 
-import { useActionState } from 'react'
+import { use, useActionState } from 'react'
+import Link from 'next/link'
 import { loginAction } from './actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
-export default function LoginPage() {
+export default function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>
+}) {
+  const { error } = use(searchParams)
+  const linkError =
+    error === 'link_invalid'
+      ? 'Link z e-maila jest nieprawidłowy lub wygasł. Poproś o nowy.'
+      : null
+
   const [state, action, pending] = useActionState(
     async (_prev: { error?: string } | null, formData: FormData) => {
       return loginAction(formData)
@@ -43,12 +54,18 @@ export default function LoginPage() {
                 required
               />
             </div>
-            {state?.error && (
-              <p className="text-sm text-destructive">{state.error}</p>
+            {(state?.error ?? linkError) && (
+              <p className="text-sm text-destructive">{state?.error ?? linkError}</p>
             )}
             <Button type="submit" className="w-full" disabled={pending}>
               {pending ? 'Logowanie…' : 'Zaloguj się'}
             </Button>
+            <Link
+              href="/forgot-password"
+              className="block text-center text-sm text-muted-foreground hover:underline"
+            >
+              Nie pamiętasz hasła?
+            </Link>
           </form>
         </CardContent>
       </Card>
