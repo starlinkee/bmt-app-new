@@ -1,3 +1,5 @@
+> ⚠️ **Dokument historyczny** — szablon startowy (`webapp-template`) z początku projektu (Stripe, Next 15, itp.). Nie opisuje bieżącej aplikacji; aktualny opis: [functionality.md](functionality.md) i [README.md](README.md).
+
 # webapp-template — plan budowy
 
 Baza pod każdy przyszły projekt SaaS/webapp. Deploy w 10 minut po podaniu kluczy.

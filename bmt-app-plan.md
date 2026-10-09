@@ -1,3 +1,5 @@
+> ⚠️ **Dokument historyczny** — pierwotny plan budowy (Resend, dashboard zadań miesięcznych, numeracja rachunków, ścieżki angielskie). Aplikacja poszła w inną stronę (Gmail SMTP, brak rachunków czynszowych, polskie ścieżki, grupy mediów w arkuszach). Aktualny opis: [functionality.md](functionality.md) i [AGENTS.md](AGENTS.md).
+
 # BMT App — Plan budowy
 
 Aplikacja do zarządzania nieruchomościami na wynajem. Single-tenant, jedno hasło, jeden admin.

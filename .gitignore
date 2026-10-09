@@ -82,3 +82,9 @@ temp_val.txt
 
 # raport ze skanu forensycznego VPS - nie commitować
 report.txt
+
+# narzędzia agentów (OpenRig / Claude) - lokalne
+/.claude/
+/.openrig/
+/rigs/
+/.mcp.json

@@ -1,769 +1,364 @@
 # BMT — Dokumentacja funkcjonalna
 
-Aplikacja do zarządzania nieruchomościami na wynajem. Obsługuje nieruchomości, najemców, umowy, rachunki, transakcje bankowe, rozliczenia mediów i automatyczne przypomnienia e-mail.
+Aplikacja do zarządzania nieruchomościami na wynajem (single-tenant, jeden admin). Obsługuje nieruchomości, najemców, umowy, saldo najemców ("skarbonka"), import wyciągów bankowych, rozliczanie mediów oraz automatyczne przypomnienia e-mail.
+
+> Stan opisu: październik 2026. Źródłem prawdy jest kod i migracje w `supabase/migrations`; reguły rozliczeń są dodatkowo w `AGENTS.md`.
 
 ---
 
 ## Spis treści
 
 1. [Architektura i stack](#architektura-i-stack)
-2. [Model danych](#model-danych)
-3. [Uwierzytelnianie](#uwierzytelnianie)
-4. [Nawigacja / strony](#nawigacja--strony)
-5. [Strona główna — Dashboard](#strona-główna--dashboard)
-6. [Nieruchomości](#nieruchomości)
-7. [Najemcy](#najemcy)
-8. [Umowy](#umowy)
-9. [Wystawienie czynszu (Finance)](#wystawienie-czynszu-finance)
-10. [Media — Grupy rozliczeniowe](#media--grupy-rozliczeniowe)
-11. [Import CSV (Transakcje bankowe)](#import-csv-transakcje-bankowe)
-12. [Uzgadnianie transakcji (Reconcile)](#uzgadnianie-transakcji-reconcile)
-13. [Przypomnienia e-mail](#przypomnienia-e-mail)
-14. [Ustawienia aplikacji](#ustawienia-aplikacji)
-15. [Model finansowy — "Skarbonka"](#model-finansowy--skarbonka)
-16. [Wyciąg najemcy (Statement)](#wyciąg-najemcy-statement)
-17. [Numeracja rachunków](#numeracja-rachunków)
-18. [Integracje zewnętrzne](#integracje-zewnętrzne)
-19. [Zadania miesięczne (MonthlyTask)](#zadania-miesięczne-monthlytask)
-20. [Cron / automatyzacja](#cron--automatyzacja)
+2. [Zasady rozliczeń (czynsze vs media)](#zasady-rozliczeń-czynsze-vs-media)
+3. [Model danych](#model-danych)
+4. [Uwierzytelnianie](#uwierzytelnianie)
+5. [Nawigacja / strony](#nawigacja--strony)
+6. [Dane podstawowe: nieruchomości, najemcy, umowy](#dane-podstawowe-nieruchomości-najemcy-umowy)
+7. [Czynsze (generateRents)](#czynsze-generaterents)
+8. [Media: grupy rozliczeniowe i rozliczanie](#media-grupy-rozliczeniowe-i-rozliczanie)
+9. [Odczyty liczników przez najemcę](#odczyty-liczników-przez-najemcę)
+10. [Import wyciągów bankowych i uzgadnianie](#import-wyciągów-bankowych-i-uzgadnianie)
+11. [Model finansowy — "Skarbonka"](#model-finansowy--skarbonka)
+12. [Kontrola płatności i wyciągi dla najemców](#kontrola-płatności-i-wyciągi-dla-najemców)
+13. [E-maile i historia wiadomości](#e-maile-i-historia-wiadomości)
+14. [Automatyzacje i crony](#automatyzacje-i-crony)
+15. [Rozliczanie wstecz ("w przeszłości")](#rozliczanie-wstecz-w-przeszłości)
+16. [Ustawienia](#ustawienia)
+17. [Historia, audyt, podgląd bazy](#historia-audyt-podgląd-bazy)
+18. [Panel testowy i wirtualny zegar](#panel-testowy-i-wirtualny-zegar)
+19. [Integracje zewnętrzne](#integracje-zewnętrzne)
+20. [Środowiska, wdrażanie, testy](#środowiska-wdrażanie-testy)
 21. [Zmienne środowiskowe](#zmienne-środowiskowe)
 
 ---
 
 ## Architektura i stack
 
-- **Framework**: Next.js (App Router), TypeScript
-- **Baza danych**: PostgreSQL (Supabase) + Prisma ORM (wcześniej SQLite)
-- **UI**: Tailwind CSS + shadcn/ui (Radix UI), ikony Lucide React
-- **Auth**: NextAuth.js — Credentials Provider, JWT 30 dni
-- **Email**: Resend (API)
-- **Arkusze**: Google Sheets API v4 (Service Account JSON)
-- **Drive**: Google Drive API v3 (OAuth2)
-- **Deploy**: Vercel (cron via `vercel.json`)
-- **Inne**: PapaParse (CSV), Sonner (toasty)
+- **Framework**: Next.js 16 (App Router), TypeScript, server actions (`'use server'`) jako główna warstwa logiki
+- **Baza danych / auth / storage**: Supabase (PostgreSQL, Supabase Auth, Supabase Storage); dostęp przez `@supabase/supabase-js` i `@supabase/ssr`, bez ORM-a
+- **UI**: Tailwind CSS v4, shadcn/ui (`@base-ui/react`), ikony Lucide, TanStack Query
+- **E-mail**: Gmail SMTP przez `nodemailer` (patrz [E-maile](#e-maile-i-historia-wiadomości))
+- **Arkusze / PDF**: Google Sheets API v4 i Google Drive API v3 (media), `pdfkit` (wyciągi dla najemców)
+- **Import**: PapaParse (CSV), `pdf-parse` (PDF — tylko układ Millennium)
+- **Hosting**: Vercel (crony w `vercel.json`)
+- **Typy bazy**: `types/supabase.ts` (generowane `npm run db:types`; bywa nieaktualne — część kolumn, np. `import_id`, kod obchodzi przez `as any`)
 
 ### Struktura katalogów
 
 ```
-src/
-  app/
-    (dashboard)/          # Wszystkie chronione strony (layout z Sidebar + auth)
-      page.tsx            # Strona główna
-      properties/         # Nieruchomości
-      tenants/            # Najemcy (lista + /[id] — szczegóły)
-      contracts/          # Umowy
-      finance/            # Wystawienie czynszu
-      media/              # Media (lista grup + /[groupId] — rozliczenie)
-      reminders/          # Przypomnienia
-      import/             # Import CSV (+ /reconcile)
-      settings/           # Ustawienia
-    api/
-      auth/[...nextauth]/ # NextAuth handler
-      cron/reminders/     # Endpoint cron dla przypomnień
-    login/                # Strona logowania
-  lib/
-    auth.ts               # Konfiguracja NextAuth
-    balance.ts            # Obliczanie salda najemcy
-    csvParser.ts          # Parser CSV banków
-    driveEngine.ts        # Upload PDF na Google Drive
-    email.ts              # Wysyłka e-maili (Resend)
-    matcher.ts            # Dopasowanie transakcji do najemców
-    numberWords.ts        # Kwota słownie po polsku
-    prisma.ts             # Singleton klienta Prisma
-    sheetsEngine.ts       # Operacje na Google Sheets
-    statement.ts          # Wyciąg finansowy najemcy
-    tasks.ts              # Zarządzanie zadaniami miesięcznymi
-    utils.ts              # cn() helper
-  components/
-    sidebar.tsx           # Boczne menu
-    invoice-status-badge.tsx  # Badge "Opłacone/Zaległe"
-    ui/                   # Komponenty shadcn/ui
-  generated/prisma/       # Wygenerowany klient Prisma
+app/
+  (dashboard)/            # chronione strony (layout z Sidebar)
+    kontrola-platnosci/   # strona startowa (/ przekierowuje tutaj)
+    umowy/ nieruchomosci/ najemcy/ (+ [id])
+    media/ (+ [groupId])  # definicje grup rozliczeniowych
+    rozlicz-media/ (+ [groupId])  # rozliczanie miesiąca
+    import/ (+ history, reconcile, uploads)
+    historia/ historia-obciazen/ historia-mediow/ historia-importow/ wiadomosci/
+    rozlicz-w-przeszlosci/ media-w-przeszlosci/   # opcjonalne, patrz niżej
+    automatyzacje/ ustawienia/ testowanie/ baza-danych/
+  odczyty/[token]/        # PUBLICZNY formularz odczytów dla najemcy
+  login/
+  api/
+    cron/{generate-rents,statement-reminder,meter-reading-reminder}/
+    health/  attachments/  media-settlement-pdf/  media/save-readings/
+    run-skill/ skills/ skill-files/ skill-prompts/   # skill runner (VPS)
+lib/                      # logika biznesowa (balance, statement, rents, email, sheetsEngine, ...)
+components/               # sidebar, ui/ (shadcn), itp.
+supabase/migrations/      # jedyne źródło zmian schematu
+skill-runner/             # osobny serwer na VPS uruchamiający skille
+__tests__/{unit,integration}/  e2e/  tests-support/
 ```
+
+---
+
+## Zasady rozliczeń (czynsze vs media)
+
+Obowiązujące reguły (kanonicznie w `AGENTS.md`):
+
+1. **Czynsze** — system NIE generuje faktur/PDF ani nie wysyła e-maili o czynszu. `generateRents` tworzy wyłącznie rekord w tabeli `invoices` (`number: null`), który jest zobowiązaniem najemcy w saldzie. Formalne faktury są wystawiane w zewnętrznym systemie księgowym.
+2. **Media ("Noty obciążeniowe")** — rozliczenie liczy się w Google Sheets: aplikacja kopiuje arkusz-szablon, wpisuje odczyty, odczytuje kwoty, eksportuje PDF-y i wysyła je e-mailem. Układ noty żyje w szablonie arkusza (tymczasowy — do uzupełnienia, gdy będą znane wymagania). W kodzie nie ma własnego generowania PDF dla mediów.
+
+Rachunki za media też zapisują się jako `invoices` z `number: null`; numeracja `MM/YYYY/NNN` została wycofana (migracje `0029`, `0031`).
 
 ---
 
 ## Model danych
 
-### Property (Nieruchomość)
+Schemat zmienia się wyłącznie migracjami (`supabase/migrations`, ~57 plików). Tabele (schemat `public`):
 
-| Pole      | Typ      | Opis                              |
-|-----------|----------|-----------------------------------|
-| id        | Int PK   | Auto increment                    |
-| name      | String   | Nazwa własna (domyślnie "")       |
-| address1  | String   | Główna linia adresu (wymagana)   |
-| address2  | String?  | Dodatkowa linia adresu           |
-| type      | String   | Typ lokalu (np. "mieszkanie")    |
-| createdAt | DateTime |                                   |
-| updatedAt | DateTime |                                   |
+| Tabela | Rola |
+|---|---|
+| `properties` | Nieruchomości: `name`, `address1`, `address2`, `type` |
+| `tenants` | Najemcy: `tenant_type` (PRIVATE/BUSINESS), `first_name`, `last_name`, `company_name`, `email`, `email2`, `phone`, `nip`, `address1/2`, `bank_accounts_as_text`, `property_id`, `payment_account` (1/2), `reading_token` |
+| `contracts` | Umowy: `contract_type`, `rent_amount`, `start_date`, `end_date`, `is_active`, `has_media_invoice`, `opis_rachunku`, `opis_rachunku_media`, `tenant_id` (+ pozostałości `invoice_seq_number`, `media_invoice_seq_number`) |
+| `invoices` | Obciążenia (zobowiązania): `type` (RENT/MEDIA/OTHER), `amount`, `month`, `year`, `number` (null), `source` (CRON/MANUAL/TEST_MANUAL/…), `tenant_id`, `contract_id`, `media_settlement_id` |
+| `transactions` | Zatwierdzone transakcje: `type` (BANK/CASH/ADJUSTMENT), `status`, `amount`, `date`, `title`, `bank_account`, `category` (RENT/MEDIA), `tenant_id`, `raw_data`, `import_id` |
+| `transaction_staging` | Zaimportowane wiersze czekające na zatwierdzenie: `suggested_tenant_id`, `is_duplicate`, `raw_data`, `import_id` |
+| `transaction_amendments` | Historia edycji transakcji |
+| `settlement_groups` | Grupy rozliczeniowe mediów: `spreadsheet_id`, `input_mapping_json`, `output_mapping_json`, `pdf_sheets_json`, `tenant_reading_keys`, szablony e-maila (`email_subject_template`, `email_body_template`) |
+| `settlement_group_properties` | Powiązanie grupa ↔ nieruchomość (wiele-do-wielu) |
+| `media_settlements` | Wykonane rozliczenia (grupa × miesiąc × rok): `spreadsheet_id` (kopii roboczej), `drive_pdf_ids` |
+| `media_meter_readings` | Odczyty liczników: `group_id`, `month`, `year`, `key`, `value` (źródło "poprzednich odczytów") |
+| `app_config` | Jeden wiersz (`id = 1`) z ustawieniami i szablonami e-maili |
+| `email_logs` | Dziennik wysłanych e-maili (z załącznikami) |
+| `reminder_dedup` | Atomowa deduplikacja przypomnień: unikalne `(action_name, dedup_key)` |
+| `audit_log` | Dziennik operacji (`action_name`, `before_data`, `after_data`, `error_data`); wiersze `importBankStatement` służą też jako "batch" importu |
+| `operation_log` | Starszy dziennik operacji |
+| `skill_prompts` | Prompty dla skill runnera |
+| `profiles` | Profile użytkowników Supabase Auth |
 
-**Relacje**: ma wielu `Tenant[]`, należy do wielu `SettlementGroup` przez `SettlementGroupProperty[]`.
+Funkcja SQL: `get_previous_meter_readings(group_id, month, year)`.
 
----
+Usunięte (nie istnieją już): `monthly_tasks` (`0030`), `reminder_schedules` / `reminder_tenants` (`0003`) — dawny dashboard zadań i elastyczne przypomnienia.
 
-### Tenant (Najemca)
+### Statusy transakcji
 
-| Pole               | Typ    | Opis                                              |
-|--------------------|--------|---------------------------------------------------|
-| id                 | Int PK |                                                   |
-| tenantType         | String | "PRIVATE" lub "BUSINESS" (domyślnie "PRIVATE")   |
-| firstName          | String | Imię                                              |
-| lastName           | String | Nazwisko                                          |
-| email              | String? | E-mail (opcjonalny, używany do wysyłki)           |
-| phone              | String? | Telefon                                           |
-| bankAccountsAsText | String | Numery kont bankowych (wieloliniowy tekst)        |
-| nip                | String? | NIP — tylko dla BUSINESS                         |
-| address1           | String? | Adres dla faktury — tylko dla BUSINESS           |
-| address2           | String? | Adres cd. — tylko dla BUSINESS                   |
-| propertyId         | Int FK | Nieruchomość, do której przypisany               |
+`MATCHED`, `MANUAL` — realny wpływ (liczone do salda). Pozostałe nie są liczone: `UNMATCHED`, `SKIPPED`, `REJECTED_OWN_TRANSFER`, `REJECTED_DUPLICATE`, `REJECTED_OTHER`; `PENDING` jest tylko etykietą prezentacyjną dla wierszy w `transaction_staging`. Lista dochodowa: `INCOME_TRANSACTION_STATUSES` w `lib/transactionStatus.ts` (whitelist — nowy status jest domyślnie wykluczony z sum).
 
-**Relacje**: należy do `Property`, ma wiele `Contract[]`, `Invoice[]`, `Transaction[]`, `ReminderTenant[]`.
+### Ochrona przed usuwaniem
 
-**Ważne**: `bankAccountsAsText` to prosty tekst z numerami kont rozdzielonymi newline/przecinek/średnik. Używany do automatycznego dopasowania transakcji bankowych.
+Trigger `prevent_delete_*` blokuje `DELETE` z `transactions` i `invoices`, dopóki `app_config.allow_destructive_test_deletes` nie jest `true`. Flagę może ustawić tylko kod dostępny poza produkcją (panel testowy, testy integracyjne).
 
-Dla najemców BUSINESS adres z faktury (`address1`/`address2`/`nip`) używany jest zamiast adresu nieruchomości przy generowaniu PDF rachunku.
+### Konfiguracja (`app_config`)
 
----
-
-### Contract (Umowa)
-
-| Pole             | Typ      | Opis                                              |
-|------------------|----------|---------------------------------------------------|
-| id               | Int PK   |                                                   |
-| contractType     | String   | "BUSINESS" lub inny (domyślnie "BUSINESS")       |
-| rentAmount       | Float    | Kwota czynszu miesięcznego                       |
-| invoiceSeqNumber | Int      | Numer porządkowy (do generowania nr rachunku)    |
-| startDate        | DateTime | Data rozpoczęcia umowy                           |
-| endDate          | DateTime? | Data zakończenia (null = bezterminowa)           |
-| isActive         | Boolean  | Czy umowa jest aktywna                           |
-| tenantId         | Int FK   |                                                   |
-
-**Ważne**: Tylko umowy z `contractType = "BUSINESS"` i `isActive = true` generują rachunki i e-maile przy wystawianiu czynszu. Umowy PRIVATE są ignorowane przez `generateRents`.
-
-`invoiceSeqNumber` jest ustawiany ręcznie. Służy do wyliczenia numeru rachunku (patrz sekcja Numeracja rachunków).
-
----
-
-### Invoice (Rachunek)
-
-| Pole           | Typ         | Opis                                          |
-|----------------|-------------|-----------------------------------------------|
-| id             | Int PK      |                                               |
-| type           | InvoiceType | RENT / MEDIA / OTHER                         |
-| number         | String      | Numer rachunku w formacie MM/YYYY/NNN        |
-| amount         | Float       | Kwota                                         |
-| month          | Int         | Miesiąc (1–12)                               |
-| year           | Int         | Rok                                           |
-| sourceFilePath | String?     | Ścieżka pliku źródłowego (nieużywana aktywnie)|
-| tenantId       | Int FK      |                                               |
-
-**Ograniczenie unikalne**: `(tenantId, type, month, year)` — jeden rachunek danego typu na miesiąc na najemcę.
-
-**Typy**:
-- `RENT` — rachunek za czynsz
-- `MEDIA` — rachunek za media (prąd, woda, ogrzewanie)
-- `OTHER` — inne opłaty
-
----
-
-### Transaction (Transakcja)
-
-| Pole        | Typ               | Opis                                              |
-|-------------|-------------------|---------------------------------------------------|
-| id          | Int PK            |                                                   |
-| type        | TransactionType   | BANK / CASH / ADJUSTMENT                         |
-| status      | TransactionStatus | MATCHED / UNMATCHED / MANUAL / DISMISSED         |
-| amount      | Float             | Kwota (dodatnia = wpływ)                         |
-| date        | DateTime          | Data operacji                                     |
-| title       | String            | Tytuł/opis transakcji                            |
-| bankAccount | String?           | Numer konta nadawcy/odbiorcy                     |
-| description | String?           | Dodatkowy opis (dla korekt)                      |
-| tenantId    | Int? FK           | Przypisany najemca (null = nieprzypisana)        |
-
-**Typy transakcji**:
-- `BANK` — import z wyciągu bankowego CSV
-- `CASH` — wpłata gotówkowa (nieużywana aktywnie w UI)
-- `ADJUSTMENT` — korekta ręczna (tworzona na stronie najemcy)
-
-**Statusy**:
-- `UNMATCHED` — zaimportowana, niezidentyfikowany najemca
-- `MATCHED` — automatycznie lub ręcznie dopasowana do najemcy
-- `MANUAL` — ręcznie dodana (np. korekta)
-- `DISMISSED` — odrzucona, ignorowana
-
----
-
-### SettlementGroup (Grupa rozliczeniowa — Media)
-
-| Pole              | Typ    | Opis                                           |
-|-------------------|--------|------------------------------------------------|
-| id                | Int PK |                                                |
-| name              | String | Nazwa (np. "Woda + Ścieki")                   |
-| spreadsheetId     | String | ID arkusza Google Sheets                      |
-| inputMappingJSON  | String | JSON z mapowaniem wejściowym (etykiety → komórki) |
-| outputMappingJSON | String | JSON z mapowaniem wyjściowym (tenantId → komórki) |
-
-**Relacje**: ma wiele `SettlementGroupProperty[]` (wiele-do-wielu z Property).
-
-**inputMappingJSON** — tablica obiektów `{ label: string, range: string }`:
-```json
-[{"label": "lokal1_woda_zimna_odczyt", "range": "Arkusz1!A1"}]
-```
-Etykiety (label) są wyświetlane jako pola formularza na stronie rozliczenia. Użytkownik wpisuje wartości, które są zapisywane do arkusza.
-
-**outputMappingJSON** — tablica obiektów `{ tenantId: number, range: string }`:
-```json
-[{"tenantId": 1, "range": "Arkusz1!B1"}]
-```
-Po przeliczeniu arkusza, wartości z tych komórek stają się kwotami rachunków MEDIA dla najemców.
-
----
-
-### AppConfig (Konfiguracja aplikacji)
-
-Pojedynczy rekord (id=1), tworzony automatycznie przy pierwszym dostępie.
-
-| Pole                       | Typ    | Opis                                             |
-|----------------------------|--------|--------------------------------------------------|
-| rentInvoiceSpreadsheetId   | String | ID arkusza Google — szablon rachunku czynszu    |
-| rentInvoiceInputMappingJSON| String | JSON mapowanie danych do arkusza               |
-| rentInvoicePdfGid          | String | GID zakładki do eksportu PDF (opcjonalnie)      |
-| driveInvoicesFolderId      | String | ID folderu Drive do zapisywania PDF              |
-
----
-
-### ReminderSchedule (Harmonogram przypomnień)
-
-| Pole        | Typ      | Opis                                     |
-|-------------|----------|------------------------------------------|
-| id          | Int PK   |                                          |
-| name        | String   | Nazwa przypomnienia                      |
-| dayOfMonth  | Int      | Dzień miesiąca (1–31)                   |
-| hour        | Int      | Godzina (0–23)                          |
-| subject     | String   | Temat wiadomości e-mail                  |
-| body        | String   | Treść wiadomości                         |
-| isActive    | Boolean  | Czy aktywne                              |
-| lastSentAt  | DateTime? | Kiedy ostatnio wysłano                  |
-
-**Relacje**: ma wiele `ReminderTenant[]`.
-
----
-
-### ReminderTenant (Najemcy do przypomnienia)
-
-Tabela łącząca `ReminderSchedule` ↔ `Tenant`. Klucz złożony `(reminderId, tenantId)`.
-
----
-
-### MonthlyTask (Zadanie miesięczne)
-
-| Pole        | Typ              | Opis                          |
-|-------------|------------------|-------------------------------|
-| id          | Int PK           |                               |
-| type        | MonthlyTaskType  | RENT / MEDIA                 |
-| month       | Int              | Miesiąc                      |
-| year        | Int              | Rok                          |
-| status      | MonthlyTaskStatus| TODO / DONE                  |
-| completedAt | DateTime?        | Kiedy oznaczono jako zrobione |
-
-**Ograniczenie unikalne**: `(type, month, year)`.
+Ustawienia: `admin_email`, `payment_account_1_name` / `payment_account_2_name`, `ignored_source_accounts`, `backfill_rents_enabled`, `statement_cutoff_day` (nieużywane w kodzie aplikacji), `time_offset_ms` (wirtualny zegar), `allow_destructive_test_deletes`. Szablony e-maili: przypomnienie o zaległości (`late_reminder_*`), przypomnienie o odczytach (`meter_reading_reminder_*`, `meter_reading_closed_message`), przypomnienie o wgraniu wyciągu (`statement_upload_reminder_*`), a także starsze pola (`rent_*`, `reminder_*`, `rent_invoice_*`, `drive_invoices_folder_id`, `email_provider*`).
 
 ---
 
 ## Uwierzytelnianie
 
-- **Mechanizm**: NextAuth.js, Credentials Provider
-- **Dane**: tylko hasło (jedno hasło dla całej aplikacji)
-- **Hasło**: przechowywane w zmiennej środowiskowej `APP_PASSWORD`
-- **Sesja**: JWT, ważna 30 dni
-- **Użytkownik sesji**: zawsze `{ id: "1", name: "Admin" }` (jeden użytkownik systemowy)
-- **Strona logowania**: `/login`
-- **Przekierowanie**: nieautoryzowani są kierowani na `/login`
-- **Wylogowanie**: przycisk w Sidebar wywołuje `signOut({ callbackUrl: "/login" })`
+- **Supabase Auth**, e-mail + hasło; konto admina zakłada się ręcznie w Supabase (Authentication → Users).
+- Middleware `proxy.ts` (Next 16) odświeża sesję przez `lib/supabase/middleware.ts`; `requireAuth()` w `lib/auth.ts` przekierowuje na `/login`.
+- Strona logowania: `/login`; wylogowanie przez `logoutAction` w Sidebarze.
+- Publiczne: `/login` oraz formularz odczytów `/odczyty/[token]` (autoryzacja tokenem najemcy).
+- Server actions używają klienta service-role (`lib/supabase/service.ts`), więc sprawdzanie sesji dotyczy stron i layoutu.
+- Endpointy cron: `Authorization: Bearer <CRON_SECRET>` albo nagłówek `x-vercel-cron: 1`. Uwaga: gdy `CRON_SECRET` nie jest ustawiony, porównanie z `Bearer undefined` przechodzi — zob. `testing-plan.md`.
 
 ---
 
 ## Nawigacja / strony
 
-Wszystkie strony aplikacji są chronione. Layout `(dashboard)/layout.tsx` opakowuje je Sidebarem.
+`/` przekierowuje na `/kontrola-platnosci`. Menu boczne (`components/sidebar.tsx`):
 
-Strony w menu bocznym:
-- `/` — Strona główna (zadania miesięczne + statystyki)
-- `/properties` — Nieruchomości
-- `/tenants` — Najemcy (lista)
-- `/tenants/[id]` — Szczegóły najemcy (wyciąg, saldo, korekty)
-- `/contracts` — Umowy
-- `/finance` — Wystawienie czynszu
-- `/media` — Media (lista grup rozliczeniowych)
-- `/media/[groupId]` — Strona rozliczenia grupy mediów
-- `/reminders` — Przypomnienia
-- `/import` — Import CSV
-- `/import/reconcile` — Uzgadnianie transakcji
-- `/settings` — Ustawienia
+**Akcje**
+- `/kontrola-platnosci` — Kontrola płatności
+- `/rozlicz-media` — Rozlicz media
+- `/import` — Import wyciągów (CSV/PDF); podstrony `/import/reconcile`, `/import/uploads`, `/import/history`
 
----
+**Dane**
+- `/umowy`, `/nieruchomosci`, `/najemcy` (+ `/najemcy/[id]`), `/media` (grupy rozliczeniowe, + `/media/[groupId]`)
 
-## Strona główna — Dashboard
+**Historia**
+- `/historia-obciazen`, `/historia` (operacje / audit log), `/import/history` (historia przelewów), `/historia-importow`, `/historia-mediow`, `/wiadomosci` (historia wiadomości)
 
-**Ścieżka**: `/`
+**Dolne zakładki**
+- `/automatyzacje`, `/ustawienia`, `/baza-danych`, `/testowanie` (tylko poza produkcją albo z `NEXT_PUBLIC_ALLOW_TEST_PANEL=true`)
 
-**Funkcje**:
-1. Przy wejściu wywołuje `initAndGetPageData` → tworzy (upsert) dwa zadania miesięczne dla bieżącego miesiąca: RENT i MEDIA.
-2. Wyświetla statystyki bieżącego miesiąca:
-   - Liczba aktywnych umów
-   - Liczba wystawionych czynszów w bieżącym miesiącu
-   - Suma wystawionych czynszów
-3. Lista zadań z filtrem "Do zrobienia" / "Zrobione":
-   - **Zadania miesięczne** (`MonthlyTask`): RENT i MEDIA — z linkami do odpowiednich stron
-   - **Przypomnienia** (`ReminderSchedule`): aktywne, ze statusem opartym na `lastSentAt` (wysłane w bieżącym miesiącu = DONE)
-
-**Logika statusu przypomnień**: przypomnienie jest "zrobione", jeśli `lastSentAt >= początek bieżącego miesiąca`.
+**Niebezpieczne (opcjonalne)** — `/rozlicz-w-przeszlosci`, `/media-w-przeszlosci`; widoczne tylko gdy `app_config.backfill_rents_enabled = true`.
 
 ---
 
-## Nieruchomości
+## Dane podstawowe: nieruchomości, najemcy, umowy
 
-**Ścieżka**: `/properties`
+### Nieruchomości (`/nieruchomosci`)
+CRUD w dialogu (`address1` i `type` wymagane). Usuwanie zablokowane, gdy nieruchomość ma najemców. Tabela z filtrem tekstowym i fasetowym po typie.
 
-**CRUD**:
-- **Tworzenie**: formularz dialogowy — `address1` (wymagane), `type` (wymagane), `name`, `address2` (opcjonalne)
-- **Edycja**: ten sam formularz, prefill z danymi
-- **Usuwanie**: zablokowane jeśli nieruchomość ma przypisanych najemców (`tenantCount > 0`)
+### Najemcy (`/najemcy`, `/najemcy/[id]`)
+- CRUD; typ PRIVATE / BUSINESS (BUSINESS: `company_name`, NIP, adres), dwa adresy e-mail (`email`, `email2`), numery kont bankowych (`bank_accounts_as_text`, wiele linii), `payment_account` (konto 1/2, patrz Ustawienia), unikalny `reading_token` do formularza odczytów.
+- Usuwanie zablokowane, gdy najemca ma umowy.
+- Szczegóły najemcy: saldo, wyciąg, przyciski dodawania korekty (`addAdjustment`) i ręcznej transakcji bankowej (`addManualBankTransaction`), edycja transakcji (`updateTransaction`) z historią zmian w `transaction_amendments`.
+- Filtr tekstowy i fasetowy po nieruchomości.
 
-**Wyświetlane dane**:
-- Tabela: nazwa, adres, typ, liczba najemców (z `_count.tenants`)
-- Kliknięcie "Otwórz" (parametr URL `?open=id`) otwiera modal edycji (mechanizm przez URL param, zaimplementowany w page)
-
-**Powiązania**: nieruchomość → wielu najemców → wiele umów/rachunków/transakcji.
-
----
-
-## Najemcy
-
-**Ścieżka**: `/tenants`
-
-**Lista**: tabela z najemcami, posortowana od najnowszych. Kolumny: imię+nazwisko, nieruchomość, typ (PRIVATE/BUSINESS), e-mail, telefon, liczba aktywnych umów.
-
-**CRUD**:
-- **Tworzenie**: dialog — imię, nazwisko, nieruchomość (Select), typ (PRIVATE/BUSINESS)
-  - Dla BUSINESS: dodatkowe pola NIP, adres1, adres2
-  - Dla obu: e-mail, telefon, numery kont (textarea, wieloliniowe)
-- **Edycja**: ten sam formularz, prefill
-- **Usuwanie**: zablokowane jeśli najemca ma jakiekolwiek umowy (`contractCount > 0`)
-
-**Strona szczegółów najemcy** `/tenants/[id]`:
-- Wyświetla: imię, nazwisko, nieruchomość, typ
-- Karty podsumowania: saldo, kwota aktywnej umowy, liczba operacji
-- Wyciąg (tabela) — patrz sekcja [Wyciąg najemcy](#wyciąg-najemcy-statement)
-- Przycisk "Dodaj korektę" — dialog z kwotą, opisem i datą
+### Umowy (`/umowy`)
+- CRUD: najemca, typ, kwota czynszu, daty od/do, `is_active`, `has_media_invoice` (czy najemca jest rozliczany z mediów), opisy rachunków.
+- **Rewaluacja** (`revaluateContract`): podwyższa `rent_amount` o procent inflacji dla zaznaczonych umów.
+- Statystyki (`getContractStats`): liczba aktywnych umów, naliczone czynsze w miesiącu.
+- `contractCoversPeriod` (`lib/contracts.ts`): umowa z `end_date` wcześniejszym niż dany miesiąc nie jest naliczana; miesiąc zakończenia jest jeszcze objęty naliczaniem.
+- Usuwanie bez blokad (zobowiązania i transakcje zostają).
 
 ---
 
-## Umowy
+## Czynsze (generateRents)
 
-**Ścieżka**: `/contracts`
-
-**Lista**: tabela ze wszystkimi umowami, posortowana od najnowszych. Kolumny: najemca+nieruchomość, typ, kwota czynszu, nr porządkowy, data od/do, status aktywności.
-
-**CRUD**:
-- **Tworzenie**: dialog — wybór najemcy (Select), typ umowy, kwota czynszu, `invoiceSeqNumber` (tylko dla BUSINESS), data start, data end (opcjonalna), checkbox isActive
-- **Edycja**: ten sam formularz, prefill
-- **Usuwanie**: bez blokad (rachunki i transakcje pozostają)
-
-**Ważne**: `invoiceSeqNumber` jest ustawiany ręcznie przez użytkownika. Decyduje o numerze w generowanych rachunkach. Dla umów PRIVATE = 0 i pole jest ukryte.
+`lib/rents.ts`:
+- `getRentPreview(month, year)` — aktywne umowy bez rachunku RENT za dany miesiąc (filtr `contractCoversPeriod`); dzieli na mających i niemających e-maila (informacyjnie).
+- `generateRents(month, year, source)` — dla każdej umowy `upsert` w `invoices` (`type: 'RENT'`, `number: null`, `amount = rent_amount`, `contract_id`, `source`), z `ignoreDuplicates` (ponowne uruchomienie nie dubluje). **Nie generuje PDF i nie wysyła e-maili.** Wpis do `audit_log` (`generateRents`).
+- Uruchamiane przez cron `GET /api/cron/generate-rents` (1. dnia miesiąca, 08:00). `source`: `CRON` (Vercel Cron), `MANUAL` (`CRON_SECRET`), `TEST_MANUAL` (poza produkcją lub z panelem testowym; tylko wtedy działają parametry `?month=&year=`).
+- Podgląd nadchodzącego naliczenia: `/automatyzacje` (`getUpcomingRentCharges`).
 
 ---
 
-## Wystawienie czynszu (Finance)
+## Media: grupy rozliczeniowe i rozliczanie
 
-**Ścieżka**: `/finance`
+### Grupy rozliczeniowe (`/media`)
+Grupa łączy nieruchomości z arkuszem Google (szablon). Pola: nazwa, nieruchomości, `spreadsheet_id`, `input_mapping_json` (pola formularza: `source` = `user` / `db` / `auto`, `range` = named range, `save_key`, `db_key`), `output_mapping_json` (named range → `tenant_id`, `type`, `email_pdfs`), `pdf_sheets_json` (zakładki eksportowane do PDF), `tenant_reading_keys` (jakie odczyty podaje który najemca), szablony e-maila grupy. CRUD z filtrem tekstowym.
 
-### Przepływ generowania czynszów
+### Rozlicz media (`/rozlicz-media`, `/rozlicz-media/[groupId]`)
 
-1. Użytkownik wybiera miesiąc i rok (domyślnie: bieżący).
-2. Kliknięcie "Wystaw czynsze" → wywołuje `getRentPreview`:
-   - Pobiera aktywne umowy `contractType = "BUSINESS"`
-   - Sprawdza, którzy najemcy nie mają jeszcze rachunku RENT w wybranym miesiącu/roku
-   - Zwraca listę: kto dostanie rachunek i e-mail, kto tylko rachunek (bez e-maila)
-3. Wyświetla dialog potwierdzenia z podziałem:
-   - "Otrzymają e-mail" (najemcy z adresem e-mail)
-   - "Bez e-maila" (najemcy bez adresu)
-4. Po potwierdzeniu → `generateRents(month, year)`:
-   - Tworzy rachunki `Invoice` (type=RENT) dla wszystkich nowych
-   - Numer rachunku: `buildInvoiceNumber(month, year, invoiceSeqNumber, "RENT")`
-   - Dla każdego najemcy z e-mailem:
-     - Opcjonalnie generuje PDF z Google Sheets (jeśli `rentInvoiceSpreadsheetId` skonfigurowane)
-     - Opcjonalnie zapisuje PDF na Google Drive
-     - Wysyła e-mail przez Resend z PDF jako załącznik
-   - Oznacza zadanie miesięczne RENT jako DONE
+> W kodzie istnieje też starsza kopia tego ekranu pod `/media/[groupId]` (z własnym `media/actions.ts`), do której nic nie linkuje; aktualny przepływ to `/rozlicz-media`.
+`processSettlement(groupId, inputValues, month, year, previousReadingOverrides)`:
+1. Tworzy w Drive strukturę `DEVELOPMENT|PREVIEW|PRODUCTION / rok / miesiąc / grupa` i kopiuje arkusz-szablon (kopia robocza).
+2. Buduje wartości: dane z formularza, "poprzednie odczyty" z bazy (`source: db`, z możliwością nadpisania), pola automatyczne (adres nieruchomości).
+3. Sprawdza obecność named ranges w kopii, zapisuje wartości (`writeInputValues`), odczytuje kwoty (`readOutputValues`).
+4. Eksportuje PDF-y (osobny plik na zakładkę z `pdf_sheets_json`) i zapisuje je w Supabase Storage (`preview/` jako prefiks poza produkcją).
+5. Upsertuje `media_settlements` oraz odczyty do `media_meter_readings` (poprzednie odczyty dla następnego miesiąca).
+6. Dla każdego wpisu wyjściowego tworzy obciążenie `invoices` (`number: null`, `media_settlement_id`, `ignoreDuplicates`) i wysyła najemcy e-mail z PDF-ami (`email` + `email2`).
+7. Wysyła administratorowi podsumowanie kwot (best-effort — błąd nie przerywa rozliczenia), loguje w `audit_log`.
 
-### Generowanie PDF rachunku
+Walidacje: ujemna kwota przerywa rozliczenie; najemca musi mieć aktywną umowę z `has_media_invoice`; brakujące named ranges → błąd; wartość błędu arkusza (`#...`) traktowana jako 0.
+Znane ograniczenia (z `testing-plan.md`): przy błędzie walidacji wiersz `media_settlements` i PDF-y są już zapisane; ponowne rozliczenie tego samego miesiąca zachowuje pierwszą kwotę (`ignoreDuplicates`).
 
-Wymaga skonfigurowanego `rentInvoiceSpreadsheetId` w Ustawieniach oraz `GOOGLE_SERVICE_ACCOUNT_JSON` w env.
-
-Przepływ:
-1. Buduje `context` z danych rachunku (numer, najemca, adres, NIP, miesiąc, rok, kwota, kwota słownie, data wystawienia, termin płatności)
-2. Dla BUSINESS: adres z pól `tenant.address1/address2`, dla PRIVATE: adres nieruchomości
-3. Termin płatności = ostatni dzień miesiąca wystawienia
-4. Mapuje placeholdery `{klucz}` z `rentInvoiceInputMappingJSON` na wartości
-5. Zapisuje wartości do named ranges w arkuszu Google (`writeNamedRanges`)
-6. Eksportuje zakładkę (lub cały plik) jako PDF (`exportSheetAsPdf`)
-7. Opcjonalnie uploaduje PDF do Drive w strukturze `rok/miesiąc/`
-8. Dołącza PDF jako załącznik do e-maila
-
-**Rate limiting**: między każdym PDF odczekuje 4000ms (limit Google API: ~1 req/2s na arkusz).
-
-### Progress bar
-
-Szacowanie: `pdfCount * 4000 + 3000` ms. Pasek asymptotycznie osiąga 95%, przy zakończeniu skacze do 100%.
-
-### Podgląd istniejących czynszów
-
-Tabela na dole strony — wszystkie rachunki RENT dla wybranego miesiąca/roku, z linkami do najemców i nieruchomości.
+Pomocnicze: ręcznie wgrywane pliki (bucket `manual-uploads`, `components/uploaded-files.tsx`, akcje w `rozlicz-media/uploads-actions.ts`), historia w `/historia-mediow` i `/historia-obciazen`, pliki PDF serwowane przez `/api/media-settlement-pdf/[...path]`.
 
 ---
 
-## Media — Grupy rozliczeniowe
+## Odczyty liczników przez najemcę
 
-**Ścieżka**: `/media` (lista) + `/media/[groupId]` (rozliczenie)
-
-### Koncepcja
-
-Media (prąd, woda, ogrzewanie) są rozliczane przez grupy powiązane z arkuszami Google Sheets. Jeden arkusz = jedna formuła rozliczeniowa dla wielu lokali.
-
-### Lista grup (`/media`)
-
-CRUD grup:
-- **Tworzenie/edycja**: dialog z polami:
-  - Nazwa
-  - Checkboxy nieruchomości (wiele-do-wielu)
-  - ID arkusza Google
-  - `inputMappingJSON` — pola wejściowe (odczyty liczników)
-  - `outputMappingJSON` — wyniki (kwoty dla najemców)
-- **Usuwanie**: z kaskadą (usuwa `SettlementGroupProperty`)
-
-### Strona rozliczenia grupy (`/media/[groupId]`)
-
-Przepływ rozliczenia mediów:
-
-1. Wyświetla formularz z polami wejściowymi z `inputMappingJSON` (odczyty liczników).
-   - Jeśli inputMapping ma pole `group`, pola są grupowane wizualnie.
-2. Użytkownik wpisuje wartości (odczyty) i wybiera miesiąc/rok.
-3. Kliknięcie "Przelicz i wystaw" → `processSettlement(groupId, inputValues, month, year)`:
-   a. Zapisuje odczyty do arkusza (`writeInputValues`)
-   b. Wymusza przeliczenie (`triggerRecalc` — dummy read A1)
-   c. Odczytuje wyniki dla najemców (`readOutputValues`) z komórek z `outputMappingJSON`
-   d. Tworzy rachunki `Invoice` (type=MEDIA) dla najemców, gdzie kwota > 0 i nie ma jeszcze rachunku za ten miesiąc
-   e. Numer rachunku: `buildInvoiceNumber(month, year, invoiceSeqNumber, "MEDIA")`
-   f. Wysyła e-maile do najemców z adresem e-mail (równolegle, bez PDF)
-   g. Oznacza zadanie miesięczne MEDIA jako DONE
-
-4. Wyświetla listę wystawionych rachunków MEDIA dla tej grupy w wybranym miesiącu.
-
-**Walidacja**: sprawdza, czy `tenantId` z `outputMappingJSON` należy do nieruchomości w grupie.
+Publiczna strona `/odczyty/[token]` (token = `tenants.reading_token`):
+- Dostępna dla najemców z aktywną umową z mediami, przypisanych do grupy, w której mają zdefiniowane klucze odczytów (`tenant_reading_keys`).
+- **Okno podawania odczytów: od 25. do 5. dnia miesiąca.** Od 25. podaje się odczyt za bieżący miesiąc, od 1. do 5. — za miesiąc, który się skończył. Poza oknem (6.–24.) formularz jest zablokowany i pokazuje `meter_reading_closed_message`.
+- Pokazuje poprzednie odczyty; blokuje ponowne wysłanie, gdy wszystkie klucze najemcy mają już odczyt; zapis do `media_meter_readings` (`saveReadings`).
 
 ---
 
-## Import CSV (Transakcje bankowe)
+## Import wyciągów bankowych i uzgadnianie
 
-**Ścieżka**: `/import`
+### Import (`/import`)
+`importBankStatement(content, fileName, dayFrom, dayTo, docSlot)`:
+- Obsługuje CSV (`lib/csvParser.ts`: PKO BP, mBank, Santander, ING, Millennium + parser generyczny; polskie kwoty `1 234,56`, daty `DD.MM.YYYY`, `DD-MM-YYYY`, `DD/MM/YYYY`, `YYYY-MM-DD`) oraz PDF (`lib/pdfParser.ts`, tylko układ Millennium).
+- Opcjonalne przycięcie do zakresu dni miesiąca (`dayFrom`/`dayTo`) — pozwala wgrać dwa nakładające się wyciągi bez dubli; podpowiedź poprzedniego zakresu per "slot" dokumentu (0 = CSV, 1/2 = dwa wyciągi PDF).
+- Wiersze, których parser nie umiał odczytać (nieparsowalna kwota), trafiają od razu do `transactions` jako `SKIPPED`; jeśli konto jest na liście `ignored_source_accounts` → `REJECTED_OWN_TRANSFER`.
+- Pozostałe (także wychodzące, `amount <= 0` — w UI domyślnie oznaczone do odrzucenia) trafiają do `transaction_staging` z `suggested_tenant_id` (dopasowanie po numerze konta, `lib/matcher.ts`: normalizacja bez spacji/myślników/prefiksu `PL`, dopasowanie dokładne lub po sufiksie) oraz flagą `is_duplicate`.
+- Wiersz `audit_log` (`importBankStatement`) jest rezerwowany na początku jako batch (`import_id`); po imporcie zawiera podsumowanie.
+- Kopia pliku jest zapisywana lokalnie w `data/attachments` (zob. ryzyko na Vercelu w `testing-plan.md`).
 
-### Obsługiwane banki
-
-Parser (`csvParser.ts`) rozpoznaje formaty CSV z banków:
-- **PKO BP**: delimiter `,`, kolumny: "Data operacji", "Kwota", "Opis transakcji", "Numer konta nadawcy/odbiorcy"
-- **mBank**: delimiter `;`, kolumny: "#Data operacji", "#Kwota", "#Opis operacji", "#Numer konta"
-- **Santander**: delimiter `;`, kolumny: "Data transakcji", "Kwota", "Tytuł", "Numer rachunku"
-- **ING**: delimiter `;`, kolumny: "Data transakcji", "Kwota transakcji (waluta rachunku)", "Tytuł", "Dane kontrahenta"
-- **Millenium**: delimiter `,`, kolumny: "Data transakcji", "Kwota", "Opis", "Rachunek nadawcy/odbiorcy"
-- **Fallback**: generyczne mapowanie — szuka kolumn zawierających słowa kluczowe
-
-Detekcja banku: na podstawie nagłówków CSV (case-insensitive, BOM-safe).
-
-### Przetwarzanie kwot
-
-Format polski: `1 234,56` → `1234.56`. Spacje usuwane, przecinek zamieniany na kropkę.
-
-### Przetwarzanie dat
-
-Obsługuje: `DD.MM.YYYY`, `DD-MM-YYYY`, `DD/MM/YYYY`, `YYYY-MM-DD`.
-
-### Przepływ importu
-
-1. Użytkownik wybiera plik CSV
-2. Plik czytany jako text na kliencie
-3. `importCsvTransactions(csvContent)`:
-   - Parse CSV
-   - Dla każdej transakcji: `matchTransaction(bankAccount, tenants)`
-   - Tworzy `Transaction` (type=BANK, status=MATCHED lub UNMATCHED)
-   - Tworzy w batchach po 50 (optymalizacja dla SQLite/PostgreSQL)
-4. Wyświetla statystyki: bank, łączna liczba, dopasowane, niedopasowane, pominięte
-
-### Dopasowanie do najemców (`matcher.ts`)
-
-Normalizacja konta: usuwa spacje, myślniki, prefix "PL".
-`bankAccountsAsText` najemcy jest dzielony po `\n`, `,`, `;`.
-Dopasowanie: dokładne OR suffix (np. skrócone konto bankowe pasuje do pełnego).
-
----
-
-## Uzgadnianie transakcji (Reconcile)
-
-**Ścieżka**: `/import/reconcile`
-
-Lista transakcji ze statusem `UNMATCHED` (tylko type=BANK).
-
-Dla każdej transakcji:
-- Data, tytuł, konto nadawcy, kwota
-- Dropdown z wyborem najemcy
-- Przycisk "Przypisz" → `reconcileTransaction(txId, tenantId, saveAccount)`:
-  - Zmienia status na MATCHED, przypisuje `tenantId`
-  - Jeśli `saveAccount=true`: dopisuje numer konta do `bankAccountsAsText` najemcy (jeśli jeszcze nie ma)
-  - Przy przypisaniu pokazuje dialog "Zapamiętać numer konta?" jeśli transakcja ma `bankAccount`
-- Przycisk "Odrzuć" → `dismissTransaction(txId)` → status = DISMISSED
-
----
-
-## Przypomnienia e-mail
-
-**Ścieżka**: `/reminders`
-
-### Model
-
-Każde przypomnienie (`ReminderSchedule`) ma:
-- Nazwę, dzień miesiąca, godzinę wysyłki
-- Temat i treść e-maila
-- Listę najemców (`ReminderTenant[]`)
-- Status aktywności (`isActive`)
-- `lastSentAt` — data ostatniej wysyłki
-
-### CRUD
-
-- Tworzenie/edycja: formularz dialogowy z wszystkimi polami + multi-select najemców
-- Przełącznik aktywny/nieaktywny (toggle)
-- Usuwanie: z kaskadą (`ReminderTenant` usuwa się automatycznie)
-
-### Ręczna wysyłka
-
-Przycisk "Wyślij teraz" → `sendReminderNow(id)`:
-- Wysyła do wszystkich najemców z e-mailem
-- Aktualizuje `lastSentAt = now()`
-- Zwraca liczbę wysłanych/pominiętych
-
-### Automatyczna wysyłka (Cron)
-
-Endpoint `POST /api/cron/reminders` — wywoływany co godzinę przez Vercel Cron.
-- Sprawdza bieżący dzień i godzinę
-- Wysyła do przypomnień z pasującym `dayOfMonth` i `hour`
-- Pomija, jeśli `lastSentAt` jest w bieżącym miesiącu (zabezpieczenie przed duplikatami)
-- Autoryzacja: nagłówek `x-vercel-cron: 1` ALBO `Authorization: Bearer <CRON_SECRET>`
-
-### Format e-maila
-
-HTML z pozdrowieniem "Dzień dobry Imię Nazwisko" i treścią (znaki specjalne HTML-escaped, newlines → `<br>`).
-
----
-
-## Ustawienia aplikacji
-
-**Ścieżka**: `/settings`
-
-Konfiguracja szablonu PDF rachunku czynszu:
-
-1. **ID arkusza Google** (`rentInvoiceSpreadsheetId`) — arkusz-szablon rachunku. Zostaw puste = brak PDF.
-2. **Mapowanie danych do arkusza** (`rentInvoiceInputMappingJSON`) — JSON tablica z obiektami `{ range, value }`:
-   - `range` = nazwa named range w arkuszu Google
-   - `value` = wartość statyczna lub z placeholderami `{klucz}`
-   - Dostępne placeholdery: `{numer_rachunku}`, `{najemca}`, `{adres_1}`, `{adres_2}`, `{nip}`, `{miesiac}`, `{rok}`, `{kwota}`, `{kwota_slownie}`, `{data_wystawienia}`, `{termin_platnosci}`
-3. **GID zakładki** (`rentInvoicePdfGid`) — opcjonalnie, do eksportu konkretnej zakładki
-4. **ID folderu Drive** (`driveInvoicesFolderId`) — folder do zapisywania PDF. Musi być udostępniony kontu serwisowemu.
-
-**Domyślne mapowanie** (pokazywane gdy `[] `): pełny szablon z named ranges: `numer_rachunku`, `data_wystawienia`, `termin_platnosci`, `nabywca_nazwa`, `nabywca_adres_1`, `nabywca_adres_2`, `nabywca_nip`, `opis_rachunku`, `do_zaplaty`, `do_zaplaty_slownie` itd.
+### Uzgadnianie (`/import/reconcile`)
+- `reconcileTransaction` / `reconcileMany` — przenosi wiersz z `transaction_staging` do `transactions` jako `MATCHED` (opcjonalnie z kategorią RENT/MEDIA), może zapamiętać numer konta w `bank_accounts_as_text` najemcy.
+- `dismissTransaction` / `dismissAllTransactions` — odrzucenie (`REJECTED_OTHER`, `REJECTED_OWN_TRANSFER`, `REJECTED_DUPLICATE`).
+- `updateTransactionCategory` — zmiana kategorii RENT/MEDIA.
+- Historia: `/import/history` (przelewy), `/historia-importow` (importy z żywym statusem).
 
 ---
 
 ## Model finansowy — "Skarbonka"
 
 ```
-Saldo = Suma(Transakcje.amount) - Suma(Faktury.amount)
+Saldo = Σ(transakcje MATCHED + MANUAL) − Σ(invoices)
 ```
 
-- **Rachunki** zmniejszają saldo (kwota ujemna w wyciągu)
-- **Transakcje** (wpłaty) zwiększają saldo (kwota dodatnia w wyciągu)
-- Brak parowania 1:1 między wpłatą a rachunkiem
-- Status "opłacony" jest **symulowany**: zaczyna się od sumy wpłat, pokrywa rachunki od najstarszego do najnowszego. Jeśli kredyt się wyczerpie, nowsze rachunki są "zaległe".
-
-**`calculateBalance(tenantId)`** (`lib/balance.ts`):
-```
-SUM(transactions.amount WHERE tenantId) - SUM(invoices.amount WHERE tenantId)
-```
+- Dodatnie saldo = nadpłata, ujemne = zaległość (`lib/balance.ts`, `calculateBalance`).
+- Brak parowania 1:1 wpłata ↔ obciążenie.
+- Wyciąg (`lib/statement.ts`, `getStatement`): chronologiczna lista obciążeń (kwota ujemna, opis "Obciążenie - Czynsz/Media") i wpłat (dodatnia) z bieżącym saldem. `isPaid` liczone modelem puli kredytu (płatność po dacie obciążenia go nie pokrywa) — nie jest nigdzie pokazywane w UI.
 
 ---
 
-## Wyciąg najemcy (Statement)
+## Kontrola płatności i wyciągi dla najemców
 
-`lib/statement.ts` — `getStatement(tenantId): StatementEntry[]`
-
-Łączy rachunki i transakcje w jeden chronologiczny wyciąg:
-
-- Rachunki: `amount = -kwota` (zmniejszają saldo), `entryType = "invoice"`
-- Transakcje: `amount = +kwota` (zwiększają saldo), `entryType = "transaction"`
-
-Każdy wpis ma `runningBalance` (bieżące saldo po operacji).
-
-**Symulacja statusu opłacenia rachunków**:
-1. `creditPool = totalInvoiceAmount + finalBalance`
-2. Iteruj rachunki od najstarszego: jeśli `creditPool >= koszt rachunku` → opłacony, odejmij koszt. Inaczej zaległy.
-
-**Typy wpisów w wyciągu**:
-- Invoice: `Czynsz / Media / Inne — Mies Rok`
-- Transaction BANK: `Przelew: tytuł`
-- Transaction CASH: `Gotówka: tytuł`
-- Transaction ADJUSTMENT: `Korekta: opis`
-
-**Badge statusu**: `InvoiceStatusBadge` — zielony "Opłacone" / czerwony "Zaległe" (tylko dla Invoice).
+`/kontrola-platnosci`:
+- Lista najemców z saldem (najgorsze na górze), kontem płatniczym, datą ostatniego importu dla konta, filtry tekstowe/fasetowe.
+- Statystyki globalne (`getGlobalPaymentStats`).
+- `sendStatementToTenant(id)` i `sendBulkStatements()` — e-mail z PDF-em wyciągu (`lib/pdf.ts`, `pdfkit`) do najemców z saldem < 0 i adresem e-mail (do `email` + `email2`), szablon `late_reminder_*`.
 
 ---
 
-## Numeracja rachunków
+## E-maile i historia wiadomości
 
-Format: `MM/YYYY/NNN`
+`lib/email.ts`:
+- Transport: `nodemailer` przez Gmail SMTP (`smtp.gmail.com:587`). Nadawca = `app_config.admin_email` (Ustawienia), hasło aplikacji Gmail = env `GMAIL_APP_PASSWORD`.
+- Typy: media (`sendMediaEmail`), wyciąg/zaległość (`sendStatementEmail`), przypomnienie o wgraniu wyciągu (do admina), podsumowanie rozliczenia mediów (do admina), przypomnienie o odczytach, (`sendRentEmail` — historyczne, nieużywane przez `generateRents`).
+- Temat dostaje prefiks `[DEVELOPMENT]` / `[PREVIEW]` poza produkcją. **Preview wysyła prawdziwe e-maile** — zob. `testing-plan.md`.
+- Każda wysyłka zapisuje się w `email_logs` (odbiorcy, temat, treść, załączniki). Podgląd: `/wiadomosci` z filtrami po dacie i odbiorcy.
 
-- `MM` = miesiąc z zerem wiodącym
-- `YYYY` = rok
-- `NNN` = `invoiceSeqNumber + offset` z zerem wiodącym (3 cyfry)
+---
 
-Offsety według typu:
+## Automatyzacje i crony
 
-| Typ   | Offset | Przykład (seq=1) | Przykład (seq=2) |
-|-------|--------|------------------|------------------|
-| RENT  | 0      | /001             | /002             |
-| MEDIA | 9      | /010             | /011             |
-| OTHER | 19     | /020             | /021             |
+Zaplanowane w `vercel.json` (Vercel Cron, metoda GET):
 
-Przykłady:
-- Umowa seq=3, RENT, kwiecień 2025 → `04/2025/003`
-- Umowa seq=3, MEDIA, kwiecień 2025 → `04/2025/012`
+| Endpoint | Harmonogram | Co robi |
+|---|---|---|
+| `/api/cron/generate-rents` | `0 8 1 * *` — 1. dnia miesiąca | Tworzy obciążenia RENT (bez e-maili) |
+| `/api/cron/statement-reminder` | `0 8 * * *` — codziennie | 16. dnia miesiąca wysyła adminowi przypomnienie o wgraniu wyciągu (raz/miesiąc) |
+| `/api/cron/meter-reading-reminder` | `0 8 * * *` — codziennie | W ostatnim dniu miesiąca wysyła najemcom link do formularza odczytów (raz/miesiąc) |
 
-Numer jest stały dla danej umowy niezależnie od miesiąca.
+Wszystkie jobs (`statement-reminder`, `meter-reading-reminder`) są idempotentne dzięki `reminder_dedup` — zastrzeżenie klucza `YYYY-M`; przy błędzie wysyłki zastrzeżenie jest zwalniane.
 
-Implementacja: `buildInvoiceNumber()` w `finance/actions.ts` i `media/[groupId]/actions.ts` (dwa identyczne duplikaty).
+Przypomnienie o zaległościach (`lib/late-reminders.ts`, od 15. dnia miesiąca, wyciąg do dłużników, dedup per najemca/miesiąc) **nie ma crona** w `vercel.json` — jest wywoływane tylko ręcznie z panelu testowego (`runLateRemindersTest`). Ręcznie można też wysłać wyciągi z Kontroli płatności.
+
+`/automatyzacje` jest podglądem (odbiorcy przypomnień o odczytach, najbliższe czynsze, podglądy e-maili grup mediów, daty ostatnich uruchomień z `audit_log`) i miejscem edycji szablonów e-maili.
+
+---
+
+## Rozliczanie wstecz ("w przeszłości")
+
+Funkcje włączane flagą `backfill_rents_enabled` (Ustawienia):
+- `/rozlicz-w-przeszlosci` — wsteczne dopisanie czynszów za zakres miesięcy (`previewBackfillRents` → `executeBackfillRents`); umowa obowiązuje w miesiącu według dat (a nie `is_active`); umowa nieaktywna bez `end_date` jest pomijana; maks. 120 miesięcy na przebieg (`lib/rents-backfill.ts`). Migracja `20261005120000_backfill_rents.sql`.
+- `/media-w-przeszlosci` — wsteczne dopisanie obciążeń za media z ręcznie podanych kwot (`saveMediaBackfill`); umowa dobierana przez `pickContractForMonth`.
+
+---
+
+## Ustawienia
+
+`/ustawienia` (`app_config`): adres administratora (nadawca e-maili i odbiorca przypomnień), nazwy dwóch kont płatniczych, lista kont własnych ignorowanych przy imporcie (`ignored_source_accounts`), przełącznik "Rozlicz w przeszłości". Szablony e-maili edytuje się w `/automatyzacje`.
+
+---
+
+## Historia, audyt, podgląd bazy
+
+- `/historia` — `audit_log` (kto/co/kiedy, dane przed/po, błędy). Operacje zapisują się przez `logAudit` (`lib/audit.ts`, nigdy nie rzuca).
+- `/historia-obciazen` — wszystkie obciążenia; `/historia-mediow` — rozliczenia mediów; `/historia-importow`, `/import/history` — importy i przelewy; `/wiadomosci` — e-maile.
+- `/baza-danych` — podgląd dowolnej tabeli z białej listy (`ALLOWED_TABLES`), stronicowany, tylko odczyt.
+
+---
+
+## Panel testowy i wirtualny zegar
+
+`/testowanie` (tylko poza produkcją albo z `NEXT_PUBLIC_ALLOW_TEST_PANEL=true`):
+- **Wirtualny zegar** (`lib/clock.ts`): `app_config.time_offset_ms` przesuwa "teraz" w crony i okno odczytów; na produkcji offset jest zawsze 0. Cała logika dat w automatyzacjach pyta o czas przez `getCurrentDate()`.
+- Ręczne odpalenie przypomnień (zaległości, wyciąg), zerowanie sald (`zeroAllTenantBalances`), czyszczenie historii transakcji, generowanie testowego obciążenia za media.
 
 ---
 
 ## Integracje zewnętrzne
 
-### Resend (E-mail)
-
-- Biblioteka: `resend`
-- Klucz API: `RESEND_API_KEY`
-- Nadawca: `RESEND_FROM` (domyślnie `BMT <noreply@example.com>`)
-- Reply-To: `RESEND_REPLY_TO` (opcjonalne)
-- Trzy typy e-maili: `sendRentEmail`, `sendMediaEmail`, `sendReminderEmail`
-- Wszystkie formatują kwoty po polsku (PLN), mają HTML template
-- `sendRentEmail` obsługuje załącznik PDF (opcjonalny)
-
-### Google Sheets API (sheetsEngine.ts)
-
-- Auth: Service Account JSON (`GOOGLE_SERVICE_ACCOUNT_JSON` — jako raw JSON lub base64)
-- Scopes: `spreadsheets`, `drive`
-- Funkcje:
-  - `writeInputValues(spreadsheetId, inputMapping, values)` — batch update wartości w arkuszu
-  - `triggerRecalc(spreadsheetId)` — dummy read A1 wymuszający przeliczenie
-  - `readOutputValues(spreadsheetId, outputMapping)` — batch get wartości z wielu komórek
-  - `writeNamedRanges(spreadsheetId, values)` — batch update przez named ranges (dla PDF czynszu)
-  - `exportSheetAsPdf(spreadsheetId, gid?)` — eksport do PDF przez Drive export URL
-
-### Google Drive API (driveEngine.ts)
-
-- Auth: **OAuth2** (różne od Sheets — tu OAuth, nie Service Account)
-- Zmienne: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REFRESH_TOKEN`
-- Funkcje:
-  - `getOrCreateFolder(name, parentId?)` — szuka/tworzy folder w Drive
-  - `ensureYearMonthFolder(year, month, rootFolderId)` — struktura `YYYY/MM/` w Drive
-  - `uploadPdfToDrive(filename, buffer, folderId)` — upload pliku PDF
-- Pliki są tworzone/szukane przez `supportsAllDrives: true`
-
-### Kwota słownie po polsku (numberWords.ts)
-
-`amountToWordsPLN(amount)` → np. `dwa tysiące pięćset złotych 00/100`
-
-Obsługuje: miliony, tysiące, setki, dziesiątki, jedności. Prawidłowe odmiany (`tysiąc/tysiące/tysięcy`, `złoty/złote/złotych`).
+- **Google Sheets** (`lib/sheetsEngine.ts`, Service Account): zapis/odczyt named ranges, walidacja zakresów, eksport PDF (z opcjami zakresu i orientacji).
+- **Google Drive** (`lib/driveEngine.ts`, OAuth2): foldery `ŚRODOWISKO/rok/miesiąc/grupa`, kopiowanie arkusza-szablonu, upload i usuwanie plików.
+- **Supabase Storage**: PDF-y rozliczeń, załączniki e-maili (`/api/attachments/[filename]`), ręczne uploady (bucket `manual-uploads`), bucket faktur.
+- **Gmail SMTP** — wysyłka e-maili.
+- **Skill runner** (`skill-runner/`, `/api/run-skill`, `/api/skills`, `/api/skill-files`, `/api/skill-prompts`, `lib/skill-runner-client.ts`): osobny serwer na VPS uruchamiający skille Claude Code na żądanie; aplikacja wykrywa jego port, autoryzuje tokenem `SKILL_RUNNER_TOKEN`. Komponent `components/skill-runner.tsx` istnieje, ale nie jest obecnie podpięty do żadnej strony.
+- `lib/numberWords.ts` — kwota słownie po polsku (pozostałość po fakturach PDF).
 
 ---
 
-## Zadania miesięczne (MonthlyTask)
+## Środowiska, wdrażanie, testy
 
-Dwa typy: `RENT` i `MEDIA`. Jeden rekord na typ × miesiąc × rok.
+Trzy środowiska (`lib/env.ts`, `getEnvTier()` z `VERCEL_ENV`): `DEVELOPMENT`, `PREVIEW`, `PRODUCTION`. Każde ma własny projekt Supabase.
 
-- Tworzone automatycznie przy wejściu na stronę główną (`ensureMonthlyTasks`)
-- Oznaczane jako DONE po wystawieniu czynszów / mediów (`markMonthlyTaskDone`)
-- Wyświetlane na dashboardzie jako "Do zrobienia" lub "Zrobione"
-- DONE zawiera `completedAt` timestamp
+**Droga na produkcję**: wyłącznie `scripts/push-preview.sh` — db push na bazę dev → commit/push brancha → testy jednostkowe (vitest) → e2e w GitHub Actions na świeżym deployu preview → PR `dev → master` (merge ręcznie). Bezpośredni push do `master` jest niedozwolony. Pre-push hook (`.husky/pre-push`) uruchamia gitleaks i testy jednostkowe.
 
----
+**Migracje**: `npm run vercel-build` (`scripts/vercel-build.mjs`) puszcza `supabase db push` jako krok builda; rozjazd historii migracji blokuje deploy (zasady w `AGENTS.md`).
 
-## Cron / automatyzacja
-
-### Vercel Cron (`vercel.json`)
-
-Konfiguracja cron job w Vercelu wywołuje endpoint co godzinę:
-```
-POST /api/cron/reminders
-```
-
-Autoryzacja: nagłówek `x-vercel-cron: 1` (od Vercel) lub `Authorization: Bearer <CRON_SECRET>`.
-
-Logika: dopasowuje aktywne przypomnienia do bieżącego dnia i godziny, wysyła e-maile, aktualizuje `lastSentAt`, pomija jeśli już wysłano w tym miesiącu.
+**Testy**:
+- Jednostkowe (`npm run test:unit`, `__tests__/unit`): salda, wyciągi, czynsze i backfill, umowy, matcher, parsery CSV/PDF, przypomnienia, status transakcji, kwoty słownie.
+- Integracyjne (`npm run test:integration`, `__tests__/integration`): server actions na bazie preview z danymi `E2E_TEST__` — import, płatności, rozliczanie mediów (Google zamockowane), wiadomości, crony; nodemailer zamockowany.
+- E2E (Playwright, `npm run test:e2e`, `e2e/`): umowy, najemcy, nieruchomości, CRUD grup mediów; szczegóły w `e2e/README.md`. Plan dalszych testów: `testing-plan.md`.
 
 ---
 
 ## Zmienne środowiskowe
 
-| Zmienna                       | Wymagana | Opis                                             |
-|-------------------------------|----------|--------------------------------------------------|
-| `DATABASE_URL`                | TAK      | PostgreSQL connection string (przez pooler)      |
-| `DIRECT_URL`                  | TAK      | PostgreSQL direct URL (dla migracji)            |
-| `APP_PASSWORD`                | TAK      | Hasło do logowania                               |
-| `NEXTAUTH_SECRET`             | TAK      | Sekret NextAuth                                  |
-| `NEXTAUTH_URL`                | TAK      | URL aplikacji                                    |
-| `RESEND_API_KEY`              | NIE*     | Klucz Resend (bez niego e-maile nie działają)   |
-| `RESEND_FROM`                 | NIE      | Nadawca e-maili                                  |
-| `RESEND_REPLY_TO`             | NIE      | Reply-To                                         |
-| `GOOGLE_SERVICE_ACCOUNT_JSON` | NIE*     | JSON konta serwisowego (Sheets + eksport PDF)   |
-| `GOOGLE_OAUTH_CLIENT_ID`      | NIE*     | OAuth Client ID (Drive upload)                  |
-| `GOOGLE_OAUTH_CLIENT_SECRET`  | NIE*     | OAuth Client Secret                              |
-| `GOOGLE_OAUTH_REFRESH_TOKEN`  | NIE*     | OAuth Refresh Token                              |
-| `CRON_SECRET`                 | NIE      | Sekret do autoryzacji crona (Bearer token)      |
+| Zmienna | Opis |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Projekt Supabase (publiczne) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Klucz serwera (tajny, omija RLS) |
+| `SUPABASE_DB_URL` | Connection string do `supabase db push` (build Vercela, `push-preview.sh`) |
+| `GMAIL_APP_PASSWORD` | Hasło aplikacji Gmail dla nadawcy z `app_config.admin_email` |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | Service Account (Sheets, base64 lub raw JSON) |
+| `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REFRESH_TOKEN` | OAuth2 dla Google Drive |
+| `CRON_SECRET` | Sekret autoryzacji endpointów cron (Bearer) |
+| `NEXT_PUBLIC_APP_URL` | Publiczny URL aplikacji (linki w e-mailach z odczytami) |
+| `NEXT_PUBLIC_ALLOW_TEST_PANEL` | `true` odblokowuje panel testowy i wirtualny zegar poza dev/preview |
+| `SKILL_RUNNER_URL`, `SKILL_RUNNER_TOKEN` | Skill runner na VPS |
+| `VERCEL_ENV` / `NEXT_PUBLIC_VERCEL_ENV` | Ustawiane przez Vercel (warstwa środowiska) |
 
-\* Wymagane dla danych funkcji (e-mail / Sheets / Drive).
-
----
-
-## Uwagi dla przepisania na nowy stack
-
-### Kluczowe zachowania do zachowania
-
-1. **Model salda "Skarbonka"** — brak parowania 1:1, status opłacenia symulowany od najstarszego.
-2. **Numeracja rachunków** — stały `invoiceSeqNumber` per umowa + offset per typ.
-3. **Unikalność rachunku** — `(tenantId, type, month, year)` unikalne.
-4. **Tylko BUSINESS generuje rachunki i e-maile** — PRIVATE ignorowane w `generateRents`.
-5. **Rate limiting przy PDF** — 4s delay między eksportami Sheets.
-6. **Cron przypomnienia** — idempotentny (jeden raz per miesiąc per przypomnienie).
-7. **Reconcile z zapamiętaniem konta** — opcja dopisania konta do `bankAccountsAsText`.
-8. **Walidacja usuwania** — tenant nie może być usunięty z umowami; nieruchomość z najemcami.
-
-### Dane przechowywane jako tekst (do zamiany na struktury)
-
-- `bankAccountsAsText` — wolny tekst z numerami kont rozdzielonymi `\n,;`
-- `inputMappingJSON` / `outputMappingJSON` / `rentInvoiceInputMappingJSON` — JSON jako string w bazie
-
-W nowym stacku można to rozważyć jako oddzielne tabele lub typy JSONB w Supabase.
-
-### Brak soft delete
-
-Wszystkie operacje DELETE są twarde. Rozważyć `deletedAt` dla umów/najemców.
-
-### Jeden użytkownik
-
-Aplikacja jest single-tenant (jedno hasło, jeden admin). Brak ról/uprawnień.
+Zmienne skryptów deploy/testów (`SUPABASE_URL_*`, `SUPABASE_KEY_*`, `VPS_*`, `.env.deploy.example`, `.env.e2e.example`) — zob. odpowiednie pliki `.example` oraz `e2e/README.md`.

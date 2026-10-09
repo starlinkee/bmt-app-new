@@ -27,9 +27,15 @@ Jeśli mimo wszystko ktoś zmieni coś ręcznie w Studio: jak najszybciej dopisz
 <!-- BEGIN:bmt-e2e-tests -->
 # Testy e2e (Playwright)
 
-Pliki w `e2e/`, uruchamiane lokalnie przeciwko deployowi preview (nie przeciwko
-lokalnemu `next dev` ani produkcji) — szczegóły konfiguracji i uruchamiania w
-`e2e/README.md`.
+Pliki w `e2e/`, uruchamiane w GitHub Actions (`.github/workflows/e2e.yml`) po
+każdym udanym deployu preview na Vercelu — przeciwko temu deployowi i jego bazie
+(nie przeciwko lokalnemu `next dev` ani produkcji). Można je też odpalić ręcznie
+lokalnie przeciwko deployowi preview. Szczegóły w `e2e/README.md`.
+
+Warstwy testów: jednostkowe (`npm run test`, `__tests__/unit`, na pre-push i w CI),
+integracyjne server actions na bazie preview (`npm run test:integration`,
+`__tests__/integration`, dane z prefiksem `E2E_TEST__`, e-maile zamockowane) oraz
+e2e Playwright. Plan i stan dalszych testów: `testing-plan.md`.
 
 Aktualnie zaimplementowane pokrycie:
 - `umowy.spec.ts` — dodawanie/edycja/usuwanie umowy, filtr tekstowy i

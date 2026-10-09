@@ -2,7 +2,7 @@
 
 Structured plan for automated tests covering the three core flows (payment control, media settlement, bank statement import) plus the messages module (Gmail SMTP with an app password), history views and data tables.
 
-Status: **proposal** — the open decisions below use the recommended defaults. Change them before starting the phases they affect.
+Status (updated 2026-10-07): **in progress** — Phase 1 (unit) is done and Phase 2 (integration) is written; Phases 3–6 (e-mail seam, new e2e specs, prod smoke, `AGENTS.md` testing section) are still open. The decisions below use the recommended defaults; change them before starting the phases they affect.
 
 ---
 
@@ -21,10 +21,11 @@ Out of scope (deliberately not tested): the correctness of the Google Sheets cal
 
 ## 1. Current state (baseline)
 
-- **Unit** (`vitest`, `__tests__/unit/`, run on pre-push and in `ci.yml`): `contracts`, `contracts.actions`, `csvParser`, `matcher`, `numberWords`.
+- **Unit** (`vitest`, `__tests__/unit/`, run on pre-push and in `ci.yml`): at the time this plan was written only `contracts`, `contracts.actions`, `csvParser`, `matcher`, `numberWords`; Phase 1 added `balance`, `statement`, `transactionStatus`, `rents`, `reminders`, `pdfParser`, and the backfill work added `rentsBackfill`.
+- **Integration** (`vitest.integration.config.ts`, `__tests__/integration/`): `import`, `payments`, `media-settlement`, `messages`, `crons` — see Phase 2 (not part of CI or pre-push).
 - **E2E** (Playwright, `e2e/`, run by `.github/workflows/e2e.yml` on the Vercel preview after each successful deploy): `umowy`, `najemcy`, `nieruchomosci`, `media` (CRUD only). Data via fixtures in `e2e/support/fixtures.ts` with the `E2E_TEST__` prefix, cleanup in fixtures and `global-teardown.ts`.
 - **Prod smoke**: only `/api/health`, not called by anything.
-- **Not covered**: payment control, import, media settlement, messages, history, automations, settings.
+- **Not covered by e2e**: payment control, import, media settlement, messages, history, automations, settings (covered only at unit/integration level where noted in Phases 1–2).
 
 Known risks to keep in mind while writing tests:
 - Preview sends real e-mails (`lib/email.ts`: `finalTo = to`; `isPreview` only affects attachment storage). Current fixtures are safe only because tenants have no e-mail.
