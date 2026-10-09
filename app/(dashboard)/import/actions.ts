@@ -17,6 +17,21 @@ import crypto from 'crypto'
 // (sekcja "2 wyciągi PDF").
 export type ImportDocSlot = 0 | 1 | 2
 
+// Przełączniki z Ustawień: Pekao = import CSV (slot 0), Millennium = 2 wyciągi
+// PDF (sloty 1/2). Brak wiersza konfiguracji / null = włączone (jak dotąd).
+export async function getImportToggles(): Promise<{ pekao: boolean; millennium: boolean }> {
+  const supabase = createServiceClient()
+  const { data } = await supabase
+    .from('app_config')
+    .select('import_pekao_enabled, import_millennium_enabled')
+    .eq('id', 1)
+    .single()
+  return {
+    pekao: data?.import_pekao_enabled !== false,
+    millennium: data?.import_millennium_enabled !== false,
+  }
+}
+
 export async function importBankStatement(
   content: string,
   fileName: string = 'unknown.csv',
@@ -25,6 +40,14 @@ export async function importBankStatement(
   docSlot?: ImportDocSlot,
 ) {
   const supabase = createServiceClient()
+
+  // Zabezpieczenie po stronie serwera (UI i tak ukrywa wyłączoną sekcję).
+  // Sprawdzamy przed utworzeniem wpisu w audit_log.
+  const toggles = await getImportToggles()
+  const isMillennium = docSlot === 1 || docSlot === 2
+  if (isMillennium ? !toggles.millennium : !toggles.pekao) {
+    throw new Error(`Import ${isMillennium ? 'Millennium' : 'Pekao'} jest wyłączony w Ustawieniach.`)
+  }
 
   // Rezerwujemy wiersz audit_log jako "batch" tego importu, zanim jeszcze
   // wiemy, ile transakcji zostanie wczytanych — dzięki temu każdy rekord

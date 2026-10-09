@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { getUnmatchedTransactions } from './actions'
+import { getImportToggles, getUnmatchedTransactions } from './actions'
 import { UploadForm } from './upload-form'
 
 export default async function ImportPage() {
@@ -9,5 +9,7 @@ export default async function ImportPage() {
     redirect('/import/reconcile')
   }
 
-  return <UploadForm />
+  const toggles = await getImportToggles()
+
+  return <UploadForm pekaoEnabled={toggles.pekao} millenniumEnabled={toggles.millennium} />
 }

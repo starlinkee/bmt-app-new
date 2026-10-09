@@ -41,6 +41,8 @@ export type Database = {
             payment_account_1_name: string
             payment_account_2_name: string
             backfill_rents_enabled: boolean
+            import_pekao_enabled: boolean
+            import_millennium_enabled: boolean
             statement_upload_reminder_subject: string | null
             statement_upload_reminder_body: string | null
           }
@@ -70,6 +72,8 @@ export type Database = {
             payment_account_1_name?: string
             payment_account_2_name?: string
             backfill_rents_enabled?: boolean
+            import_pekao_enabled?: boolean
+            import_millennium_enabled?: boolean
             statement_upload_reminder_subject?: string | null
             statement_upload_reminder_body?: string | null
           }
@@ -99,6 +103,8 @@ export type Database = {
             payment_account_1_name?: string
             payment_account_2_name?: string
             backfill_rents_enabled?: boolean
+            import_pekao_enabled?: boolean
+            import_millennium_enabled?: boolean
             statement_upload_reminder_subject?: string | null
             statement_upload_reminder_body?: string | null
           }

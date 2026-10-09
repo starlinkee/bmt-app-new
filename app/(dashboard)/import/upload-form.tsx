@@ -84,7 +84,13 @@ function nominalPdfSlotPeriodLabel(
   return ''
 }
 
-export function UploadForm() {
+export function UploadForm({
+  pekaoEnabled = true,
+  millenniumEnabled = true,
+}: {
+  pekaoEnabled?: boolean
+  millenniumEnabled?: boolean
+}) {
   const [result, setResult] = useState<{
     bank: string
     total: number
@@ -336,6 +342,7 @@ export function UploadForm() {
         </div>
       )}
 
+      {pekaoEnabled && (
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -412,7 +419,9 @@ export function UploadForm() {
 
         {result?.source !== 'pdf' && renderSummary()}
       </Card>
+      )}
 
+      {millenniumEnabled && (
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -526,6 +535,7 @@ export function UploadForm() {
         </CardContent>
         {result?.source === 'pdf' && renderSummary()}
       </Card>
+      )}
 
       <div className="pt-8 border-t">
         <ImportHistoryTable />

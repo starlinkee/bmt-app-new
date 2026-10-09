@@ -45,7 +45,7 @@ const historyItems = [
 const actionItems = [
   { href: '/kontrola-platnosci', label: 'Kontrola płatności', icon: ClipboardList },
   { href: '/rozlicz-media', label: 'Rozlicz media', icon: Gauge },
-  { href: '/import', label: 'Import CSV', icon: Upload },
+  { href: '/import', label: 'Importuj wyciągi bankowe', icon: Upload },
 ]
 
 // Niebezpieczne zakładki (wsteczne dopisywanie czynszów i mediów) - widoczne
