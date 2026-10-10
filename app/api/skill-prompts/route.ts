@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireApiAuth } from '@/lib/auth'
 import { createServiceClient } from '@/lib/supabase/service'
 
 function isValidSkillId(id: unknown): id is string {
@@ -6,6 +7,7 @@ function isValidSkillId(id: unknown): id is string {
 }
 
 export async function GET(req: NextRequest) {
+  if (!(await requireApiAuth())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const skillId = req.nextUrl.searchParams.get('skillId')
   if (!isValidSkillId(skillId)) {
     return NextResponse.json({ error: 'Invalid skillId' }, { status: 400 })
@@ -36,6 +38,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  if (!(await requireApiAuth())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await req.json().catch(() => ({})) as Record<string, unknown>
   const { skillId, content, label, description, timeoutMs, settlementGroupId } = body
 
@@ -72,6 +75,7 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  if (!(await requireApiAuth())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const skillId = req.nextUrl.searchParams.get('skillId')
   if (!isValidSkillId(skillId)) {
     return NextResponse.json({ error: 'Invalid skillId' }, { status: 400 })

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireApiAuth } from '@/lib/auth'
 import { createServiceClient } from '@/lib/supabase/service'
 
 export async function GET(req: NextRequest) {
+  if (!(await requireApiAuth())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const browse = req.nextUrl.searchParams.get('browse')
   const filePath = req.nextUrl.searchParams.get('path') // e.g. "skillName/jobId/fileName"
   const jobId = req.nextUrl.searchParams.get('jobId')

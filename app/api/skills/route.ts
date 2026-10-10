@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
+import { requireApiAuth } from '@/lib/auth'
 import { createServiceClient } from '@/lib/supabase/service'
 
 export async function GET() {
+  if (!(await requireApiAuth())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const supabase = createServiceClient()
   
   try {

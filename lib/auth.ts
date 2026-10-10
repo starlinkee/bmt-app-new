@@ -10,6 +10,11 @@ export async function getSession() {
   return data.session
 }
 
+/** Dla tras API: zwraca sesję lub null (bez przekierowania - trasa odpowiada 401). */
+export async function requireApiAuth() {
+  return getSession()
+}
+
 /** Przekierowuje na /login jeśli brak sesji. */
 export async function requireAuth() {
   const session = await getSession()
