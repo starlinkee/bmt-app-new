@@ -10,9 +10,15 @@ export async function getSession() {
   return data.session
 }
 
-/** Dla tras API: zwraca sesję lub null (bez przekierowania - trasa odpowiada 401). */
+/**
+ * Dla tras API: zwraca zweryfikowanego użytkownika lub null (bez przekierowania -
+ * trasa odpowiada 401). Używa getUser() (weryfikacja tokenu w Supabase Auth);
+ * getSession() na serwerze tylko dekoduje ciasteczko, więc przyjęłoby podrobione.
+ */
 export async function requireApiAuth() {
-  return getSession()
+  const supabase = await createClient()
+  const { data, error } = await supabase.auth.getUser()
+  return error || !data.user ? null : data.user
 }
 
 /** Przekierowuje na /login jeśli brak sesji. */
