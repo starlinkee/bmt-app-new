@@ -16,6 +16,9 @@ export default defineConfig({
   workers: 4,
   reporter: [['html', { open: 'never' }]],
   timeout: 30_000,
+  // Akcje zapisujące na preview (cold start funkcji + zapytania do Supabase) bywają wolniejsze
+  // niż domyślne 5 s czekania na asercję. retries zostaje 0, żeby flaki były widoczne.
+  expect: { timeout: 10_000 },
   globalTeardown: './e2e/global-teardown.ts',
 
   use: {

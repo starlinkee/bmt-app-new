@@ -373,12 +373,19 @@ export default function MediaPage() {
         property_ids: form.property_ids,
         tenant_reading_keys: finalTrk,
       }
-      if (editing) {
-        await updateSettlementGroup(editing.id, payload)
-        toast.success('Grupa zaktualizowana.')
-      } else {
-        await createSettlementGroup(payload)
-        toast.success('Grupa dodana.')
+      try {
+        if (editing) {
+          await updateSettlementGroup(editing.id, payload)
+          toast.success('Grupa zaktualizowana.')
+        } else {
+          await createSettlementGroup(payload)
+          toast.success('Grupa dodana.')
+        }
+      } catch (err) {
+        console.error(err)
+        toast.error(editing ? 'Nie udało się zapisać grupy.' : 'Nie udało się dodać grupy.')
+        setConfirmOpen(false)
+        return
       }
       setOpen(false)
       setConfirmOpen(false)
@@ -392,7 +399,13 @@ export default function MediaPage() {
   function handleDelete(g: Group) {
     if (!confirm(`Usunąć grupę "${g.name}"?`)) return
     startTransition(async () => {
-      await deleteSettlementGroup(g.id)
+      try {
+        await deleteSettlementGroup(g.id)
+      } catch (err) {
+        console.error(err)
+        toast.error('Nie udało się usunąć grupy.')
+        return
+      }
       toast.success('Grupa usunięta.')
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.settlementGroups })
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tenants })
