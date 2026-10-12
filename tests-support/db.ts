@@ -29,6 +29,30 @@ export const E2E_PREFIX = 'E2E_TEST__'
 
 export type Db = ReturnType<typeof createTestDbClient>
 
+let cachedOwnerId: Promise<string | undefined> | undefined
+
+/**
+ * id konta E2E_LOGIN_EMAIL (konto, którym loguje się Playwright). Po slice 2 UI
+ * pokazuje tylko dane zalogowanego konta (RLS "owner access"), więc fixtures
+ * e2e muszą wstawiać wiersze z owner_id tego konta. Bez E2E_LOGIN_EMAIL (np. testy
+ * integracyjne, które omijają RLS) zwraca undefined - wtedy owner_id dostaje DEFAULT.
+ */
+export function getTestOwnerId(db: Db): Promise<string | undefined> {
+  cachedOwnerId ??= (async () => {
+    const email = process.env.E2E_LOGIN_EMAIL?.trim().toLowerCase()
+    if (!email) return undefined
+    for (let page = 1; page <= 20; page++) {
+      const { data, error } = await db.auth.admin.listUsers({ page, perPage: 200 })
+      if (error) throw error
+      const user = data.users.find((u) => u.email?.toLowerCase() === email)
+      if (user) return user.id
+      if (data.users.length < 200) break
+    }
+    throw new Error('Nie znaleziono w bazie konta E2E_LOGIN_EMAIL - fixtures nie wiedzą, czyje dane założyć.')
+  })()
+  return cachedOwnerId
+}
+
 /**
  * Ten sam klient bez typów tabel. `types/supabase.ts` nie zna jeszcze kolumn
  * dodanych późnymi migracjami (np. `import_id` w transactions/transaction_staging

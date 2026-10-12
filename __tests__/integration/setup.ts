@@ -10,7 +10,15 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }
 
 // Server actions wołają requireUser() (sesja z ciasteczka) - w testach nie ma
 // żądania HTTP, więc podstawiamy zalogowanego użytkownika.
-vi.mock('@/lib/auth-guard', () => ({ requireUser: async () => ({ user: { id: 'E2E_TEST__user' } }) }))
+// getUserClient dostaje ten sam klient co zamockowany createServiceClient (z zawężaniem
+// do danych testowych) - testy nie mają sesji, a owner_id dostaje DEFAULT (legacy owner).
+vi.mock('@/lib/auth-guard', async () => ({
+  requireUser: async () => ({ user: { id: 'E2E_TEST__user' } }),
+  getUserClient: async () => {
+    const { createServiceClient } = await import('@/lib/supabase/service')
+    return { user: { id: 'E2E_TEST__user' }, supabase: createServiceClient() }
+  },
+}))
 
 // SMTP: lib/email.ts działa normalnie (szablony, tematy, logi w email_logs),
 // ale transport zapisuje wiadomość w `mailbox` zamiast ją wysyłać.

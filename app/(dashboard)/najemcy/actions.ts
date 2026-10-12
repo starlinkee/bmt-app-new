@@ -1,13 +1,11 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createServiceClient } from '@/lib/supabase/service'
 import { logAudit } from '@/lib/audit'
-import { requireUser } from '@/lib/auth-guard'
+import { getUserClient } from '@/lib/auth-guard'
 
 export async function getTenants() {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
   const { data, error } = await supabase
     .from('tenants')
     .select('*, properties(name), contracts(id, is_active, has_media_invoice, rent_amount)')
@@ -65,8 +63,7 @@ export async function getTenants() {
 }
 
 export async function getTenant(id: number) {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
   const { data, error } = await supabase
     .from('tenants')
     .select('*, properties(*), contracts(*)')
@@ -91,18 +88,17 @@ export async function createTenant(data: {
   property_id: number
   payment_account?: number | null
 }) {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { user, supabase } = await getUserClient()
   const { data: created, error } = await supabase
     .from('tenants')
     .insert({ ...data, bank_accounts_as_text: data.bank_accounts_as_text ?? '' })
     .select()
     .single()
   if (error) {
-    await logAudit({ actionName: 'createTenant', tableName: 'tenants', operation: 'CREATE', errorData: error })
+    await logAudit({ ownerId: user.id, actionName: 'createTenant', tableName: 'tenants', operation: 'CREATE', errorData: error })
     throw error
   }
-  await logAudit({ actionName: 'createTenant', tableName: 'tenants', operation: 'CREATE', recordId: created.id, afterData: created })
+  await logAudit({ ownerId: user.id, actionName: 'createTenant', tableName: 'tenants', operation: 'CREATE', recordId: created.id, afterData: created })
   revalidatePath('/najemcy')
 }
 
@@ -124,22 +120,20 @@ export async function updateTenant(
     payment_account: number | null
   }>,
 ) {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { user, supabase } = await getUserClient()
   const { data: before } = await supabase.from('tenants').select('*').eq('id', id).single()
   const { data: after, error } = await supabase.from('tenants').update(data).eq('id', id).select().single()
   if (error) {
-    await logAudit({ actionName: 'updateTenant', tableName: 'tenants', operation: 'UPDATE', recordId: id, beforeData: before, errorData: error })
+    await logAudit({ ownerId: user.id, actionName: 'updateTenant', tableName: 'tenants', operation: 'UPDATE', recordId: id, beforeData: before, errorData: error })
     throw error
   }
-  await logAudit({ actionName: 'updateTenant', tableName: 'tenants', operation: 'UPDATE', recordId: id, beforeData: before, afterData: after })
+  await logAudit({ ownerId: user.id, actionName: 'updateTenant', tableName: 'tenants', operation: 'UPDATE', recordId: id, beforeData: before, afterData: after })
   revalidatePath('/najemcy')
   revalidatePath(`/najemcy/${id}`)
 }
 
 export async function deleteTenant(id: number) {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { user, supabase } = await getUserClient()
   const { count } = await supabase
     .from('contracts')
     .select('*', { count: 'exact', head: true })
@@ -152,9 +146,9 @@ export async function deleteTenant(id: number) {
   const { data: before } = await supabase.from('tenants').select('*').eq('id', id).single()
   const { error } = await supabase.from('tenants').delete().eq('id', id)
   if (error) {
-    await logAudit({ actionName: 'deleteTenant', tableName: 'tenants', operation: 'DELETE', recordId: id, beforeData: before, errorData: error })
+    await logAudit({ ownerId: user.id, actionName: 'deleteTenant', tableName: 'tenants', operation: 'DELETE', recordId: id, beforeData: before, errorData: error })
     throw error
   }
-  await logAudit({ actionName: 'deleteTenant', tableName: 'tenants', operation: 'DELETE', recordId: id, beforeData: before })
+  await logAudit({ ownerId: user.id, actionName: 'deleteTenant', tableName: 'tenants', operation: 'DELETE', recordId: id, beforeData: before })
   revalidatePath('/najemcy')
 }

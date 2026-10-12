@@ -29,9 +29,8 @@ function chain(result: { data?: unknown; error: unknown; count?: number }) {
 }
 
 const fromMock = vi.fn()
-vi.mock('@/lib/supabase/service', () => ({
-  createServiceClient: () => ({ from: (...args: unknown[]) => fromMock(...args) }),
-}))
+// Akcje używają klienta z sesją (getUserClient) - podstawiamy ten sam fałszywy klient.
+;(globalThis as { __unitSessionClient?: unknown }).__unitSessionClient = { from: (...args: unknown[]) => fromMock(...args) }
 
 // Import DOPIERO po zdefiniowaniu mocków powyżej.
 const {
@@ -94,6 +93,7 @@ describe('createContract', () => {
         operation: 'CREATE',
         recordId: 10,
         afterData: created,
+        ownerId: 'unit-test-user',
       }),
     )
   })

@@ -1,12 +1,10 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createServiceClient } from '@/lib/supabase/service'
-import { requireUser } from '@/lib/auth-guard'
+import { getUserClient } from '@/lib/auth-guard'
 
 export async function getProperties() {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
   const { data, error } = await supabase
     .from('properties')
     .select('*, tenants(count)')
@@ -21,8 +19,7 @@ export async function createProperty(data: {
   address2?: string
   type: string
 }) {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
   const { error } = await supabase.from('properties').insert(data)
   if (error) throw error
   revalidatePath('/nieruchomosci')
@@ -32,8 +29,7 @@ export async function updateProperty(
   id: number,
   data: { name?: string; address1?: string; address2?: string; type?: string },
 ) {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
   const { error } = await supabase
     .from('properties')
     .update({ ...data, updated_at: new Date().toISOString() })
@@ -43,8 +39,7 @@ export async function updateProperty(
 }
 
 export async function deleteProperty(id: number) {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
   // Sprawdź czy ma najemców
   const { count } = await supabase
     .from('tenants')

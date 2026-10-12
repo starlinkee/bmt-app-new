@@ -17,7 +17,16 @@ const EXCEPTIONS: Record<string, string> = {
   'lib/auth.ts': 'helpery auth (requireApiAuth/requireAuth) - nie są akcjami biznesowymi',
 }
 
-const GUARDS = new Set(['requireUser', 'guardTestPanel'])
+const GUARDS = new Set(['requireUser', 'guardTestPanel', 'getUserClient'])
+
+// Pliki zmigrowane na klienta z sesją (RLS "owner access"): nie wolno im importować
+// klienta service role - wtedy RLS byłby omijany. Lista rośnie z kolejnymi slice'ami.
+const SESSION_CLIENT_FILES = [
+  'app/(dashboard)/najemcy/actions.ts',
+  'app/(dashboard)/najemcy/[id]/actions.ts',
+  'app/(dashboard)/nieruchomosci/actions.ts',
+  'app/(dashboard)/umowy/actions.ts',
+]
 
 // Publiczna strona odczytów liczników (bez sesji, autoryzacja tokenem najemcy):
 // akcje zaczynają się od resolveReadingAccess(token, groupId), poza jawną listą
@@ -138,6 +147,14 @@ describe("server actions ('use server') wymagają zalogowanego użytkownika", ()
       for (const fn of Object.keys(rule.publicFns)) {
         expect(text, `${rel}: ${fn} nie istnieje - usuń z publicFns`).toMatch(new RegExp(`export async function ${fn}\\b`))
       }
+    }
+  })
+
+  test('pliki zmigrowane na klienta z sesją istnieją i nie importują klienta service role', () => {
+    for (const rel of SESSION_CLIENT_FILES) {
+      const file = path.join(ROOT, rel)
+      expect(fs.existsSync(file), `${rel} nie istnieje - usuń z SESSION_CLIENT_FILES`).toBe(true)
+      expect(fs.readFileSync(file, 'utf8'), `${rel} importuje @/lib/supabase/service`).not.toMatch(/@\/lib\/supabase\/service/)
     }
   })
 
