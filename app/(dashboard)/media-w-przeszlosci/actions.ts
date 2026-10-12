@@ -11,6 +11,7 @@ import {
   type YearMonth,
 } from '@/lib/rents-backfill'
 import { isBackfillEnabled } from '../rozlicz-w-przeszlosci/actions'
+import { requireUser } from '@/lib/auth-guard'
 
 // Wsteczne dopisywanie historycznych rachunków za media (MEDIA) dla jednego
 // najemcy - kwoty wpisywane ręcznie, bez arkuszy Google, PDF-ów i maili
@@ -78,6 +79,7 @@ async function computeMonths(tenantId: number, from: YearMonth, to: YearMonth): 
 }
 
 export async function getMediaBackfillMonths(tenantId: number, from: YearMonth, to: YearMonth) {
+  await requireUser()
   await assertEnabled()
   return computeMonths(tenantId, from, to)
 }
@@ -88,6 +90,7 @@ export async function saveMediaBackfill(
   to: YearMonth,
   amounts: { month: number; year: number; amount: number }[],
 ) {
+  await requireUser()
   await assertEnabled()
   if (!amounts.length) throw new Error('Nie wpisano żadnej kwoty.')
 

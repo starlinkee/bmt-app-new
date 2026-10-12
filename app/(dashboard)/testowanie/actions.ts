@@ -6,13 +6,22 @@ import { tenantDisplayName } from '@/lib/utils'
 import { getTimeOffsetMs, setTimeOffsetMs, isTestClockAllowed } from '@/lib/clock'
 import { processLateReminders } from '@/lib/late-reminders'
 import { processStatementUploadReminder } from '@/lib/statement-reminder'
+import { requireUser } from '@/lib/auth-guard'
 
 // Wirtualny zegar (patrz lib/clock.ts) - czas płynie normalnie, tylko
 // przesunięty o `time_offset_ms` zapisane w app_config. Poniższe akcje
 // pozwalają ustawić/zresetować to przesunięcie z panelu testowego oraz
 // ręcznie odpalić crony/automatyzacje pod tym symulowanym czasem.
 
+// Panel testowy: poza zalogowanym użytkownikiem wymagamy też, żeby był włączony
+// na tym środowisku (ta sama reguła co pozycja w menu - lib/clock.ts).
+async function guardTestPanel() {
+  await requireUser()
+  if (!isTestClockAllowed()) throw new Error('Test panel disabled')
+}
+
 export async function getTestClockState() {
+  await guardTestPanel()
   if (!isTestClockAllowed()) {
     return { allowed: false, offsetMs: 0 }
   }
@@ -23,6 +32,7 @@ export async function getTestClockState() {
 // `localDateTime` to wartość z <input type="datetime-local"> (czas lokalny
 // przeglądarki, bez strefy), np. "2026-09-16T08:00".
 export async function setTestClock(localDateTime: string) {
+  await guardTestPanel()
   if (!isTestClockAllowed()) {
     throw new Error('Wirtualny zegar jest wyłączony na tym środowisku')
   }
@@ -36,6 +46,7 @@ export async function setTestClock(localDateTime: string) {
 }
 
 export async function resetTestClock() {
+  await guardTestPanel()
   if (!isTestClockAllowed()) {
     throw new Error('Wirtualny zegar jest wyłączony na tym środowisku')
   }
@@ -43,6 +54,7 @@ export async function resetTestClock() {
 }
 
 export async function runLateRemindersTest() {
+  await guardTestPanel()
   if (!isTestClockAllowed()) {
     throw new Error('Niedozwolone na tym środowisku')
   }
@@ -50,6 +62,7 @@ export async function runLateRemindersTest() {
 }
 
 export async function runStatementReminderTest() {
+  await guardTestPanel()
   if (!isTestClockAllowed()) {
     throw new Error('Niedozwolone na tym środowisku')
   }
@@ -57,6 +70,7 @@ export async function runStatementReminderTest() {
 }
 
 export async function getGroupDetailsForTest(groupId: number) {
+  await guardTestPanel()
   const supabase = createServiceClient()
   
   const group = await getSettlementGroup(groupId)
@@ -110,6 +124,7 @@ export async function getGroupDetailsForTest(groupId: number) {
 // (nic w kodzie aplikacji nie może tam ustawić tej flagi na true), a dev/
 // preview po pierwszym użyciu tego przycisku mają usuwanie trwale odblokowane.
 export async function zeroAllTenantBalances() {
+  await guardTestPanel()
   if (!isTestClockAllowed()) {
     throw new Error('Niedozwolone na tym środowisku')
   }
@@ -161,6 +176,7 @@ export async function zeroAllTenantBalances() {
 // działa wyłącznie gdy isTestClockAllowed() zwraca true, więc nigdy na
 // prawdziwej produkcji.
 export async function clearAllTransactionHistory() {
+  await guardTestPanel()
   if (!isTestClockAllowed()) {
     throw new Error('Niedozwolone na tym środowisku')
   }
@@ -198,6 +214,7 @@ export async function generateTestMediaCharge(
   month: number,
   year: number
 ) {
+  await guardTestPanel()
   const supabase = createServiceClient()
 
   // Pobierz grupę i powiązane nieruchomości

@@ -11,12 +11,14 @@ import {
   monthsInRange,
   type YearMonth,
 } from '@/lib/rents-backfill'
+import { requireUser } from '@/lib/auth-guard'
 
 // Wsteczne dopisywanie czynszów (RENT) za wybrany zakres miesięcy.
 // Zgodnie z zasadami billingu (AGENTS.md) tworzymy WYŁĄCZNIE wiersze w
 // `invoices` (number: null) - bez PDF-ów i bez maili.
 
 export async function isBackfillEnabled(): Promise<boolean> {
+  await requireUser()
   const supabase = createServiceClient()
   const { data } = await supabase
     .from('app_config')
@@ -33,6 +35,7 @@ async function assertEnabled() {
 }
 
 export async function getBackfillTenants() {
+  await requireUser()
   await assertEnabled()
   const supabase = createServiceClient()
   const { data, error } = await supabase
@@ -130,11 +133,13 @@ async function computeBackfill(tenantIds: number[], from: YearMonth, to: YearMon
 }
 
 export async function previewBackfillRents(tenantIds: number[], from: YearMonth, to: YearMonth) {
+  await requireUser()
   await assertEnabled()
   return computeBackfill(tenantIds, from, to)
 }
 
 export async function executeBackfillRents(tenantIds: number[], from: YearMonth, to: YearMonth) {
+  await requireUser()
   await assertEnabled()
   // Przeliczamy na serwerze od nowa - nie ufamy podglądowi z klienta.
   const { rows } = await computeBackfill(tenantIds, from, to)

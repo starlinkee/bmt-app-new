@@ -3,8 +3,10 @@
 import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/service'
 import { logAudit } from '@/lib/audit'
+import { requireUser } from '@/lib/auth-guard'
 
 export async function getAppConfig() {
+  await requireUser()
   const supabase = createServiceClient()
   const { data } = await supabase
     .from('app_config')
@@ -23,6 +25,7 @@ export async function upsertAppConfig(data: {
   import_pekao_enabled?: boolean
   import_millennium_enabled?: boolean
 }) {
+  await requireUser()
   const supabase = createServiceClient()
   const { data: before } = await supabase.from('app_config').select('*').eq('id', 1).single()
   // Przynajmniej jeden import musi zostać włączony (sprawdzane po scaleniu z obecną konfiguracją).

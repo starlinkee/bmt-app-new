@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
+import { requireUser } from '@/lib/auth-guard'
 
 /**
  * Ten ekran pokazuje DOWOLNĄ tabelę 1-1 tak, jak wygląda w bazie, więc
@@ -51,6 +52,7 @@ export async function getDbTableRows(
   page: number,
   pageSize: number,
 ): Promise<DbTableRowsResult> {
+  await requireUser()
   if (!ALLOWED_TABLES.has(table)) {
     throw new Error(`Nieznana lub niedozwolona tabela: ${table}`)
   }

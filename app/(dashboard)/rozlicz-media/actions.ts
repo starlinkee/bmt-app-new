@@ -16,6 +16,7 @@ import { copySpreadsheet, deleteFile, ensureMediaSettlementFolder } from '@/lib/
 import { sendMediaEmail, sendMediaSettlementAdminSummaryEmail } from '@/lib/email'
 import { buildInvoiceNumber, tenantDisplayName } from '@/lib/utils'
 import { getEnvTier } from '@/lib/env'
+import { requireUser } from '@/lib/auth-guard'
 
 // Segment ścieżki/nazwy pliku bezpieczny dla kluczy Supabase Storage.
 // Storage odrzuca ("Invalid key") m.in. polskie znaki diakrytyczne, en-dash (–),
@@ -47,6 +48,7 @@ async function uploadToSupabaseStorage(supabase: ReturnType<typeof createService
 }
 
 export async function getSettlementGroups() {
+  await requireUser()
   const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('settlement_groups')
@@ -57,6 +59,7 @@ export async function getSettlementGroups() {
 }
 
 export async function getSettlementGroup(id: number) {
+  await requireUser()
   const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('settlement_groups')
@@ -78,6 +81,7 @@ export async function createSettlementGroup(data: {
   property_ids: number[]
   tenant_reading_keys?: Record<string, { key: string; label: string }[]>
 }) {
+  await requireUser()
   const supabase = createServiceClient()
   const { property_ids, tenant_reading_keys, ...groupData } = data
   
@@ -127,6 +131,7 @@ export async function updateSettlementGroup(
     tenant_reading_keys?: Record<string, { key: string; label: string }[]>
   },
 ) {
+  await requireUser()
   const supabase = createServiceClient()
   const { property_ids, tenant_reading_keys, ...rest } = data
 
@@ -173,6 +178,7 @@ export async function updateSettlementGroup(
 }
 
 export async function deleteSettlementGroup(id: number) {
+  await requireUser()
   const supabase = createServiceClient()
   const { data: before } = await supabase.from('settlement_groups').select('*').eq('id', id).single()
   const { error } = await supabase
@@ -191,6 +197,7 @@ export async function deleteSettlementGroup(id: number) {
 type FieldDef = string | { range: string; source: 'user'; save_key?: string } | { range: string; source: 'db'; db_key: string } | { range: string; source: 'auto'; auto_type: string }
 
 export async function getMediaEmailPreview(groupId: number) {
+  await requireUser()
   const supabase = createServiceClient()
 
   const group = await getSettlementGroup(groupId)
@@ -233,6 +240,7 @@ export async function getSettlementForMonth(
   month: number,
   year: number,
 ): Promise<boolean> {
+  await requireUser()
   const supabase = createServiceClient()
   const { data } = await supabase
     .from('media_settlements')
@@ -249,6 +257,7 @@ export async function getPreviousMeterReadings(
   month: number,
   year: number,
 ): Promise<Record<string, number>> {
+  await requireUser()
   const supabase = createServiceClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data } = await (supabase as any)
@@ -271,6 +280,7 @@ export async function getCurrentMeterReadings(
   month: number,
   year: number,
 ): Promise<Record<string, number>> {
+  await requireUser()
   const supabase = createServiceClient()
   const { data } = await supabase
     .from('media_meter_readings')
@@ -293,6 +303,7 @@ export async function processSettlement(
   year: number,
   previousReadingOverrides?: Record<string, string>,
 ) {
+  await requireUser()
   try {
   const supabase = createServiceClient()
 

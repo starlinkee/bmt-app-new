@@ -8,11 +8,13 @@ import { getRentPreview } from '@/lib/rents'
 import { getCurrentDate } from '@/lib/clock'
 import { tenantDisplayName } from '@/lib/utils'
 import type { Json } from '@/types/supabase'
+import { requireUser } from '@/lib/auth-guard'
 
 // Umowy, które zostałyby obciążone czynszem, gdyby generowanie odpaliło się
 // teraz dla NASTĘPNEGO miesiąca (czyli to, co realnie naliczy się 1. dnia
 // tego nadchodzącego miesiąca) — do podglądu w Automatyzacjach.
 export async function getUpcomingRentCharges() {
+  await requireUser()
   const now = await getCurrentDate()
   let month = now.getMonth() + 2 // getMonth() jest 0-indeksowany; +2 = następny miesiąc, 1-indeksowany
   let year = now.getFullYear()
@@ -51,6 +53,7 @@ const DEFAULT_MEDIA_EMAIL_BODY =
 // treść tego maila. Nie liczy kwot (te powstają dopiero przy realnym
 // rozliczeniu w Rozlicz media) — to tylko podgląd odbiorców i szablonu.
 export async function getMediaGroupEmailPreviews() {
+  await requireUser()
   const supabase = createServiceClient()
 
   const { data: groups } = await supabase
@@ -108,6 +111,7 @@ export async function getMediaGroupEmailPreviews() {
 }
 
 export async function getAppConfig() {
+  await requireUser()
   const supabase = createServiceClient()
   const { data } = await supabase
     .from('app_config')
@@ -134,6 +138,7 @@ export async function upsertAppConfig(data: {
   statement_upload_reminder_subject?: string | null
   statement_upload_reminder_body?: string | null
 }) {
+  await requireUser()
   const supabase = createServiceClient()
   const { data: before } = await supabase.from('app_config').select('*').eq('id', 1).single()
   const { data: after, error } = await supabase.from('app_config').update(data).eq('id', 1).select().single()
@@ -149,6 +154,7 @@ export async function upsertAppConfig(data: {
 // potrzebne do wyświetlenia (kiedy ostatnio coś faktycznie wysłano, na jaki
 // adres administratora, jaki szablon). Nic tu nic nie zmienia ani nie wysyła.
 export async function getAutomationStatus() {
+  await requireUser()
   const supabase = createServiceClient()
 
   const [{ data: config }, { data: lastUploadReminder }, { data: lastRentGeneration }, { data: lastMeterReminder }, meterReminderRecipients] = await Promise.all([

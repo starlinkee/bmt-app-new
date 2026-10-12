@@ -4,8 +4,10 @@ import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/service'
 import { logAudit } from '@/lib/audit'
 import { computeRevaluedAmount } from '@/lib/contracts'
+import { requireUser } from '@/lib/auth-guard'
 
 export async function getContracts() {
+  await requireUser()
   const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('contracts')
@@ -24,6 +26,7 @@ export async function createContract(data: {
   is_active: boolean
   tenant_id: number
 }) {
+  await requireUser()
   const supabase = createServiceClient()
   const { data: created, error } = await supabase.from('contracts').insert(data).select().single()
   if (error) {
@@ -45,6 +48,7 @@ export async function updateContract(
     is_active: boolean
   }>,
 ) {
+  await requireUser()
   const supabase = createServiceClient()
   const { data: before } = await supabase.from('contracts').select('*').eq('id', id).single()
   const { data: after, error } = await supabase.from('contracts').update(data).eq('id', id).select().single()
@@ -57,6 +61,7 @@ export async function updateContract(
 }
 
 export async function deleteContract(id: number) {
+  await requireUser()
   const supabase = createServiceClient()
   const { data: before } = await supabase.from('contracts').select('*').eq('id', id).single()
   const { error } = await supabase.from('contracts').delete().eq('id', id)
@@ -69,6 +74,7 @@ export async function deleteContract(id: number) {
 }
 
 export async function revaluateContract(id: number, inflationPercent: number) {
+  await requireUser()
   const supabase = createServiceClient()
   const { data: before, error: fetchError } = await supabase
     .from('contracts')
@@ -93,6 +99,7 @@ export async function revaluateContract(id: number, inflationPercent: number) {
 }
 
 export async function getContractStats(month: number, year: number) {
+  await requireUser()
   const supabase = createServiceClient()
   const [{ count: activeContracts }, { data: rentInvoices }] =
     await Promise.all([

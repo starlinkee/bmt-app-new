@@ -3,8 +3,10 @@
 import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/service'
 import { logAudit } from '@/lib/audit'
+import { requireUser } from '@/lib/auth-guard'
 
 export async function getTenants() {
+  await requireUser()
   const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('tenants')
@@ -63,6 +65,7 @@ export async function getTenants() {
 }
 
 export async function getTenant(id: number) {
+  await requireUser()
   const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('tenants')
@@ -88,6 +91,7 @@ export async function createTenant(data: {
   property_id: number
   payment_account?: number | null
 }) {
+  await requireUser()
   const supabase = createServiceClient()
   const { data: created, error } = await supabase
     .from('tenants')
@@ -120,6 +124,7 @@ export async function updateTenant(
     payment_account: number | null
   }>,
 ) {
+  await requireUser()
   const supabase = createServiceClient()
   const { data: before } = await supabase.from('tenants').select('*').eq('id', id).single()
   const { data: after, error } = await supabase.from('tenants').update(data).eq('id', id).select().single()
@@ -133,6 +138,7 @@ export async function updateTenant(
 }
 
 export async function deleteTenant(id: number) {
+  await requireUser()
   const supabase = createServiceClient()
   const { count } = await supabase
     .from('contracts')

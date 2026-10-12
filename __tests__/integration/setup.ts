@@ -8,6 +8,10 @@ import { resetRuntime } from './helpers/runtime'
 // revalidatePath poza żądaniem Next.js to no-op - nie ciągniemy runtime'u.
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
 
+// Server actions wołają requireUser() (sesja z ciasteczka) - w testach nie ma
+// żądania HTTP, więc podstawiamy zalogowanego użytkownika.
+vi.mock('@/lib/auth-guard', () => ({ requireUser: async () => ({ user: { id: 'E2E_TEST__user' } }) }))
+
 // SMTP: lib/email.ts działa normalnie (szablony, tematy, logi w email_logs),
 // ale transport zapisuje wiadomość w `mailbox` zamiast ją wysyłać.
 vi.mock('nodemailer', async () => {

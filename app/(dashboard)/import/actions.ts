@@ -9,6 +9,7 @@ import { logAudit } from '@/lib/audit'
 import fs from 'fs/promises'
 import path from 'path'
 import crypto from 'crypto'
+import { requireUser } from '@/lib/auth-guard'
 
 // Slot dokumentu, dla którego robiony jest import — pozwala rozróżnić, do
 // którego "dokumentu" należy dany zakres dni (dayFrom/dayTo), żeby przy
@@ -20,6 +21,7 @@ export type ImportDocSlot = 0 | 1 | 2
 // Przełączniki z Ustawień: Pekao = import CSV (slot 0), Millennium = 2 wyciągi
 // PDF (sloty 1/2). Brak wiersza konfiguracji / null = włączone (jak dotąd).
 export async function getImportToggles(): Promise<{ pekao: boolean; millennium: boolean }> {
+  await requireUser()
   const supabase = createServiceClient()
   const { data } = await supabase
     .from('app_config')
@@ -39,6 +41,7 @@ export async function importBankStatement(
   dayTo?: number,
   docSlot?: ImportDocSlot,
 ) {
+  await requireUser()
   const supabase = createServiceClient()
 
   // Zabezpieczenie po stronie serwera (UI i tak ukrywa wyłączoną sekcję).
@@ -260,6 +263,7 @@ export async function importBankStatement(
 }
 
 export async function getLastImportInfo() {
+  await requireUser()
   const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('audit_log')
@@ -287,6 +291,7 @@ export async function getLastImportInfo() {
 // PDF"). Dzięki temu przy kolejnym imporcie (np. za bieżący miesiąc) można
 // podpowiedzieć, jaki zakres wybrano poprzednio dla tego samego dokumentu/konta.
 export async function getLastImportSlotRange(docSlot: ImportDocSlot) {
+  await requireUser()
   const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('audit_log')
@@ -338,6 +343,7 @@ export type ImportKindStatus = {
 // (MATCHED); data zatwierdzenia = moment zapisania ostatniej takiej transakcji.
 // Wszystko liczone na żywo z import_id, więc nic nie trzeba osobno utrzymywać.
 export async function getImportKindStatuses(): Promise<Record<ImportKind, ImportKindStatus>> {
+  await requireUser()
   const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('audit_log')
@@ -387,6 +393,7 @@ export async function getImportKindStatuses(): Promise<Record<ImportKind, Import
 }
 
 export async function getImportHistoryList() {
+  await requireUser()
   const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('audit_log')
@@ -449,6 +456,7 @@ export type ImportTransaction = {
 }
 
 export async function getImportTransactions(importId: number): Promise<ImportTransaction[]> {
+  await requireUser()
   const supabase = createServiceClient()
 
   const [{ data: transactions, error: txError }, { data: staged, error: stagedError }] = await Promise.all([
@@ -498,6 +506,7 @@ export async function getImportTransactions(importId: number): Promise<ImportTra
 }
 
 export async function getFileContent(fileName: string) {
+  await requireUser()
   try {
     const filePath = path.join(process.cwd(), 'data', 'attachments', fileName)
     const content = await fs.readFile(filePath, 'utf-8')
@@ -509,6 +518,7 @@ export async function getFileContent(fileName: string) {
 }
 
 export async function getUnmatchedTransactions() {
+  await requireUser()
   const supabase = createServiceClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any).from('transaction_staging')
@@ -534,6 +544,7 @@ export async function reconcileTransaction(
   saveAccount: boolean,
   category?: 'RENT' | 'MEDIA',
 ) {
+  await requireUser()
   const supabase = createServiceClient()
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -612,6 +623,7 @@ export async function reconcileTransaction(
 export async function reconcileMany(
   items: { txId: number; tenantId: number; category?: 'RENT' | 'MEDIA' }[],
 ) {
+  await requireUser()
   for (const { txId, tenantId, category } of items) {
     await reconcileTransaction(txId, tenantId, true, category)
   }
@@ -623,6 +635,7 @@ export async function dismissTransaction(
   reason: 'REJECTED_OWN_TRANSFER' | 'REJECTED_OTHER' | 'REJECTED_DUPLICATE' = 'REJECTED_OTHER',
   note?: string,
 ) {
+  await requireUser()
   const supabase = createServiceClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: before } = await (supabase as any).from('transaction_staging').select('*').eq('id', txId).single()
@@ -656,6 +669,7 @@ export async function dismissTransaction(
 }
 
 export async function dismissAllTransactions() {
+  await requireUser()
   const supabase = createServiceClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: allStaging } = await (supabase as any).from('transaction_staging').select('*')
@@ -690,6 +704,7 @@ export async function dismissAllTransactions() {
 }
 
 export async function getAllTransactions(status?: string) {
+  await requireUser()
   const supabase = createServiceClient()
   let query = supabase
     .from('transactions')
@@ -707,6 +722,7 @@ export async function getAllTransactions(status?: string) {
 }
 
 export async function updateTransactionCategory(txId: number, category: 'RENT' | 'MEDIA') {
+  await requireUser()
   const supabase = createServiceClient()
   const { data: before } = await supabase.from('transactions').select('*').eq('id', txId).single()
   const { data: after, error } = await supabase

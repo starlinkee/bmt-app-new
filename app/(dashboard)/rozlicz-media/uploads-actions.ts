@@ -2,6 +2,7 @@
 
 import { createServiceClient } from '@/lib/supabase/service'
 import { logAudit } from '@/lib/audit'
+import { requireUser } from '@/lib/auth-guard'
 
 // Osobny bucket (nie "invoices"), żeby ręcznie wgrane pliki nie mieszały się z plikami z AI.
 // Struktura: folder (np. lokal/najemca) / paczka "RRRR-MM-DD_GG-MM-SS" / plik.
@@ -47,6 +48,7 @@ function batchName(date = new Date()): string {
 }
 
 export async function getUploads(): Promise<UploadFolder[]> {
+  await requireUser()
   const supabase = createServiceClient()
   const { data: folders, error } = await supabase.storage.from(BUCKET).list('', { limit: 1000 })
   if (error) throw new Error(error.message)
@@ -79,6 +81,7 @@ function parseBatchMs(name: string): number {
 }
 
 export async function createUploadFolder(name: string) {
+  await requireUser()
   const folder = requireSegment(name, 'Nazwa folderu')
   const supabase = createServiceClient()
   const { data: existing } = await supabase.storage.from(BUCKET).list('', { search: folder, limit: 100 })
@@ -111,11 +114,13 @@ async function removeRecursive(prefix: string) {
 }
 
 export async function deleteUploadFolder(folder: string) {
+  await requireUser()
   await removeRecursive(requireSegment(folder, 'Nazwa folderu'))
   await logAudit({ actionName: 'deleteUploadFolder', tableName: 'manual-uploads', operation: 'DELETE', afterData: { info: `Usunięto folder wgranych plików "${folder}"` } })
 }
 
 export async function deleteUploadBatch(folder: string, batch: string) {
+  await requireUser()
   const f = requireSegment(folder, 'Nazwa folderu')
   const b = requireSegment(batch, 'Nazwa podfolderu')
   await removeRecursive(`${f}/${b}`)
@@ -125,6 +130,7 @@ export async function deleteUploadBatch(folder: string, batch: string) {
 // Pliki trafiają do Storage bezpośrednio z przeglądarki (limit body Server Actions),
 // więc serwer tylko tworzy nowy podfolder i wystawia podpisane adresy uploadu.
 export async function prepareUpload(folder: string, fileNames: string[]) {
+  await requireUser()
   if (fileNames.length === 0) throw new Error('Nie wybrano plików.')
   const f = requireSegment(folder, 'Nazwa folderu')
   const batch = batchName()
@@ -153,6 +159,7 @@ export async function prepareUpload(folder: string, fileNames: string[]) {
 }
 
 export async function getUploadFileUrl(folder: string, batch: string, file: string, download = false) {
+  await requireUser()
   const supabase = createServiceClient()
   const path = `${requireSegment(folder, 'Folder')}/${requireSegment(batch, 'Podfolder')}/${file}`
   const { data, error } = await supabase.storage

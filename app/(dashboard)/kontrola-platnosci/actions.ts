@@ -2,6 +2,7 @@
 
 import { createServiceClient } from '@/lib/supabase/service'
 import { INCOME_TRANSACTION_STATUSES } from '@/lib/transactionStatus'
+import { requireUser } from '@/lib/auth-guard'
 
 // Data ostatniego importu wyciągu bankowego per konto firmowe: konto 1 =
 // import CSV (docSlot 0, opisany w UI importu jako "Pekao SA"), konto 2 =
@@ -9,6 +10,7 @@ import { INCOME_TRANSACTION_STATUSES } from '@/lib/transactionStatus'
 // audit_log tak samo jak getLastImportInfo w app/(dashboard)/import/actions.ts,
 // bez osobnej tabeli importów.
 export async function getLastImportDatesByAccount(): Promise<Record<1 | 2, string | null>> {
+  await requireUser()
   const supabase = createServiceClient()
   const { data } = await supabase
     .from('audit_log')
@@ -28,6 +30,7 @@ export async function getLastImportDatesByAccount(): Promise<Record<1 | 2, strin
 }
 
 export async function getTenantsWithBalances() {
+  await requireUser()
   const supabase = createServiceClient()
 
   const [{ data: tenants }, { data: transactions }, { data: invoices }, { data: config }, lastImportByAccount] =
@@ -87,6 +90,7 @@ export async function getTenantsWithBalances() {
 }
 
 export async function getTenantWithBalance(tenantId: number) {
+  await requireUser()
   const supabase = createServiceClient()
 
   const [{ data: tenant }, { data: transactions }, { data: invoices }] = await Promise.all([
@@ -114,6 +118,7 @@ export async function getTenantWithBalance(tenantId: number) {
   }
 }
 export async function sendBulkStatements() {
+  await requireUser()
   const supabase = createServiceClient()
   const { data: config } = await supabase.from('app_config').select('*').eq('id', 1).single()
   if (!config) throw new Error('Brak konfiguracji aplikacji')
@@ -148,6 +153,7 @@ export async function sendBulkStatements() {
 }
 
 export async function getGlobalPaymentStats() {
+  await requireUser()
   const supabase = createServiceClient()
   const [{ data: txs }, { data: invs }] = await Promise.all([
     supabase.from('transactions').select('date, amount').in('status', INCOME_TRANSACTION_STATUSES),
@@ -177,6 +183,7 @@ export async function getGlobalPaymentStats() {
 }
 
 export async function sendStatementToTenant(tenantId: number) {
+  await requireUser()
   try {
     const supabase = createServiceClient()
     const { data: config } = await supabase.from('app_config').select('*').eq('id', 1).single()

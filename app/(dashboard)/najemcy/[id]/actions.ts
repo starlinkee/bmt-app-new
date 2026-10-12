@@ -3,13 +3,16 @@
 import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/service'
 import { logAudit } from '@/lib/audit'
+import { requireUser } from '@/lib/auth-guard'
 
 export async function getTenantStatement(tenantId: number) {
+  await requireUser()
   const { getStatement } = await import('@/lib/statement')
   return getStatement(tenantId)
 }
 
 export async function getTenantBalance(tenantId: number) {
+  await requireUser()
   const { calculateBalance } = await import('@/lib/balance')
   return calculateBalance(tenantId)
 }
@@ -20,6 +23,7 @@ export async function addAdjustment(
   description: string,
   date: string,
 ) {
+  await requireUser()
   const supabase = createServiceClient()
   const { data: created, error } = await supabase.from('transactions').insert({
     type: 'ADJUSTMENT',
@@ -43,6 +47,7 @@ export async function addManualBankTransaction(
   description: string,
   date: string,
 ) {
+  await requireUser()
   const supabase = createServiceClient()
   const { data: created, error } = await supabase.from('transactions').insert({
     type: 'BANK',
@@ -66,6 +71,7 @@ export async function updateTransaction(
   data: { amount: number; title: string; date: string },
   note?: string,
 ) {
+  await requireUser()
   const supabase = createServiceClient()
 
   const { data: before } = await supabase
@@ -101,6 +107,7 @@ export async function updateTransaction(
 }
 
 export async function getTransactionAmendments(txId: number) {
+  await requireUser()
   const supabase = createServiceClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
