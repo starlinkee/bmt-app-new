@@ -1,8 +1,8 @@
 'use server'
 
-import { createServiceClient } from '@/lib/supabase/service'
 import { INCOME_TRANSACTION_STATUSES } from '@/lib/transactionStatus'
-import { requireUser } from '@/lib/auth-guard'
+import { readAppConfig } from '@/lib/app-config'
+import { assertTenantOwned, getUserClient } from '@/lib/auth-guard'
 
 // Data ostatniego importu wyciągu bankowego per konto firmowe: konto 1 =
 // import CSV (docSlot 0, opisany w UI importu jako "Pekao SA"), konto 2 =
@@ -10,8 +10,7 @@ import { requireUser } from '@/lib/auth-guard'
 // audit_log tak samo jak getLastImportInfo w app/(dashboard)/import/actions.ts,
 // bez osobnej tabeli importów.
 export async function getLastImportDatesByAccount(): Promise<Record<1 | 2, string | null>> {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
   const { data } = await supabase
     .from('audit_log')
     .select('after_data, created_at')
@@ -30,10 +29,9 @@ export async function getLastImportDatesByAccount(): Promise<Record<1 | 2, strin
 }
 
 export async function getTenantsWithBalances() {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
 
-  const [{ data: tenants }, { data: transactions }, { data: invoices }, { data: config }, lastImportByAccount] =
+  const [{ data: tenants }, { data: transactions }, { data: invoices }, config, lastImportByAccount] =
     await Promise.all([
       supabase
         .from('tenants')
@@ -43,7 +41,7 @@ export async function getTenantsWithBalances() {
         .select('tenant_id, amount')
         .in('status', INCOME_TRANSACTION_STATUSES),
       supabase.from('invoices').select('tenant_id, amount'),
-      supabase.from('app_config').select('payment_account_1_name, payment_account_2_name').eq('id', 1).single(),
+      readAppConfig(['payment_account_1_name', 'payment_account_2_name']),
       getLastImportDatesByAccount(),
     ])
 
@@ -90,8 +88,7 @@ export async function getTenantsWithBalances() {
 }
 
 export async function getTenantWithBalance(tenantId: number) {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
 
   const [{ data: tenant }, { data: transactions }, { data: invoices }] = await Promise.all([
     supabase
@@ -118,9 +115,8 @@ export async function getTenantWithBalance(tenantId: number) {
   }
 }
 export async function sendBulkStatements() {
-  await requireUser()
-  const supabase = createServiceClient()
-  const { data: config } = await supabase.from('app_config').select('*').eq('id', 1).single()
+  const { supabase } = await getUserClient()
+  const config = await readAppConfig(['late_reminder_subject', 'late_reminder_body'])
   if (!config) throw new Error('Brak konfiguracji aplikacji')
 
   const tenants = await getTenantsWithBalances()
@@ -134,6 +130,8 @@ export async function sendBulkStatements() {
 
   let sentCount = 0
   for (const tenant of debtors) {
+    // lib/statement czyta service rolą - najpierw potwierdzamy własność przez sesję.
+    await assertTenantOwned(supabase, tenant.id)
     const { data: tDb } = await supabase.from('tenants').select('email, email2').eq('id', tenant.id).single()
     if (!tDb || !tDb.email) continue
 
@@ -153,8 +151,7 @@ export async function sendBulkStatements() {
 }
 
 export async function getGlobalPaymentStats() {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
   const [{ data: txs }, { data: invs }] = await Promise.all([
     supabase.from('transactions').select('date, amount').in('status', INCOME_TRANSACTION_STATUSES),
     supabase.from('invoices').select('amount')
@@ -183,12 +180,13 @@ export async function getGlobalPaymentStats() {
 }
 
 export async function sendStatementToTenant(tenantId: number) {
-  await requireUser()
+  const { supabase } = await getUserClient()
   try {
-    const supabase = createServiceClient()
-    const { data: config } = await supabase.from('app_config').select('*').eq('id', 1).single()
+    const config = await readAppConfig(['late_reminder_subject', 'late_reminder_body'])
     if (!config) throw new Error('Brak konfiguracji aplikacji')
 
+    // lib/statement czyta service rolą - najpierw potwierdzamy własność przez sesję.
+    await assertTenantOwned(supabase, tenantId)
     const tenant = await getTenantWithBalance(tenantId)
     if (!tenant) throw new Error('Nie znaleziono najemcy')
 

@@ -18,6 +18,14 @@ vi.mock('@/lib/auth-guard', async () => ({
     const { createServiceClient } = await import('@/lib/supabase/service')
     return { user: { id: 'E2E_TEST__user' }, supabase: createServiceClient() }
   },
+  // Ta sama logika co w lib/auth-guard.ts (select na tenants klientem "sesji").
+  assertTenantOwned: async (
+    supabase: { from: (t: string) => { select: (c: string) => { eq: (k: string, v: number) => { maybeSingle: () => Promise<{ data: unknown }> } } } },
+    tenantId: number,
+  ) => {
+    const { data } = await supabase.from('tenants').select('id').eq('id', tenantId).maybeSingle()
+    if (!data) throw new Error('Not found')
+  },
 }))
 
 // SMTP: lib/email.ts działa normalnie (szablony, tematy, logi w email_logs),

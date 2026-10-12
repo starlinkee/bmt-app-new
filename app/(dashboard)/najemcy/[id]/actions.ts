@@ -2,18 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { logAudit } from '@/lib/audit'
-import { getUserClient } from '@/lib/auth-guard'
-
-// lib/statement i lib/balance czytają service clientem (omija RLS), więc najpierw
-// sprawdzamy przez klienta z sesją, że najemca należy do zalogowanego konta.
-// Obcy / nieistniejący tenantId -> 'Not found' i żadnych danych.
-async function assertTenantOwned(
-  supabase: Awaited<ReturnType<typeof getUserClient>>['supabase'],
-  tenantId: number,
-) {
-  const { data } = await supabase.from('tenants').select('id').eq('id', tenantId).maybeSingle()
-  if (!data) throw new Error('Not found')
-}
+import { assertTenantOwned, getUserClient } from '@/lib/auth-guard'
 
 export async function getTenantStatement(tenantId: number) {
   const { supabase } = await getUserClient()

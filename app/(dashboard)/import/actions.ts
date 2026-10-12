@@ -1,15 +1,15 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createServiceClient } from '@/lib/supabase/service'
 import { parseCsv } from '@/lib/csvParser'
 import { parsePdf } from '@/lib/pdfParser'
 import { matchTransaction } from '@/lib/matcher'
 import { logAudit } from '@/lib/audit'
+import { readAppConfig } from '@/lib/app-config'
 import fs from 'fs/promises'
 import path from 'path'
 import crypto from 'crypto'
-import { requireUser } from '@/lib/auth-guard'
+import { getUserClient, requireUser } from '@/lib/auth-guard'
 
 // Slot dokumentu, dla którego robiony jest import — pozwala rozróżnić, do
 // którego "dokumentu" należy dany zakres dni (dayFrom/dayTo), żeby przy
@@ -22,12 +22,7 @@ export type ImportDocSlot = 0 | 1 | 2
 // PDF (sloty 1/2). Brak wiersza konfiguracji / null = włączone (jak dotąd).
 export async function getImportToggles(): Promise<{ pekao: boolean; millennium: boolean }> {
   await requireUser()
-  const supabase = createServiceClient()
-  const { data } = await supabase
-    .from('app_config')
-    .select('import_pekao_enabled, import_millennium_enabled')
-    .eq('id', 1)
-    .single()
+  const data = await readAppConfig(['import_pekao_enabled', 'import_millennium_enabled'])
   return {
     pekao: data?.import_pekao_enabled !== false,
     millennium: data?.import_millennium_enabled !== false,
@@ -41,8 +36,7 @@ export async function importBankStatement(
   dayTo?: number,
   docSlot?: ImportDocSlot,
 ) {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
 
   // Zabezpieczenie po stronie serwera (UI i tak ukrywa wyłączoną sekcję).
   // Sprawdzamy przed utworzeniem wpisu w audit_log.
@@ -112,7 +106,7 @@ export async function importBankStatement(
   let minDate = '9999-12-31'
   let maxDate = '0000-01-01'
 
-  const { data: config } = await supabase.from('app_config').select('ignored_source_accounts').eq('id', 1).single()
+  const config = await readAppConfig(['ignored_source_accounts'])
   const ignoredAccountsList = config?.ignored_source_accounts
     ? config.ignored_source_accounts.split('\n').map((a: string) => a.trim().replace(/\s/g, '')).filter(Boolean)
     : []
@@ -263,8 +257,7 @@ export async function importBankStatement(
 }
 
 export async function getLastImportInfo() {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
   const { data, error } = await supabase
     .from('audit_log')
     .select('after_data, created_at')
@@ -291,8 +284,7 @@ export async function getLastImportInfo() {
 // PDF"). Dzięki temu przy kolejnym imporcie (np. za bieżący miesiąc) można
 // podpowiedzieć, jaki zakres wybrano poprzednio dla tego samego dokumentu/konta.
 export async function getLastImportSlotRange(docSlot: ImportDocSlot) {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
   const { data, error } = await supabase
     .from('audit_log')
     .select('after_data, created_at')
@@ -343,8 +335,7 @@ export type ImportKindStatus = {
 // (MATCHED); data zatwierdzenia = moment zapisania ostatniej takiej transakcji.
 // Wszystko liczone na żywo z import_id, więc nic nie trzeba osobno utrzymywać.
 export async function getImportKindStatuses(): Promise<Record<ImportKind, ImportKindStatus>> {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
   const { data, error } = await supabase
     .from('audit_log')
     .select('id, after_data, created_at')
@@ -393,8 +384,7 @@ export async function getImportKindStatuses(): Promise<Record<ImportKind, Import
 }
 
 export async function getImportHistoryList() {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
   const { data, error } = await supabase
     .from('audit_log')
     .select('id, after_data, created_at')
@@ -456,8 +446,7 @@ export type ImportTransaction = {
 }
 
 export async function getImportTransactions(importId: number): Promise<ImportTransaction[]> {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
 
   const [{ data: transactions, error: txError }, { data: staged, error: stagedError }] = await Promise.all([
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -508,7 +497,12 @@ export async function getImportTransactions(importId: number): Promise<ImportTra
 export async function getFileContent(fileName: string) {
   await requireUser()
   try {
-    const filePath = path.join(process.cwd(), 'data', 'attachments', fileName)
+    // Tylko nazwa pliku z katalogu data/attachments - żadnych separatorów ani '..'
+    // (path traversal pozwalałby czytać dowolny plik serwera).
+    const attachDir = path.resolve(process.cwd(), 'data', 'attachments')
+    if (!fileName || fileName.includes('..') || path.basename(fileName) !== fileName) return null
+    const filePath = path.resolve(attachDir, fileName)
+    if (!filePath.startsWith(attachDir + path.sep)) return null
     const content = await fs.readFile(filePath, 'utf-8')
     return content
   } catch (error) {
@@ -518,8 +512,7 @@ export async function getFileContent(fileName: string) {
 }
 
 export async function getUnmatchedTransactions() {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any).from('transaction_staging')
     .select('*')
@@ -544,8 +537,7 @@ export async function reconcileTransaction(
   saveAccount: boolean,
   category?: 'RENT' | 'MEDIA',
 ) {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { user, supabase } = await getUserClient()
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: staged } = await (supabase as any).from('transaction_staging')
@@ -570,7 +562,7 @@ export async function reconcileTransaction(
   }).select().single()
 
   if (insertError) {
-    await logAudit({ actionName: 'reconcileTransaction', tableName: 'transactions', operation: 'CREATE', errorData: insertError })
+    await logAudit({ ownerId: user.id, actionName: 'reconcileTransaction', tableName: 'transactions', operation: 'CREATE', errorData: insertError })
     throw insertError
   }
 
@@ -578,6 +570,7 @@ export async function reconcileTransaction(
   await (supabase as any).from('transaction_staging').delete().eq('id', txId)
 
   await logAudit({
+    ownerId: user.id,
     actionName: 'reconcileTransaction',
     tableName: 'transactions',
     operation: 'CREATE',
@@ -635,8 +628,7 @@ export async function dismissTransaction(
   reason: 'REJECTED_OWN_TRANSFER' | 'REJECTED_OTHER' | 'REJECTED_DUPLICATE' = 'REJECTED_OTHER',
   note?: string,
 ) {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { user, supabase } = await getUserClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: before } = await (supabase as any).from('transaction_staging').select('*').eq('id', txId).single()
   if (!before) return
@@ -659,6 +651,7 @@ export async function dismissTransaction(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (supabase as any).from('transaction_staging').delete().eq('id', txId)
   await logAudit({
+    ownerId: user.id,
     actionName: 'dismissTransaction',
     tableName: 'transaction_staging',
     operation: 'DISMISS',
@@ -669,8 +662,7 @@ export async function dismissTransaction(
 }
 
 export async function dismissAllTransactions() {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { user, supabase } = await getUserClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: allStaging } = await (supabase as any).from('transaction_staging').select('*')
   
@@ -695,6 +687,7 @@ export async function dismissAllTransactions() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (supabase as any).from('transaction_staging').delete().neq('id', 0)
   await logAudit({
+    ownerId: user.id,
     actionName: 'dismissAllTransactions',
     tableName: 'transaction_staging',
     operation: 'DISMISS',
@@ -704,8 +697,7 @@ export async function dismissAllTransactions() {
 }
 
 export async function getAllTransactions(status?: string) {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
   let query = supabase
     .from('transactions')
     .select('*, tenants(first_name, last_name)')
@@ -722,8 +714,7 @@ export async function getAllTransactions(status?: string) {
 }
 
 export async function updateTransactionCategory(txId: number, category: 'RENT' | 'MEDIA') {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { user, supabase } = await getUserClient()
   const { data: before } = await supabase.from('transactions').select('*').eq('id', txId).single()
   const { data: after, error } = await supabase
     .from('transactions')
@@ -732,9 +723,9 @@ export async function updateTransactionCategory(txId: number, category: 'RENT' |
     .select()
     .single()
   if (error) {
-    await logAudit({ actionName: 'updateTransactionCategory', tableName: 'transactions', operation: 'UPDATE', recordId: txId, beforeData: before, errorData: error })
+    await logAudit({ ownerId: user.id, actionName: 'updateTransactionCategory', tableName: 'transactions', operation: 'UPDATE', recordId: txId, beforeData: before, errorData: error })
     throw error
   }
-  await logAudit({ actionName: 'updateTransactionCategory', tableName: 'transactions', operation: 'UPDATE', recordId: txId, beforeData: before, afterData: after })
+  await logAudit({ ownerId: user.id, actionName: 'updateTransactionCategory', tableName: 'transactions', operation: 'UPDATE', recordId: txId, beforeData: before, afterData: after })
   revalidatePath('/import/history')
 }

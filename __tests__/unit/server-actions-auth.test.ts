@@ -26,7 +26,22 @@ const SESSION_CLIENT_FILES = [
   'app/(dashboard)/najemcy/[id]/actions.ts',
   'app/(dashboard)/nieruchomosci/actions.ts',
   'app/(dashboard)/umowy/actions.ts',
+  'app/(dashboard)/import/actions.ts',
+  'app/(dashboard)/kontrola-platnosci/actions.ts',
+  'app/(dashboard)/historia/actions.ts',
 ]
+
+// Moduły z lib/, które same tworzą klienta service role (omijają RLS), a mimo to
+// mogą być używane w plikach zmigrowanych - jawna lista z uzasadnieniem.
+// GATED = dozwolone tylko w funkcji, która woła assertTenantOwned (sprawdzenie
+// własności najemcy klientem sesji PRZED użyciem).
+const SERVICE_LIB_ALLOWED: Record<string, { why: string; gated?: boolean }> = {
+  '@/lib/audit': { why: 'logAudit - zapis z ownerId' },
+  '@/lib/app-config': { why: 'jedyny odczyt app_config service rolą do slice 3 (per konto)' },
+  '@/lib/email': { why: 'wysyłka e-mail + log w email_logs (legacy owner do slice 4)' },
+  '@/lib/statement': { why: 'wyciąg najemcy - po assertTenantOwned', gated: true },
+  '@/lib/balance': { why: 'saldo najemcy - po assertTenantOwned', gated: true },
+}
 
 // Publiczna strona odczytów liczników (bez sesji, autoryzacja tokenem najemcy):
 // akcje zaczynają się od resolveReadingAccess(token, groupId), poza jawną listą
@@ -150,31 +165,70 @@ describe("server actions ('use server') wymagają zalogowanego użytkownika", ()
     }
   })
 
-  test('pliki zmigrowane na klienta z sesją istnieją i nie importują klienta service role', () => {
+  // Moduły lib/ zawierające createServiceClient (lista liczona skanem lib/**).
+  function serviceLibs(): Set<string> {
+    const libs = new Set<string>()
+    for (const file of walk(path.join(ROOT, 'lib'))) {
+      if (!/createServiceClient/.test(fs.readFileSync(file, 'utf8'))) continue
+      const rel = path.relative(path.join(ROOT, 'lib'), file).split(path.sep).join('/').replace(/\.(ts|tsx)$/, '')
+      libs.add(`@/lib/${rel}`)
+    }
+    return libs
+  }
+
+  // Moduły importowane (statycznie albo import()) w pliku, wraz z funkcją-rodzicem.
+  function importsOf(file: string) {
+    const sf = ts.createSourceFile(file, fs.readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true)
+    const found: { spec: string; enclosing: ts.Node | null }[] = []
+    const visit = (node: ts.Node, fn: ts.Node | null) => {
+      const next = ts.isFunctionLike(node) ? node : fn
+      if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+        found.push({ spec: node.moduleSpecifier.text, enclosing: null })
+      }
+      if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+        const arg = node.arguments[0]
+        if (arg && ts.isStringLiteralLike(arg)) found.push({ spec: arg.text, enclosing: fn })
+      }
+      ts.forEachChild(node, (c) => visit(c, next))
+    }
+    visit(sf, null)
+    return found
+  }
+
+  function callsAssertTenantOwned(fn: ts.Node) {
+    let ok = false
+    const visit = (n: ts.Node) => {
+      if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === 'assertTenantOwned') ok = true
+      ts.forEachChild(n, visit)
+    }
+    visit(fn)
+    return ok
+  }
+
+  test('pliki zmigrowane na klienta z sesją istnieją i nie wracają do service role (także przez lib/)', () => {
+    const libs = serviceLibs()
     for (const rel of SESSION_CLIENT_FILES) {
       const file = path.join(ROOT, rel)
       expect(fs.existsSync(file), `${rel} nie istnieje - usuń z SESSION_CLIENT_FILES`).toBe(true)
-      expect(fs.readFileSync(file, 'utf8'), `${rel} importuje @/lib/supabase/service`).not.toMatch(/@\/lib\/supabase\/service/)
+      for (const { spec, enclosing } of importsOf(file)) {
+        expect(spec, `${rel} importuje klienta service role`).not.toBe('@/lib/supabase/service')
+        if (!libs.has(spec)) continue
+        const allowed = SERVICE_LIB_ALLOWED[spec]
+        expect(allowed, `${rel} importuje ${spec}, który używa klienta service role (omija RLS)`).toBeDefined()
+        if (allowed.gated) {
+          expect(
+            enclosing && callsAssertTenantOwned(enclosing),
+            `${rel}: ${spec} wymaga assertTenantOwned w tej samej funkcji`,
+          ).toBeTruthy()
+        }
+      }
     }
   })
 
-  // Dynamiczny import() modułów, które same używają klienta service role (omijają RLS),
-  // jest dozwolony w plikach zmigrowanych tylko za sprawdzeniem własności przez sesję.
-  test('dynamiczne importy w plikach z klientem sesji są chronione assertTenantOwned', () => {
-    const ALLOWED: Record<string, string> = {
-      '@/lib/statement': 'wyciąg najemcy - po assertTenantOwned (select na tenants klientem sesji)',
-      '@/lib/balance': 'saldo najemcy - po assertTenantOwned (select na tenants klientem sesji)',
-    }
-    for (const rel of SESSION_CLIENT_FILES) {
-      const text = fs.readFileSync(path.join(ROOT, rel), 'utf8')
-      for (const chunk of text.split(/^export async function /m).slice(1)) {
-        const name = chunk.slice(0, chunk.indexOf('('))
-        for (const m of chunk.matchAll(/import\(['"]([^'"]+)['"]\)/g)) {
-          expect(Object.keys(ALLOWED), `${rel} ${name}: niedozwolony dynamiczny import ${m[1]}`).toContain(m[1])
-          const before = chunk.slice(0, m.index)
-          expect(before, `${rel} ${name}: import ${m[1]} bez wcześniejszego assertTenantOwned`).toMatch(/await assertTenantOwned\(/)
-        }
-      }
+  test('lista dozwolonych bibliotek service wskazuje istniejące moduły lib/', () => {
+    const libs = serviceLibs()
+    for (const spec of Object.keys(SERVICE_LIB_ALLOWED)) {
+      expect(libs.has(spec), `${spec} nie używa już createServiceClient albo nie istnieje - usuń z SERVICE_LIB_ALLOWED`).toBe(true)
     }
   })
 
