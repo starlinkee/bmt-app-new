@@ -22,9 +22,6 @@ async function guardTestPanel() {
 
 export async function getTestClockState() {
   await guardTestPanel()
-  if (!isTestClockAllowed()) {
-    return { allowed: false, offsetMs: 0 }
-  }
   const offsetMs = await getTimeOffsetMs()
   return { allowed: true, offsetMs }
 }

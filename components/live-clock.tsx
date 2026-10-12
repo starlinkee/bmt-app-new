@@ -4,6 +4,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { getTestClockState } from '@/app/(dashboard)/testowanie/actions'
 
+// Ta sama reguła co isTestClockAllowed() w lib/clock.ts (nie importujemy tamtego
+// modułu w kliencie - ciągnie klienta service role). Poza panelem testowym nie
+// ma przesunięcia zegara, więc nie odpytujemy serwera (akcja wymaga sesji
+// i rzuca błąd na produkcji oraz na publicznej stronie /odczyty).
+const TEST_CLOCK_ALLOWED =
+  process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_ALLOW_TEST_PANEL === 'true'
+
 export function LiveClock() {
   const [now, setNow] = useState<Date | null>(null)
   const [mounted, setMounted] = useState(false)
@@ -28,14 +35,14 @@ export function LiveClock() {
     // Zegar ma "tykać" normalnie co sekundę (lokalnie, bez zapytań do
     // serwera), a przesunięcie (offset) odświeżamy rzadziej - np. gdy
     // ktoś zmieni je na /testowanie w innej karcie.
-    refreshOffset()
-    const refreshInterval = setInterval(refreshOffset, 15000)
+    const refreshInterval = TEST_CLOCK_ALLOWED ? setInterval(refreshOffset, 15000) : null
+    if (TEST_CLOCK_ALLOWED) refreshOffset()
     const tickInterval = setInterval(() => {
       setNow(new Date(Date.now() + offsetRef.current))
     }, 1000)
 
     return () => {
-      clearInterval(refreshInterval)
+      if (refreshInterval) clearInterval(refreshInterval)
       clearInterval(tickInterval)
     }
   }, [])
