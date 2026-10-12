@@ -158,6 +158,26 @@ describe("server actions ('use server') wymagają zalogowanego użytkownika", ()
     }
   })
 
+  // Dynamiczny import() modułów, które same używają klienta service role (omijają RLS),
+  // jest dozwolony w plikach zmigrowanych tylko za sprawdzeniem własności przez sesję.
+  test('dynamiczne importy w plikach z klientem sesji są chronione assertTenantOwned', () => {
+    const ALLOWED: Record<string, string> = {
+      '@/lib/statement': 'wyciąg najemcy - po assertTenantOwned (select na tenants klientem sesji)',
+      '@/lib/balance': 'saldo najemcy - po assertTenantOwned (select na tenants klientem sesji)',
+    }
+    for (const rel of SESSION_CLIENT_FILES) {
+      const text = fs.readFileSync(path.join(ROOT, rel), 'utf8')
+      for (const chunk of text.split(/^export async function /m).slice(1)) {
+        const name = chunk.slice(0, chunk.indexOf('('))
+        for (const m of chunk.matchAll(/import\(['"]([^'"]+)['"]\)/g)) {
+          expect(Object.keys(ALLOWED), `${rel} ${name}: niedozwolony dynamiczny import ${m[1]}`).toContain(m[1])
+          const before = chunk.slice(0, m.index)
+          expect(before, `${rel} ${name}: import ${m[1]} bez wcześniejszego assertTenantOwned`).toMatch(/await assertTenantOwned\(/)
+        }
+      }
+    }
+  })
+
   test('pliki z listy wyjątków istnieją', () => {
     for (const rel of Object.keys(EXCEPTIONS)) {
       expect(fs.existsSync(path.join(ROOT, rel)), `${rel} nie istnieje - usuń z EXCEPTIONS`).toBe(true)
