@@ -6,18 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { LiveClock } from '@/components/live-clock'
+import { normalizeReadingEntries } from '@/lib/reading-keys'
 
 const MONTHS = ['Stycznia', 'Lutego', 'Marca', 'Kwietnia', 'Maja', 'Czerwca', 'Lipca', 'Sierpnia', 'Września', 'Października', 'Listopada', 'Grudnia']
-
-type TenantReadingEntry = { key: string; label: string }
-
-// Wspiera stary format (klucze jako string[]) obok nowego ({key,label}[]).
-function normalizeReadingEntries(raw: unknown): TenantReadingEntry[] {
-  if (!Array.isArray(raw)) return []
-  return raw.map((e) =>
-    typeof e === 'string' ? { key: e, label: e.replace(/_/g, ' ') } : { key: e.key, label: e.label || e.key.replace(/_/g, ' ') }
-  )
-}
 
 export default function TenantReadingsPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)

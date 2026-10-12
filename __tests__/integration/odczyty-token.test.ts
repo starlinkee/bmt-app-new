@@ -8,18 +8,21 @@ const db = createTestDbClient()
 const ldb = loose(db)
 
 const KEY = `E2E_TEST__licznik_${uniq()}`
+const LEGACY_KEY = `E2E_TEST__stary_${uniq()}`
 const OTHER_KEY = `E2E_TEST__cudzy_${uniq()}`
 
 type Side = { token: string; groupId: number }
 let a: Side
 let b: Side
+let c: Side
 
-async function setupSide(key: string): Promise<Side> {
+// legacy: stary format wpisu (string[]); inaczej obecny format z UI mediów ({ key, label }[]).
+async function setupSide(key: string, legacy = false): Promise<Side> {
   const property = await createProperty(db)
   const tenant = await createTenant(db, { propertyId: property.id })
   await createContract(db, tenant.id, { has_media_invoice: true, is_active: true })
   const group = await createSettlementGroup(db, { propertyIds: [property.id] })
-  await ldb.from('settlement_groups').update({ tenant_reading_keys: { [String(tenant.id)]: [key] } }).eq('id', group.id)
+  await ldb.from('settlement_groups').update({ tenant_reading_keys: { [String(tenant.id)]: legacy ? [key] : [{ key, label: 'Woda zimna' }] } }).eq('id', group.id)
   const { data } = await ldb.from('tenants').select('reading_token').eq('id', tenant.id).single()
   return { token: data!.reading_token as string, groupId: group.id }
 }
@@ -27,6 +30,7 @@ async function setupSide(key: string): Promise<Side> {
 beforeAll(async () => {
   a = await setupSide(KEY)
   b = await setupSide(OTHER_KEY)
+  c = await setupSide(LEGACY_KEY, true)
 })
 
 afterAll(async () => {
@@ -62,5 +66,11 @@ describe('odczyty liczników - autoryzacja tokenem', () => {
     expect(await saveReadings(a.token, a.groupId, 1, 2001, { [KEY]: '12,5' })).toEqual({ success: true })
     expect(await hasAlreadySubmitted(a.token, a.groupId, 1, 2001, [KEY])).toBe(true)
     expect(await getPreviousMeterReadings(a.token, a.groupId, 2, 2001, [KEY])).toEqual({ [KEY]: 12.5 })
+  })
+
+  test('stary format wpisu (string[]) nadal działa', async () => {
+    expect(await saveReadings(c.token, c.groupId, 1, 2001, { [LEGACY_KEY]: '7' })).toEqual({ success: true })
+    expect(await hasAlreadySubmitted(c.token, c.groupId, 1, 2001, [LEGACY_KEY])).toBe(true)
+    await expect(saveReadings(c.token, c.groupId, 1, 2001, { [KEY]: '7' })).rejects.toThrow('Unauthorized')
   })
 })

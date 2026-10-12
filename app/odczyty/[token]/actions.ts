@@ -2,6 +2,7 @@
 
 import { createServiceClient } from '@/lib/supabase/service'
 import { getCurrentDate } from '@/lib/clock'
+import { readingKeysOf } from '@/lib/reading-keys'
 import { DEFAULT_METER_READING_CLOSED_MESSAGE } from '@/lib/meter-reading-reminder'
 
 export async function getTenantReadingsContext(token: string) {
@@ -63,8 +64,7 @@ async function resolveReadingAccess(token: string, groupId: number): Promise<str
   const ctx = typeof token === 'string' && token ? await getTenantReadingsContext(token) : null
   const group = ctx?.groups.find((g) => g.id === groupId)
   if (!ctx || !group) throw new Error('Unauthorized')
-  const keys = (group.tenant_reading_keys as Record<string, string[]>)[ctx.tenant.id.toString()]
-  return keys
+  return readingKeysOf((group.tenant_reading_keys as Record<string, unknown>)[ctx.tenant.id.toString()])
 }
 
 export async function getTargetMonthYear() {
