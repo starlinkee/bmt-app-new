@@ -59,9 +59,10 @@ test('usuwanie nieruchomości', async ({ page, makeProperty }) => {
   const row = page.locator(`[data-property-id="${property.propertyId}"]`)
   await expect(row).toBeVisible()
 
-  const dialogPromise = page.waitForEvent('dialog')
+  // Akceptacja musi być podpięta PRZED klikiem: click() czeka na obsłużenie natywnego confirm().
+  const dialogAccepted = page.waitForEvent('dialog').then((d) => d.accept())
   await row.getByRole('button', { name: 'Usuń nieruchomość' }).click()
-  await (await dialogPromise).accept()
+  await dialogAccepted
 
   await expect(page.getByText('Nieruchomość usunięta.')).toBeVisible()
   await expect(row).toHaveCount(0)

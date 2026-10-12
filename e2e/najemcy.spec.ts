@@ -68,9 +68,10 @@ test('usuwanie najemcy', async ({ page, makeTenant }) => {
   const row = page.locator(`[data-tenant-id="${tenant.tenantId}"]`)
   await expect(row).toBeVisible()
 
-  const dialogPromise = page.waitForEvent('dialog')
+  // Akceptacja musi być podpięta PRZED klikiem: click() czeka na obsłużenie natywnego confirm().
+  const dialogAccepted = page.waitForEvent('dialog').then((d) => d.accept())
   await row.getByRole('button', { name: 'Usuń najemcę' }).click()
-  await (await dialogPromise).accept()
+  await dialogAccepted
 
   await expect(page.getByText('Najemca usunięty.')).toBeVisible()
   await expect(row).toHaveCount(0)

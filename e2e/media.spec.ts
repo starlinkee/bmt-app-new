@@ -58,9 +58,10 @@ test('usuwanie grupy rozliczeniowej', async ({ page, makeSettlementGroup }) => {
   const row = page.locator(`[data-group-id="${group.id}"]`)
   await expect(row).toBeVisible()
 
-  const dialogPromise = page.waitForEvent('dialog')
+  // Akceptacja musi być podpięta PRZED klikiem: click() czeka na obsłużenie natywnego confirm().
+  const dialogAccepted = page.waitForEvent('dialog').then((d) => d.accept())
   await row.getByRole('button', { name: 'Usuń grupę' }).click()
-  await (await dialogPromise).accept()
+  await dialogAccepted
 
   await expect(page.getByText('Grupa usunięta.')).toBeVisible()
   await expect(row).toHaveCount(0)
