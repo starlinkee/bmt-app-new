@@ -14,11 +14,24 @@ const ROOT = path.resolve(__dirname, '../..')
 const EXCEPTIONS: Record<string, string> = {
   'app/login/actions.ts': 'publiczne z natury (logowanie)',
   'app/forgot-password/actions.ts': 'publiczne z natury (reset hasła)',
-  'app/odczyty/[token]/actions.ts': 'autoryzacja tokenem w URL; reguły w slice 0b-2',
   'lib/auth.ts': 'helpery auth (requireApiAuth/requireAuth) - nie są akcjami biznesowymi',
 }
 
 const GUARDS = new Set(['requireUser', 'guardTestPanel'])
+
+// Publiczna strona odczytów liczników (bez sesji, autoryzacja tokenem najemcy):
+// akcje zaczynają się od resolveReadingAccess(token, groupId), poza jawną listą
+// funkcji publicznych, które zwracają tylko datę/komunikat albo same sprawdzają token.
+const TOKEN_GUARD_FILES: Record<string, { guard: string; publicFns: Record<string, string> }> = {
+  'app/odczyty/[token]/actions.ts': {
+    guard: 'resolveReadingAccess',
+    publicFns: {
+      getTenantReadingsContext: 'sam wyszukuje najemcę po tokenie, zły token -> null',
+      getTargetMonthYear: 'zwraca tylko datę okna odczytów',
+      getClosedWindowMessage: 'zwraca tylko tekst komunikatu o zamkniętym oknie',
+    },
+  },
+}
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -54,19 +67,22 @@ function containsInlineUseServer(sf: ts.SourceFile) {
   return found
 }
 
-function isGuardCall(st: ts.Statement | undefined) {
-  if (!st || !ts.isExpressionStatement(st)) return false
-  const e = st.expression
-  if (!ts.isAwaitExpression(e) || !ts.isCallExpression(e.expression)) return false
+function isGuardCall(st: ts.Statement | undefined, guards: Set<string> = GUARDS) {
+  if (!st) return false
+  // `await guard()` albo `const x = await guard(...)` (resolveReadingAccess zwraca klucze)
+  let e: ts.Expression | undefined
+  if (ts.isExpressionStatement(st)) e = st.expression
+  else if (ts.isVariableStatement(st) && st.declarationList.declarations.length === 1) e = st.declarationList.declarations[0].initializer
+  if (!e || !ts.isAwaitExpression(e) || !ts.isCallExpression(e.expression)) return false
   const callee = e.expression.expression
-  return ts.isIdentifier(callee) && GUARDS.has(callee.text)
+  return ts.isIdentifier(callee) && guards.has(callee.text)
 }
 
 type Problem = string
 
-function checkFunctionBody(label: string, fn: ts.FunctionLikeDeclaration): Problem | null {
+function checkFunctionBody(label: string, fn: ts.FunctionLikeDeclaration, guards: Set<string> = GUARDS): Problem | null {
   if (!fn.body || !ts.isBlock(fn.body)) return `${label}: brak bloku z ciałem funkcji`
-  return isGuardCall(fn.body.statements[0]) ? null : `${label}: pierwsza instrukcja nie jest 'await requireUser()'`
+  return isGuardCall(fn.body.statements[0], guards) ? null : `${label}: pierwsza instrukcja nie jest wywołaniem strażnika (await requireUser() / guardTestPanel() / resolveReadingAccess())`
 }
 
 function problemsIn(file: string): Problem[] {
@@ -76,13 +92,15 @@ function problemsIn(file: string): Problem[] {
   if (containsInlineUseServer(sf)) problems.push(`${rel}: inline 'use server' w ciele funkcji (niedozwolone)`)
   if (!hasUseServerDirective(sf)) return problems
   if (rel in EXCEPTIONS) return problems
+  const tokenRule = TOKEN_GUARD_FILES[rel]
+  const guards = tokenRule ? new Set([tokenRule.guard]) : GUARDS
 
   for (const st of sf.statements) {
     const isExported = ts.canHaveModifiers(st) && ts.getModifiers(st)?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
     if (ts.isExportAssignment(st)) {
       const e = st.expression
       if ((ts.isArrowFunction(e) || ts.isFunctionExpression(e))) {
-        const p = checkFunctionBody(`${rel} export default`, e)
+        const p = checkFunctionBody(`${rel} export default`, e, guards)
         if (p) problems.push(p)
       } else problems.push(`${rel}: export default nie jest funkcją`)
       continue
@@ -93,13 +111,14 @@ function problemsIn(file: string): Problem[] {
     }
     if (!isExported) continue
     if (ts.isFunctionDeclaration(st)) {
-      const p = checkFunctionBody(`${rel} ${st.name?.text ?? 'default'}`, st)
+      if (tokenRule && st.name && st.name.text in tokenRule.publicFns) continue
+      const p = checkFunctionBody(`${rel} ${st.name?.text ?? 'default'}`, st, guards)
       if (p) problems.push(p)
     } else if (ts.isVariableStatement(st)) {
       for (const d of st.declarationList.declarations) {
         const init = d.initializer
         if (init && (ts.isArrowFunction(init) || ts.isFunctionExpression(init))) {
-          const p = checkFunctionBody(`${rel} ${d.name.getText()}`, init)
+          const p = checkFunctionBody(`${rel} ${d.name.getText()}`, init, guards)
           if (p) problems.push(p)
         } else problems.push(`${rel}: eksport ${d.name.getText()} nie jest funkcją`)
       }
@@ -111,6 +130,17 @@ function problemsIn(file: string): Problem[] {
 }
 
 describe("server actions ('use server') wymagają zalogowanego użytkownika", () => {
+  test('pliki z reguł tokenowych istnieją, a ich publiczne funkcje są nadal eksportowane', () => {
+    for (const [rel, rule] of Object.entries(TOKEN_GUARD_FILES)) {
+      const file = path.join(ROOT, rel)
+      expect(fs.existsSync(file), `${rel} nie istnieje - usuń z TOKEN_GUARD_FILES`).toBe(true)
+      const text = fs.readFileSync(file, 'utf8')
+      for (const fn of Object.keys(rule.publicFns)) {
+        expect(text, `${rel}: ${fn} nie istnieje - usuń z publicFns`).toMatch(new RegExp(`export async function ${fn}\\b`))
+      }
+    }
+  })
+
   test('pliki z listy wyjątków istnieją', () => {
     for (const rel of Object.keys(EXCEPTIONS)) {
       expect(fs.existsSync(path.join(ROOT, rel)), `${rel} nie istnieje - usuń z EXCEPTIONS`).toBe(true)

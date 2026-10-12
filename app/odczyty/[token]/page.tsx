@@ -46,8 +46,8 @@ export default function TenantReadingsPage({ params }: { params: Promise<{ token
           const trk = (g.tenant_reading_keys as Record<string, unknown>) || {}
           const entries = normalizeReadingEntries(trk[data.tenant.id.toString()])
           const keys = entries.map((e) => e.key)
-          statuses[g.id] = await hasAlreadySubmitted(g.id, d.month, d.year, keys)
-          prevReadings[g.id] = await getPreviousMeterReadings(g.id, d.month, d.year, keys)
+          statuses[g.id] = await hasAlreadySubmitted(token, g.id, d.month, d.year, keys)
+          prevReadings[g.id] = await getPreviousMeterReadings(token, g.id, d.month, d.year, keys)
           initVals[g.id] = {}
           for (const entry of entries) {
             initVals[g.id][entry.key] = ''
@@ -96,7 +96,7 @@ export default function TenantReadingsPage({ params }: { params: Promise<{ token
     }
 
     startTransition(async () => {
-      await saveReadings(groupId, dateInfo!.month, dateInfo!.year, groupVals)
+      await saveReadings(token, groupId, dateInfo!.month, dateInfo!.year, groupVals)
       setSubmittedGroups(prev => ({ ...prev, [groupId]: true }))
     })
   }

@@ -55,6 +55,18 @@ export async function getTenantReadingsContext(token: string) {
   }
 }
 
+// Publiczna strona bez sesji - jedyną autoryzacją jest sekretny token najemcy
+// z linku. Każda akcja dotykająca odczytów musi zaczynać się od tego wywołania:
+// token musi należeć do najemcy, a grupa (groupId) do jego aktywnych umów z
+// mediami. Zwraca klucze liczników, które ten najemca może podawać w grupie.
+async function resolveReadingAccess(token: string, groupId: number): Promise<string[]> {
+  const ctx = typeof token === 'string' && token ? await getTenantReadingsContext(token) : null
+  const group = ctx?.groups.find((g) => g.id === groupId)
+  if (!ctx || !group) throw new Error('Unauthorized')
+  const keys = (group.tenant_reading_keys as Record<string, string[]>)[ctx.tenant.id.toString()]
+  return keys
+}
+
 export async function getTargetMonthYear() {
   const now = await getCurrentDate()
 
@@ -90,11 +102,14 @@ export async function getClosedWindowMessage(): Promise<string> {
 }
 
 export async function getPreviousMeterReadings(
+  token: string,
   groupId: number,
   month: number,
   year: number,
-  keys: string[],
+  requestedKeys: string[],
 ): Promise<Record<string, number>> {
+  const allowedKeys = await resolveReadingAccess(token, groupId)
+  const keys = (requestedKeys ?? []).filter((k) => allowedKeys.includes(k))
   if (!keys || keys.length === 0) return {}
   const supabase = createServiceClient()
   const { data } = await supabase
@@ -113,7 +128,9 @@ export async function getPreviousMeterReadings(
   return result
 }
 
-export async function hasAlreadySubmitted(groupId: number, month: number, year: number, keys: string[]) {
+export async function hasAlreadySubmitted(token: string, groupId: number, month: number, year: number, requestedKeys: string[]) {
+  const allowedKeys = await resolveReadingAccess(token, groupId)
+  const keys = (requestedKeys ?? []).filter((k) => allowedKeys.includes(k))
   if (!keys || keys.length === 0) return false
   const supabase = createServiceClient()
   const { data } = await supabase
@@ -132,7 +149,10 @@ export async function hasAlreadySubmitted(groupId: number, month: number, year: 
   return keys.every(k => submittedKeys.has(k))
 }
 
-export async function saveReadings(groupId: number, month: number, year: number, readings: Record<string, string>) {
+export async function saveReadings(token: string, groupId: number, month: number, year: number, readings: Record<string, string>) {
+  const allowedKeys = await resolveReadingAccess(token, groupId)
+  // Najemca może zapisać wyłącznie własne klucze liczników w swojej grupie.
+  if (Object.keys(readings).some((k) => !allowedKeys.includes(k))) throw new Error('Unauthorized')
   const supabase = createServiceClient()
   
   const rows = Object.entries(readings).map(([key, val]) => ({
