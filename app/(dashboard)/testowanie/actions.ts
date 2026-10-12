@@ -6,10 +6,10 @@ import { getTimeOffsetMs, setTimeOffsetMs, isTestClockAllowed } from '@/lib/cloc
 import { processLateReminders } from '@/lib/late-reminders'
 import { processStatementUploadReminder } from '@/lib/statement-reminder'
 import { getUserClient } from '@/lib/auth-guard'
-import { updateAppConfig } from '@/lib/app-config'
+import { updateSystemSettings } from '@/lib/app-config'
 
 // Wirtualny zegar (patrz lib/clock.ts) - czas płynie normalnie, tylko
-// przesunięty o `time_offset_ms` zapisane w app_config. Poniższe akcje
+// przesunięty o `time_offset_ms` zapisane w system_settings. Poniższe akcje
 // pozwalają ustawić/zresetować to przesunięcie z panelu testowego oraz
 // ręcznie odpalić crony/automatyzacje pod tym symulowanym czasem.
 
@@ -21,11 +21,11 @@ async function guardTestPanel() {
   return ctx
 }
 
-// Odblokowanie triggera prevent_delete_function (flaga w app_config) - jedyny kanał
-// zapisu app_config to lib/app-config. Wołać tylko po guardTestPanel + isTestClockAllowed.
+// Odblokowanie triggera prevent_delete_function (flaga w system_settings) - jedyny kanał
+// zapisu system_settings to lib/app-config. Wołać tylko po guardTestPanel + isTestClockAllowed.
 async function unlockDestructiveDeletes() {
   try {
-    await updateAppConfig({ allow_destructive_test_deletes: true })
+    await updateSystemSettings({ allow_destructive_test_deletes: true })
   } catch (e) {
     throw new Error('Nie udało się odblokować usuwania w tym środowisku: ' + (e instanceof Error ? e.message : String(e)))
   }
@@ -123,7 +123,7 @@ export async function getGroupDetailsForTest(groupId: number) {
 // supabase/migrations/20260908135400_prevent_critical_deletions.sql),
 // potwierdzone bezpośrednio na bazie zapytaniem do information_schema.
 // Migracja 20260911140000_configurable_delete_protection.sql dodała do niego
-// wyjątek sterowany kolumną `app_config.allow_destructive_test_deletes`
+// wyjątek sterowany kolumną `system_settings.allow_destructive_test_deletes`
 // (domyślnie false - trigger blokuje DELETE dokładnie tak jak wcześniej).
 // Ta akcja ustawia ją na true tuż przed usuwaniem, ale robi to WYŁĄCZNIE gdy
 // `isTestClockAllowed()` zwraca true - czyli nigdy na prawdziwej produkcji.

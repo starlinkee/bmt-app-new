@@ -75,23 +75,23 @@ function must<T extends { error: { message: string } | null }>(res: T, what: str
 /**
  * DELETE z `transactions` i `invoices` jest domyślnie blokowany triggerem
  * (patrz migracja 20260911140000_configurable_delete_protection.sql) - włącza
- * go dopiero `app_config.allow_destructive_test_deletes`. Na czas sprzątania
+ * go dopiero `system_settings.allow_destructive_test_deletes`. Na czas sprzątania
  * włączamy flagę i przywracamy ją do poprzedniej wartości. Odmawia, jeśli
  * cel to projekt produkcyjny z PRODUCTION_SUPABASE_REFS.
  */
 async function withDestructiveDeletes<T>(db: Db, fn: () => Promise<T>): Promise<T> {
   assertNotProduction()
   const { data } = must(
-    await db.from('app_config').select('allow_destructive_test_deletes').eq('id', 1).single(),
-    'app_config lookup',
+    await db.from('system_settings').select('allow_destructive_test_deletes').eq('id', 1).single(),
+    'system_settings lookup',
   )
   if (data?.allow_destructive_test_deletes) return fn()
 
-  must(await db.from('app_config').update({ allow_destructive_test_deletes: true }).eq('id', 1), 'app_config unlock')
+  must(await db.from('system_settings').update({ allow_destructive_test_deletes: true }).eq('id', 1), 'system_settings unlock')
   try {
     return await fn()
   } finally {
-    must(await db.from('app_config').update({ allow_destructive_test_deletes: false }).eq('id', 1), 'app_config relock')
+    must(await db.from('system_settings').update({ allow_destructive_test_deletes: false }).eq('id', 1), 'system_settings relock')
   }
 }
 

@@ -16,10 +16,10 @@ export type Database = {
     Tables: {
       app_config: {
         Row: {
+          owner_id: string
           drive_invoices_folder_id: string
           email_provider: string
           email_provider_2: string
-          id: number
           late_reminder_subject: string
           late_reminder_body: string
           reminder_body: string
@@ -32,8 +32,6 @@ export type Database = {
             tenant_reading_keys: Json
             ignored_source_accounts: string
             statement_cutoff_day: number
-            time_offset_ms: number
-            allow_destructive_test_deletes: boolean
             meter_reading_reminder_subject: string | null
             meter_reading_reminder_body: string | null
             meter_reading_closed_message: string | null
@@ -47,10 +45,10 @@ export type Database = {
             statement_upload_reminder_body: string | null
           }
           Insert: {
+          owner_id?: string
           drive_invoices_folder_id?: string
           email_provider?: string
           email_provider_2?: string
-          id?: number
           late_reminder_subject?: string
           late_reminder_body?: string
           reminder_body?: string
@@ -63,8 +61,6 @@ export type Database = {
             tenant_reading_keys?: Json
             ignored_source_accounts?: string
             statement_cutoff_day?: number
-            time_offset_ms?: number
-            allow_destructive_test_deletes?: boolean
             meter_reading_reminder_subject?: string | null
             meter_reading_reminder_body?: string | null
             meter_reading_closed_message?: string | null
@@ -78,10 +74,10 @@ export type Database = {
             statement_upload_reminder_body?: string | null
           }
           Update: {
+          owner_id?: string
           drive_invoices_folder_id?: string
           email_provider?: string
           email_provider_2?: string
-          id?: number
           late_reminder_subject?: string
           late_reminder_body?: string
           reminder_body?: string
@@ -94,8 +90,6 @@ export type Database = {
             tenant_reading_keys?: Json
             ignored_source_accounts?: string
             statement_cutoff_day?: number
-            time_offset_ms?: number
-            allow_destructive_test_deletes?: boolean
             meter_reading_reminder_subject?: string | null
             meter_reading_reminder_body?: string | null
             meter_reading_closed_message?: string | null
@@ -109,6 +103,18 @@ export type Database = {
             statement_upload_reminder_body?: string | null
           }
           Relationships: []
+      }
+      system_settings: {
+        Row: { id: number; time_offset_ms: number; allow_destructive_test_deletes: boolean }
+        Insert: { id?: number; time_offset_ms?: number; allow_destructive_test_deletes?: boolean }
+        Update: { id?: number; time_offset_ms?: number; allow_destructive_test_deletes?: boolean }
+        Relationships: []
+      }
+      legacy_owner: {
+        Row: { id: number; owner_id: string }
+        Insert: { id?: number; owner_id: string }
+        Update: { id?: number; owner_id?: string }
+        Relationships: []
       }
       contracts: {
         Row: {

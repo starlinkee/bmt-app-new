@@ -12,15 +12,22 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }
 // żądania HTTP, więc podstawiamy zalogowanego użytkownika.
 // getUserClient dostaje ten sam klient co zamockowany createServiceClient (z zawężaniem
 // do danych testowych) - testy nie mają sesji, a owner_id dostaje DEFAULT (legacy owner).
-vi.mock('@/lib/auth-guard', async () => ({
-  requireUser: async () => ({ user: { id: 'E2E_TEST__user' } }),
+// user.id to uuid konta właściciela (legacy_owner): app_config i owner_id w audycie są per konto,
+// a dane testowe należą do właściciela (DEFAULT current_owner_id() dla service role).
+vi.mock('@/lib/auth-guard', async () => {
+  const testUser = async () => {
+    const { getLegacyOwnerId } = await import('@/lib/app-config')
+    return { id: await getLegacyOwnerId() }
+  }
+  return {
+  requireUser: async () => ({ user: await testUser() }),
   getUserClient: async () => {
     const { createServiceClient } = await import('@/lib/supabase/service')
-    return { user: { id: 'E2E_TEST__user' }, supabase: createServiceClient() }
+    return { user: await testUser(), supabase: createServiceClient() }
   },
   getApiUserClient: async () => {
     const { createServiceClient } = await import('@/lib/supabase/service')
-    return { user: { id: 'E2E_TEST__user' }, supabase: createServiceClient() }
+    return { user: await testUser(), supabase: createServiceClient() }
   },
   // Ta sama logika co w lib/auth-guard.ts (select na tenants klientem "sesji").
   assertTenantOwned: async (
@@ -30,7 +37,8 @@ vi.mock('@/lib/auth-guard', async () => ({
     const { data } = await supabase.from('tenants').select('id').eq('id', tenantId).maybeSingle()
     if (!data) throw new Error('Not found')
   },
-}))
+  }
+})
 
 // SMTP: lib/email.ts działa normalnie (szablony, tematy, logi w email_logs),
 // ale transport zapisuje wiadomość w `mailbox` zamiast ją wysyłać.

@@ -21,8 +21,8 @@ export type ImportDocSlot = 0 | 1 | 2
 // Przełączniki z Ustawień: Pekao = import CSV (slot 0), Millennium = 2 wyciągi
 // PDF (sloty 1/2). Brak wiersza konfiguracji / null = włączone (jak dotąd).
 export async function getImportToggles(): Promise<{ pekao: boolean; millennium: boolean }> {
-  await requireUser()
-  const data = await readAppConfig(['import_pekao_enabled', 'import_millennium_enabled'])
+  const { user } = await requireUser()
+  const data = await readAppConfig(user.id, ['import_pekao_enabled', 'import_millennium_enabled'])
   return {
     pekao: data?.import_pekao_enabled !== false,
     millennium: data?.import_millennium_enabled !== false,
@@ -36,7 +36,7 @@ export async function importBankStatement(
   dayTo?: number,
   docSlot?: ImportDocSlot,
 ) {
-  const { supabase } = await getUserClient()
+  const { user, supabase } = await getUserClient()
 
   // Zabezpieczenie po stronie serwera (UI i tak ukrywa wyłączoną sekcję).
   // Sprawdzamy przed utworzeniem wpisu w audit_log.
@@ -106,7 +106,7 @@ export async function importBankStatement(
   let minDate = '9999-12-31'
   let maxDate = '0000-01-01'
 
-  const config = await readAppConfig(['ignored_source_accounts'])
+  const config = await readAppConfig(user.id, ['ignored_source_accounts'])
   const ignoredAccountsList = config?.ignored_source_accounts
     ? config.ignored_source_accounts.split('\n').map((a: string) => a.trim().replace(/\s/g, '')).filter(Boolean)
     : []

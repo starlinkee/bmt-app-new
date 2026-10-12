@@ -270,8 +270,8 @@ describe("server actions ('use server') wymagają zalogowanego użytkownika", ()
     return bad
   }
 
-  // Jedyny kanał app_config to lib/app-config.ts (slice 3 przepnie go na wiersz per konto).
-  test("literał 'app_config' jako argument .from(...) tylko w lib/app-config.ts", () => {
+  // Jedyny kanał app_config / system_settings / legacy_owner to lib/app-config.ts (jawny ownerId).
+  test("literały 'app_config' / 'system_settings' / 'legacy_owner' w .from(...) tylko w lib/app-config.ts", () => {
     const bad: string[] = []
     for (const file of [...walk(path.join(ROOT, 'app')), ...walk(path.join(ROOT, 'lib'))]) {
       const rel = path.relative(ROOT, file).split(path.sep).join('/')
@@ -280,7 +280,7 @@ describe("server actions ('use server') wymagają zalogowanego użytkownika", ()
       const visit = (n: ts.Node) => {
         if (
           ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && n.expression.name.text === 'from' &&
-          n.arguments[0] && ts.isStringLiteralLike(n.arguments[0]) && n.arguments[0].text === 'app_config'
+          n.arguments[0] && ts.isStringLiteralLike(n.arguments[0]) && ['app_config', 'system_settings', 'legacy_owner'].includes(n.arguments[0].text)
         ) bad.push(rel)
         ts.forEachChild(n, visit)
       }

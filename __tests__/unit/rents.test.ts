@@ -24,7 +24,8 @@ function seed(contracts: unknown[], invoices: unknown[] = []) {
     {
       contracts: contracts as never[],
       invoices: invoices as never[],
-      app_config: [{ id: 1, admin_email: 'admin@example.com' }],
+      app_config: [{ owner_id: 'o1', admin_email: 'admin@example.com' }],
+      legacy_owner: [{ id: 1, owner_id: 'o1' }],
     },
     { unique: { invoices: ['contract_id', 'type', 'month', 'year'] } },
   )

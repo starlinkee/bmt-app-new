@@ -57,6 +57,7 @@ export async function PUT(req: NextRequest) {
     const { error } = await (supabase as any)
       .from('skill_prompts')
       .upsert({
+        owner_id: ctx.user.id,
         id: skillId,
         prompt: content,
         label: label || skillId,
@@ -64,7 +65,7 @@ export async function PUT(req: NextRequest) {
         timeout_ms: timeoutMs || 300000,
         settlement_group_id: (settlementGroupId as number | null | undefined) ?? null,
         updated_at: new Date().toISOString()
-      })
+      }, { onConflict: 'owner_id,id' })
       
     if (error) throw error
     

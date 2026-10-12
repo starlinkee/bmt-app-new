@@ -48,7 +48,7 @@ export default function TenantReadingsPage({ params }: { params: Promise<{ token
         setValues(initVals)
         setPreviousReadings(prevReadings)
       } else if (data && data.groups && !d.windowOpen) {
-        setClosedMessage(await getClosedWindowMessage())
+        setClosedMessage(await getClosedWindowMessage(token))
       }
       setLoading(false)
     }

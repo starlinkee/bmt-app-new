@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer'
 import { createServiceClient } from '@/lib/supabase/service'
-import { readAppConfig } from '@/lib/app-config'
+import { getLegacyOwnerId, readAppConfig } from '@/lib/app-config'
 import { formatAmount } from '@/lib/utils'
 import { getEnvTier } from '@/lib/env'
 import fs from 'fs/promises'
@@ -18,7 +18,9 @@ type ProviderConfig = {
 // Nadawca = adres administratora z ustawień (app_config.admin_email),
 // hasło aplikacji Gmail pochodzi ze zmiennej środowiskowej GMAIL_APP_PASSWORD.
 async function getProviderConfig(): Promise<ProviderConfig> {
-  const config = await readAppConfig(['admin_email'])
+  // Wspólny Gmail właściciela do slice 7: nadawcą jest adres administratora konta właściciela
+  // (legacy_owner) niezależnie od konta, w którego imieniu idzie wysyłka.
+  const config = await readAppConfig(await getLegacyOwnerId(), ['admin_email'])
 
   return {
     provider: 'gmail_smtp',

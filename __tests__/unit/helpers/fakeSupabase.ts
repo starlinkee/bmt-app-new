@@ -31,6 +31,7 @@ class Builder implements PromiseLike<Result> {
   private ignoreDuplicates = false
   private orders: { col: string; asc: boolean }[] = []
   private wantSingle = false
+  private allowEmpty = false
   private nextId: () => number
 
   constructor(
@@ -95,6 +96,11 @@ class Builder implements PromiseLike<Result> {
     this.wantSingle = true
     return this
   }
+  maybeSingle() {
+    this.wantSingle = true
+    this.allowEmpty = true
+    return this
+  }
 
   private matches(row: Row) {
     return this.filters.every((f) => f(row))
@@ -152,7 +158,9 @@ class Builder implements PromiseLike<Result> {
     if (this.wantSingle) {
       return rows.length
         ? { data: rows[0], error: null }
-        : { data: null, error: { code: 'PGRST116', message: 'no rows' } }
+        : this.allowEmpty
+          ? { data: null, error: null }
+          : { data: null, error: { code: 'PGRST116', message: 'no rows' } }
     }
     return { data: rows, error: null }
   }

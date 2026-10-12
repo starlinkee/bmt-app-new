@@ -110,8 +110,8 @@ export async function getMediaGroupEmailPreviews() {
 }
 
 export async function getAppConfig() {
-  await requireUser()
-  return readAppConfigRow()
+  const { user } = await requireUser()
+  return readAppConfigRow(user.id)
 }
 
 export async function upsertAppConfig(data: {
@@ -132,15 +132,15 @@ export async function upsertAppConfig(data: {
   statement_upload_reminder_body?: string | null
 }) {
   const { user } = await requireUser()
-  const before = await readAppConfigRow()
+  const before = await readAppConfigRow(user.id)
   let after
   try {
-    after = await updateAppConfig(data)
+    after = await updateAppConfig(user.id, data)
   } catch (error) {
-    await logAudit({ ownerId: user.id, actionName: 'upsertAppConfig', tableName: 'app_config', operation: 'UPDATE', recordId: '1', beforeData: before, errorData: error })
+    await logAudit({ ownerId: user.id, actionName: 'upsertAppConfig', tableName: 'app_config', operation: 'UPDATE', recordId: user.id, beforeData: before, errorData: error })
     throw error
   }
-  await logAudit({ ownerId: user.id, actionName: 'upsertAppConfig', tableName: 'app_config', operation: 'UPDATE', recordId: '1', beforeData: before, afterData: after })
+  await logAudit({ ownerId: user.id, actionName: 'upsertAppConfig', tableName: 'app_config', operation: 'UPDATE', recordId: user.id, beforeData: before, afterData: after })
   revalidatePath('/automatyzacje')
 }
 
@@ -148,10 +148,10 @@ export async function upsertAppConfig(data: {
 // potrzebne do wyświetlenia (kiedy ostatnio coś faktycznie wysłano, na jaki
 // adres administratora, jaki szablon). Nic tu nic nie zmienia ani nie wysyła.
 export async function getAutomationStatus() {
-  const { supabase } = await getUserClient()
+  const { user, supabase } = await getUserClient()
 
   const [config, { data: lastUploadReminder }, { data: lastRentGeneration }, { data: lastMeterReminder }, meterReminderRecipients] = await Promise.all([
-    readAppConfig(['meter_reading_reminder_subject', 'meter_reading_reminder_body', 'admin_email']),
+    readAppConfig(user.id, ['meter_reading_reminder_subject', 'meter_reading_reminder_body', 'admin_email']),
     supabase
       .from('audit_log')
       .select('created_at, after_data')

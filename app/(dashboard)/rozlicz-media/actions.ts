@@ -193,7 +193,7 @@ export async function deleteSettlementGroup(id: number) {
 type FieldDef = string | { range: string; source: 'user'; save_key?: string } | { range: string; source: 'db'; db_key: string } | { range: string; source: 'auto'; auto_type: string }
 
 export async function getMediaEmailPreview(groupId: number) {
-  const { supabase } = await getUserClient()
+  const { user, supabase } = await getUserClient()
 
   const group = await getSettlementGroup(groupId)
   if (!group) return { entries: [] as { email: string | null; count: number; recipients: string[] }[], total: 0 }
@@ -206,7 +206,7 @@ export async function getMediaEmailPreview(groupId: number) {
       .from('tenants')
       .select('id, email, email2, contracts(is_active, has_media_invoice)')
       .in('id', tenantIds),
-    readAppConfig(['admin_email']),
+    readAppConfig(user.id, ['admin_email']),
   ])
 
   const recipients: string[] = []
@@ -302,7 +302,7 @@ export async function processSettlement(
     ? [firstProp.address2, firstProp.address1].filter(Boolean).join(', ')
     : ''
 
-  const config = await readAppConfig(['drive_invoices_folder_id', 'rent_invoice_spreadsheet_id', 'rent_invoice_input_mapping_json', 'rent_invoice_pdf_gid'])
+  const config = await readAppConfig(user.id, ['drive_invoices_folder_id', 'rent_invoice_spreadsheet_id', 'rent_invoice_input_mapping_json', 'rent_invoice_pdf_gid'])
 
   // 1. Utwórz strukturę folderów DEVELOPMENT|PREVIEW|PRODUCTION / rok / miesiąc / grupa w Drive
   // i skopiuj do niej szablon arkusza (foldery powstają leniwie, tylko gdy trzeba).
@@ -557,7 +557,7 @@ export async function processSettlement(
   // wystawienia rachunków w KSeF. Wysyłka najemcom powyżej jest priorytetowa, więc
   // ten mail jest best-effort i nie może zawalić całego rozliczenia.
   try {
-    const adminConfig = await readAppConfig(['admin_email'])
+    const adminConfig = await readAppConfig(user.id, ['admin_email'])
     if (adminConfig?.admin_email) {
       await sendMediaSettlementAdminSummaryEmail(
         adminConfig.admin_email,

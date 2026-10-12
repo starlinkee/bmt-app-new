@@ -56,12 +56,14 @@ describe('trasy API z sesją używają klienta z kontekstu', () => {
     expect(calls).toContain('from:skill_prompts')
   })
 
-  test('PUT /api/skill-prompts nie podaje owner_id (DEFAULT z auth.uid())', async () => {
+  test('PUT /api/skill-prompts: upsert z owner_id sesji i onConflict owner_id,id', async () => {
     const { client, calls } = fakeClient({ data: null, error: null })
     ctxRef.value = { user: { id: 'u1' }, supabase: client }
     const res = await putPrompt(req('http://x/api/skill-prompts', { method: 'PUT', body: JSON.stringify({ skillId: 'a', content: 'c' }) }))
     expect(res.status).toBe(200)
-    expect(calls.some((c) => c.startsWith('upsert:') && !c.includes('owner_id'))).toBe(true)
+    const upsert = calls.find((c) => c.startsWith('upsert:'))
+    expect(upsert).toContain('"owner_id":"u1"')
+    expect(upsert).toContain('"onConflict":"owner_id,id"')
   })
 
   test('POST save-readings: obca grupa (RLS nie zwraca wiersza) -> 404, bez zapisu', async () => {

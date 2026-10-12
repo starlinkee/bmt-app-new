@@ -1,5 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/service'
-import { readAppConfig } from '@/lib/app-config'
+import { getLegacyOwnerId, readAppConfig } from '@/lib/app-config'
 import { logAudit } from '@/lib/audit'
 import { sendMeterReadingReminderEmail } from '@/lib/email'
 import { getCurrentDate } from '@/lib/clock'
@@ -131,7 +131,8 @@ export async function processMeterReadingReminder() {
   }
 
   try {
-  const config = await readAppConfig(['meter_reading_reminder_subject', 'meter_reading_reminder_body'])
+  // Cron globalny do slice 4 - ustawienia konta właściciela.
+  const config = await readAppConfig(await getLegacyOwnerId(), ['meter_reading_reminder_subject', 'meter_reading_reminder_body'])
 
   const { data: tenants, error: tenantsError } = await supabase
     .from('tenants')

@@ -102,8 +102,14 @@ export async function getTargetMonthYear() {
   return { month, year, windowOpen }
 }
 
-export async function getClosedWindowMessage(): Promise<string> {
-  const data = await readAppConfig(['meter_reading_closed_message'])
+// Komunikat jest ustawieniem konta najemcy z tokenu; nieznany token -> komunikat domyślny.
+export async function getClosedWindowMessage(token: string): Promise<string> {
+  let data: { meter_reading_closed_message: string | null } | null = null
+  if (typeof token === 'string' && token) {
+    const supabase = createServiceClient()
+    const { data: tenant } = await supabase.from('tenants').select('owner_id').eq('reading_token', token).maybeSingle()
+    if (tenant) data = await readAppConfig(tenant.owner_id, ['meter_reading_closed_message'])
+  }
   return data?.meter_reading_closed_message || DEFAULT_METER_READING_CLOSED_MESSAGE
 }
 

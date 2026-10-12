@@ -18,8 +18,8 @@ import { getUserClient, requireUser, type UserClient } from '@/lib/auth-guard'
 // `invoices` (number: null) - bez PDF-ów i bez maili.
 
 export async function isBackfillEnabled(): Promise<boolean> {
-  await requireUser()
-  const data = await readAppConfig(['backfill_rents_enabled'])
+  const { user } = await requireUser()
+  const data = await readAppConfig(user.id, ['backfill_rents_enabled'])
   return data?.backfill_rents_enabled === true
 }
 

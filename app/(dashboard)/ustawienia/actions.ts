@@ -6,8 +6,8 @@ import { readAppConfigRow, updateAppConfig } from '@/lib/app-config'
 import { requireUser } from '@/lib/auth-guard'
 
 export async function getAppConfig() {
-  await requireUser()
-  return readAppConfigRow()
+  const { user } = await requireUser()
+  return readAppConfigRow(user.id)
 }
 
 export async function upsertAppConfig(data: {
@@ -20,7 +20,7 @@ export async function upsertAppConfig(data: {
   import_millennium_enabled?: boolean
 }) {
   const { user } = await requireUser()
-  const before = await readAppConfigRow()
+  const before = await readAppConfigRow(user.id)
   // Przynajmniej jeden import musi zostać włączony (sprawdzane po scaleniu z obecną konfiguracją).
   const pekao = data.import_pekao_enabled ?? before?.import_pekao_enabled ?? true
   const millennium = data.import_millennium_enabled ?? before?.import_millennium_enabled ?? true
@@ -29,12 +29,12 @@ export async function upsertAppConfig(data: {
   }
   let after
   try {
-    after = await updateAppConfig(data)
+    after = await updateAppConfig(user.id, data)
   } catch (error) {
-    await logAudit({ ownerId: user.id, actionName: 'upsertAppConfig', tableName: 'app_config', operation: 'UPDATE', recordId: '1', beforeData: before, errorData: error })
+    await logAudit({ ownerId: user.id, actionName: 'upsertAppConfig', tableName: 'app_config', operation: 'UPDATE', recordId: user.id, beforeData: before, errorData: error })
     throw error
   }
-  await logAudit({ ownerId: user.id, actionName: 'upsertAppConfig', tableName: 'app_config', operation: 'UPDATE', recordId: '1', beforeData: before, afterData: after })
+  await logAudit({ ownerId: user.id, actionName: 'upsertAppConfig', tableName: 'app_config', operation: 'UPDATE', recordId: user.id, beforeData: before, afterData: after })
   revalidatePath('/ustawienia')
   revalidatePath('/import')
   // Widoczność zakładki "Rozlicz w przeszłości" w menu zależy od app_config.

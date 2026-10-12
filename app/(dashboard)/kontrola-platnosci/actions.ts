@@ -29,7 +29,7 @@ export async function getLastImportDatesByAccount(): Promise<Record<1 | 2, strin
 }
 
 export async function getTenantsWithBalances() {
-  const { supabase } = await getUserClient()
+  const { user, supabase } = await getUserClient()
 
   const [{ data: tenants }, { data: transactions }, { data: invoices }, config, lastImportByAccount] =
     await Promise.all([
@@ -41,7 +41,7 @@ export async function getTenantsWithBalances() {
         .select('tenant_id, amount')
         .in('status', INCOME_TRANSACTION_STATUSES),
       supabase.from('invoices').select('tenant_id, amount'),
-      readAppConfig(['payment_account_1_name', 'payment_account_2_name']),
+      readAppConfig(user.id, ['payment_account_1_name', 'payment_account_2_name']),
       getLastImportDatesByAccount(),
     ])
 
@@ -115,8 +115,8 @@ export async function getTenantWithBalance(tenantId: number) {
   }
 }
 export async function sendBulkStatements() {
-  const { supabase } = await getUserClient()
-  const config = await readAppConfig(['late_reminder_subject', 'late_reminder_body'])
+  const { user, supabase } = await getUserClient()
+  const config = await readAppConfig(user.id, ['late_reminder_subject', 'late_reminder_body'])
   if (!config) throw new Error('Brak konfiguracji aplikacji')
 
   const tenants = await getTenantsWithBalances()
@@ -180,9 +180,9 @@ export async function getGlobalPaymentStats() {
 }
 
 export async function sendStatementToTenant(tenantId: number) {
-  const { supabase } = await getUserClient()
+  const { user, supabase } = await getUserClient()
   try {
-    const config = await readAppConfig(['late_reminder_subject', 'late_reminder_body'])
+    const config = await readAppConfig(user.id, ['late_reminder_subject', 'late_reminder_body'])
     if (!config) throw new Error('Brak konfiguracji aplikacji')
 
     // lib/statement czyta service rolą - najpierw potwierdzamy własność przez sesję.

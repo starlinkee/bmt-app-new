@@ -7,7 +7,7 @@ vi.mock('@/lib/audit', () => ({ logAudit: (...args: unknown[]) => logAuditMock(.
 let db: FakeSupabase
 vi.mock('@/lib/supabase/service', () => ({ createServiceClient: () => db }))
 
-// Wirtualny zegar: testy ustawiają "teraz" bez dotykania app_config.time_offset_ms.
+// Wirtualny zegar: testy ustawiają "teraz" bez dotykania system_settings.time_offset_ms.
 let now: Date
 vi.mock('@/lib/clock', () => ({ getCurrentDate: async () => now }))
 
@@ -32,7 +32,7 @@ const { processMeterReadingReminder, getEligibleMeterReminderTenants } = await i
 const DEDUP_UNIQUE = { reminder_dedup: ['action_name', 'dedup_key'] }
 
 function freshDb(initial: Record<string, unknown[]> = {}) {
-  db = createFakeSupabase({ reminder_dedup: [], ...initial } as never, { unique: DEDUP_UNIQUE })
+  db = createFakeSupabase({ reminder_dedup: [], legacy_owner: [{ id: 1, owner_id: 'o1' }], ...initial } as never, { unique: DEDUP_UNIQUE })
 }
 
 beforeEach(() => {
@@ -117,7 +117,7 @@ describe('processLateReminders', () => {
 })
 
 describe('processStatementUploadReminder', () => {
-  const config = { id: 1, admin_email: 'admin@example.com', statement_upload_reminder_subject: 'S', statement_upload_reminder_body: 'B' }
+  const config = { owner_id: 'o1', admin_email: 'admin@example.com', statement_upload_reminder_subject: 'S', statement_upload_reminder_body: 'B' }
 
   test.each([1, 15, 17, 31])('inny dzień niż 16. (%i.) — nie wysyła', async (day) => {
     now = new Date(2026, 4, day)
@@ -144,7 +144,7 @@ describe('processStatementUploadReminder', () => {
 
   test('brak adresu admina -> nie wysyła i nie zastrzega miesiąca', async () => {
     now = new Date(2026, 5, 16)
-    freshDb({ app_config: [{ id: 1, admin_email: null }] })
+    freshDb({ app_config: [{ owner_id: 'o1', admin_email: null }] })
 
     const result = await processStatementUploadReminder()
 
@@ -192,7 +192,7 @@ describe('meter reading reminder', () => {
     ],
     settlement_group_properties: [{ property_id: 10, settlement_group_id: 100 }],
     settlement_groups: [{ id: 100, tenant_reading_keys: { '1': ['woda', 'prad'], '2': ['woda'], '3': ['woda'], '4': ['woda'], '5': [] } }],
-    app_config: [{ id: 1, meter_reading_reminder_subject: 'Temat', meter_reading_reminder_body: 'Treść' }],
+    app_config: [{ owner_id: 'o1', meter_reading_reminder_subject: 'Temat', meter_reading_reminder_body: 'Treść' }],
   })
 
   test('getEligibleMeterReminderTenants: tylko aktywna umowa z mediami, e-mail i klucze odczytów', async () => {
