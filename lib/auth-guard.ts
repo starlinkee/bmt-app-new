@@ -50,13 +50,15 @@ export async function getUserClient() {
   return getVerifiedUser()
 }
 
+export type UserClient = Awaited<ReturnType<typeof getUserClient>>['supabase']
+
 /**
  * Sprawdza przez klienta z sesją (RLS), że najemca należy do zalogowanego konta.
  * Wołać przed użyciem lib/statement, lib/balance itp., które czytają service rolą
  * (omijają RLS). Obcy / nieistniejący tenantId -> 'Not found'.
  */
 export async function assertTenantOwned(
-  supabase: Awaited<ReturnType<typeof getUserClient>>['supabase'],
+  supabase: UserClient,
   tenantId: number,
 ) {
   const { data } = await supabase.from('tenants').select('id').eq('id', tenantId).maybeSingle()

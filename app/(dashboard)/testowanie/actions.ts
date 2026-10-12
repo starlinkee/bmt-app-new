@@ -1,12 +1,12 @@
 'use server'
 
-import { createServiceClient } from '@/lib/supabase/service'
 import { getSettlementGroup } from '@/app/(dashboard)/media/actions'
 import { tenantDisplayName } from '@/lib/utils'
 import { getTimeOffsetMs, setTimeOffsetMs, isTestClockAllowed } from '@/lib/clock'
 import { processLateReminders } from '@/lib/late-reminders'
 import { processStatementUploadReminder } from '@/lib/statement-reminder'
-import { requireUser } from '@/lib/auth-guard'
+import { getUserClient } from '@/lib/auth-guard'
+import { updateAppConfig } from '@/lib/app-config'
 
 // Wirtualny zegar (patrz lib/clock.ts) - czas płynie normalnie, tylko
 // przesunięty o `time_offset_ms` zapisane w app_config. Poniższe akcje
@@ -16,8 +16,19 @@ import { requireUser } from '@/lib/auth-guard'
 // Panel testowy: poza zalogowanym użytkownikiem wymagamy też, żeby był włączony
 // na tym środowisku (ta sama reguła co pozycja w menu - lib/clock.ts).
 async function guardTestPanel() {
-  await requireUser()
+  const ctx = await getUserClient()
   if (!isTestClockAllowed()) throw new Error('Test panel disabled')
+  return ctx
+}
+
+// Odblokowanie triggera prevent_delete_function (flaga w app_config) - jedyny kanał
+// zapisu app_config to lib/app-config. Wołać tylko po guardTestPanel + isTestClockAllowed.
+async function unlockDestructiveDeletes() {
+  try {
+    await updateAppConfig({ allow_destructive_test_deletes: true })
+  } catch (e) {
+    throw new Error('Nie udało się odblokować usuwania w tym środowisku: ' + (e instanceof Error ? e.message : String(e)))
+  }
 }
 
 export async function getTestClockState() {
@@ -67,9 +78,8 @@ export async function runStatementReminderTest() {
 }
 
 export async function getGroupDetailsForTest(groupId: number) {
-  await guardTestPanel()
-  const supabase = createServiceClient()
-  
+  const { supabase } = await guardTestPanel()
+
   const group = await getSettlementGroup(groupId)
   if (!group) return null
 
@@ -121,21 +131,12 @@ export async function getGroupDetailsForTest(groupId: number) {
 // (nic w kodzie aplikacji nie może tam ustawić tej flagi na true), a dev/
 // preview po pierwszym użyciu tego przycisku mają usuwanie trwale odblokowane.
 export async function zeroAllTenantBalances() {
-  await guardTestPanel()
+  const { supabase } = await guardTestPanel()
   if (!isTestClockAllowed()) {
     throw new Error('Niedozwolone na tym środowisku')
   }
 
-  const supabase = createServiceClient()
-
-  const { error: unlockError } = await supabase
-    .from('app_config')
-    .update({ allow_destructive_test_deletes: true })
-    .eq('id', 1)
-
-  if (unlockError) {
-    throw new Error('Nie udało się odblokować usuwania w tym środowisku: ' + unlockError.message)
-  }
+  await unlockDestructiveDeletes()
 
   const { error: txError, count: deletedTransactions } = await supabase
     .from('transactions')
@@ -173,21 +174,12 @@ export async function zeroAllTenantBalances() {
 // działa wyłącznie gdy isTestClockAllowed() zwraca true, więc nigdy na
 // prawdziwej produkcji.
 export async function clearAllTransactionHistory() {
-  await guardTestPanel()
+  const { supabase } = await guardTestPanel()
   if (!isTestClockAllowed()) {
     throw new Error('Niedozwolone na tym środowisku')
   }
 
-  const supabase = createServiceClient()
-
-  const { error: unlockError } = await supabase
-    .from('app_config')
-    .update({ allow_destructive_test_deletes: true })
-    .eq('id', 1)
-
-  if (unlockError) {
-    throw new Error('Nie udało się odblokować usuwania w tym środowisku: ' + unlockError.message)
-  }
+  await unlockDestructiveDeletes()
 
   const { error: txError, count: deletedTransactions } = await supabase
     .from('transactions')
@@ -211,8 +203,7 @@ export async function generateTestMediaCharge(
   month: number,
   year: number
 ) {
-  await guardTestPanel()
-  const supabase = createServiceClient()
+  const { supabase } = await guardTestPanel()
 
   // Pobierz grupę i powiązane nieruchomości
   const group = await getSettlementGroup(groupId)

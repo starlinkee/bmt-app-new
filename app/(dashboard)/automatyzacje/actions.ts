@@ -1,14 +1,14 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createServiceClient } from '@/lib/supabase/service'
 import { logAudit } from '@/lib/audit'
+import { readAppConfig, readAppConfigRow, updateAppConfig } from '@/lib/app-config'
 import { getEligibleMeterReminderTenants } from '@/lib/meter-reading-reminder'
 import { getRentPreview } from '@/lib/rents'
 import { getCurrentDate } from '@/lib/clock'
 import { tenantDisplayName } from '@/lib/utils'
 import type { Json } from '@/types/supabase'
-import { requireUser } from '@/lib/auth-guard'
+import { getUserClient, requireUser } from '@/lib/auth-guard'
 
 // Umowy, które zostałyby obciążone czynszem, gdyby generowanie odpaliło się
 // teraz dla NASTĘPNEGO miesiąca (czyli to, co realnie naliczy się 1. dnia
@@ -53,8 +53,7 @@ const DEFAULT_MEDIA_EMAIL_BODY =
 // treść tego maila. Nie liczy kwot (te powstają dopiero przy realnym
 // rozliczeniu w Rozlicz media) — to tylko podgląd odbiorców i szablonu.
 export async function getMediaGroupEmailPreviews() {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
 
   const { data: groups } = await supabase
     .from('settlement_groups')
@@ -112,13 +111,7 @@ export async function getMediaGroupEmailPreviews() {
 
 export async function getAppConfig() {
   await requireUser()
-  const supabase = createServiceClient()
-  const { data } = await supabase
-    .from('app_config')
-    .select('*')
-    .eq('id', 1)
-    .single()
-  return data
+  return readAppConfigRow()
 }
 
 export async function upsertAppConfig(data: {
@@ -138,15 +131,16 @@ export async function upsertAppConfig(data: {
   statement_upload_reminder_subject?: string | null
   statement_upload_reminder_body?: string | null
 }) {
-  await requireUser()
-  const supabase = createServiceClient()
-  const { data: before } = await supabase.from('app_config').select('*').eq('id', 1).single()
-  const { data: after, error } = await supabase.from('app_config').update(data).eq('id', 1).select().single()
-  if (error) {
-    await logAudit({ actionName: 'upsertAppConfig', tableName: 'app_config', operation: 'UPDATE', recordId: '1', beforeData: before, errorData: error })
+  const { user } = await requireUser()
+  const before = await readAppConfigRow()
+  let after
+  try {
+    after = await updateAppConfig(data)
+  } catch (error) {
+    await logAudit({ ownerId: user.id, actionName: 'upsertAppConfig', tableName: 'app_config', operation: 'UPDATE', recordId: '1', beforeData: before, errorData: error })
     throw error
   }
-  await logAudit({ actionName: 'upsertAppConfig', tableName: 'app_config', operation: 'UPDATE', recordId: '1', beforeData: before, afterData: after })
+  await logAudit({ ownerId: user.id, actionName: 'upsertAppConfig', tableName: 'app_config', operation: 'UPDATE', recordId: '1', beforeData: before, afterData: after })
   revalidatePath('/automatyzacje')
 }
 
@@ -154,15 +148,10 @@ export async function upsertAppConfig(data: {
 // potrzebne do wyświetlenia (kiedy ostatnio coś faktycznie wysłano, na jaki
 // adres administratora, jaki szablon). Nic tu nic nie zmienia ani nie wysyła.
 export async function getAutomationStatus() {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
 
-  const [{ data: config }, { data: lastUploadReminder }, { data: lastRentGeneration }, { data: lastMeterReminder }, meterReminderRecipients] = await Promise.all([
-    supabase
-      .from('app_config')
-      .select('meter_reading_reminder_subject, meter_reading_reminder_body, admin_email')
-      .eq('id', 1)
-      .single(),
+  const [config, { data: lastUploadReminder }, { data: lastRentGeneration }, { data: lastMeterReminder }, meterReminderRecipients] = await Promise.all([
+    readAppConfig(['meter_reading_reminder_subject', 'meter_reading_reminder_body', 'admin_email']),
     supabase
       .from('audit_log')
       .select('created_at, after_data')

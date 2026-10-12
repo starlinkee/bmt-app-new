@@ -1,8 +1,8 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createServiceClient } from '@/lib/supabase/service'
 import { logAudit } from '@/lib/audit'
+import { readAppConfig } from '@/lib/app-config'
 import { getCurrentDate } from '@/lib/clock'
 import { tenantDisplayName } from '@/lib/utils'
 import {
@@ -11,7 +11,7 @@ import {
   monthsInRange,
   type YearMonth,
 } from '@/lib/rents-backfill'
-import { requireUser } from '@/lib/auth-guard'
+import { getUserClient, requireUser, type UserClient } from '@/lib/auth-guard'
 
 // Wsteczne dopisywanie czynszów (RENT) za wybrany zakres miesięcy.
 // Zgodnie z zasadami billingu (AGENTS.md) tworzymy WYŁĄCZNIE wiersze w
@@ -19,12 +19,7 @@ import { requireUser } from '@/lib/auth-guard'
 
 export async function isBackfillEnabled(): Promise<boolean> {
   await requireUser()
-  const supabase = createServiceClient()
-  const { data } = await supabase
-    .from('app_config')
-    .select('backfill_rents_enabled')
-    .eq('id', 1)
-    .single()
+  const data = await readAppConfig(['backfill_rents_enabled'])
   return data?.backfill_rents_enabled === true
 }
 
@@ -35,9 +30,8 @@ async function assertEnabled() {
 }
 
 export async function getBackfillTenants() {
-  await requireUser()
+  const { supabase } = await getUserClient()
   await assertEnabled()
-  const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('tenants')
     .select('id, first_name, last_name, tenant_type, company_name, properties(name), contracts(id)')
@@ -63,7 +57,7 @@ export type BackfillRow = {
   exists: boolean
 }
 
-async function computeBackfill(tenantIds: number[], from: YearMonth, to: YearMonth) {
+async function computeBackfill(supabase: UserClient, tenantIds: number[], from: YearMonth, to: YearMonth) {
   if (!tenantIds.length) throw new Error('Wybierz co najmniej jednego najemcę.')
 
   const months = monthsInRange(from, to)
@@ -78,7 +72,6 @@ async function computeBackfill(tenantIds: number[], from: YearMonth, to: YearMon
     throw new Error('Nie można rozliczać miesięcy z przyszłości.')
   }
 
-  const supabase = createServiceClient()
   const { data: contracts, error } = await supabase
     .from('contracts')
     .select('id, tenant_id, rent_amount, start_date, end_date, is_active, tenants(id, first_name, last_name, tenant_type, company_name)')
@@ -133,21 +126,20 @@ async function computeBackfill(tenantIds: number[], from: YearMonth, to: YearMon
 }
 
 export async function previewBackfillRents(tenantIds: number[], from: YearMonth, to: YearMonth) {
-  await requireUser()
+  const { supabase } = await getUserClient()
   await assertEnabled()
-  return computeBackfill(tenantIds, from, to)
+  return computeBackfill(supabase, tenantIds, from, to)
 }
 
 export async function executeBackfillRents(tenantIds: number[], from: YearMonth, to: YearMonth) {
-  await requireUser()
+  const { user, supabase } = await getUserClient()
   await assertEnabled()
   // Przeliczamy na serwerze od nowa - nie ufamy podglądowi z klienta.
-  const { rows } = await computeBackfill(tenantIds, from, to)
+  const { rows } = await computeBackfill(supabase, tenantIds, from, to)
   const toCreate = rows.filter((r) => !r.exists)
   const skippedCount = rows.length - toCreate.length
 
   if (toCreate.length) {
-    const supabase = createServiceClient()
     const { error } = await supabase.from('invoices').insert(
       toCreate.map((r) => ({
         type: 'RENT',
@@ -162,6 +154,7 @@ export async function executeBackfillRents(tenantIds: number[], from: YearMonth,
     )
     if (error) {
       await logAudit({
+        ownerId: user.id,
         actionName: 'backfillRents',
         tableName: 'invoices',
         operation: 'CREATE',
@@ -173,6 +166,7 @@ export async function executeBackfillRents(tenantIds: number[], from: YearMonth,
   }
 
   await logAudit({
+    ownerId: user.id,
     actionName: 'backfillRents',
     tableName: 'invoices',
     operation: 'CREATE',

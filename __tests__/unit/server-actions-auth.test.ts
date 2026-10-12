@@ -32,6 +32,14 @@ const SESSION_CLIENT_FILES = [
   'app/(dashboard)/media/actions.ts',
   'app/(dashboard)/rozlicz-media/actions.ts',
   'app/(dashboard)/historia-mediow/actions.ts',
+  'app/(dashboard)/automatyzacje/actions.ts',
+  'app/(dashboard)/rozlicz-w-przeszlosci/actions.ts',
+  'app/(dashboard)/media-w-przeszlosci/actions.ts',
+  'app/(dashboard)/historia-obciazen/actions.ts',
+  'app/(dashboard)/wiadomosci/actions.ts',
+  'app/(dashboard)/ustawienia/actions.ts',
+  'app/(dashboard)/testowanie/actions.ts',
+  'app/(dashboard)/baza-danych/actions.ts',
 ]
 // Świadomie POZA listą: rozlicz-media/uploads-actions.ts - bucket manual-uploads nie ma
 // polityk storage, więc klient sesji nie zadziała; zostaje na service role + requireUser do slice 5.
@@ -42,7 +50,11 @@ const SESSION_CLIENT_FILES = [
 // własności najemcy klientem sesji PRZED użyciem).
 const SERVICE_LIB_ALLOWED: Record<string, { why: string; gated?: boolean }> = {
   '@/lib/audit': { why: 'logAudit - zapis z ownerId' },
-  '@/lib/app-config': { why: 'jedyny odczyt app_config service rolą do slice 3 (per konto)' },
+  '@/lib/app-config': { why: 'jedyny kanał app_config (odczyt/zapis) service rolą do slice 3 (per konto)' },
+  '@/lib/rents': { why: 'joby cronów, per konto w slice 4 (podgląd czynszów w Automatyzacjach)' },
+  '@/lib/meter-reading-reminder': { why: 'joby cronów, per konto w slice 4 (lista odbiorców przypomnienia)' },
+  '@/lib/late-reminders': { why: 'joby cronów, per konto w slice 4 (ręczne odpalenie z panelu testowego)' },
+  '@/lib/statement-reminder': { why: 'joby cronów, per konto w slice 4 (ręczne odpalenie z panelu testowego)' },
   '@/lib/email': { why: 'wysyłka e-mail + log w email_logs (legacy owner do slice 4)' },
   '@/lib/statement': { why: 'wyciąg najemcy - po assertTenantOwned', gated: true },
   '@/lib/balance': { why: 'saldo najemcy - po assertTenantOwned', gated: true },
@@ -228,6 +240,33 @@ describe("server actions ('use server') wymagają zalogowanego użytkownika", ()
         }
       }
     }
+  })
+
+  // Surowy klient Supabase (createClient z @supabase/supabase-js) omija wszystkie nasze
+  // strażniki wyżej (szukają createServiceClient) - wolno go tworzyć tylko w lib/supabase/**.
+  function rawClientImports(): string[] {
+    const bad: string[] = []
+    for (const file of [...walk(path.join(ROOT, 'app')), ...walk(path.join(ROOT, 'lib'))]) {
+      const rel = path.relative(ROOT, file).split(path.sep).join('/')
+      if (rel.startsWith('lib/supabase/')) continue
+      const sf = ts.createSourceFile(file, fs.readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true)
+      for (const st of sf.statements) {
+        if (!ts.isImportDeclaration(st) || !ts.isStringLiteral(st.moduleSpecifier)) continue
+        if (st.moduleSpecifier.text !== '@supabase/supabase-js') continue
+        const clause = st.importClause
+        if (clause?.isTypeOnly) continue
+        const named = clause?.namedBindings
+        const importsValue =
+          !clause || !!clause.name || (named && ts.isNamespaceImport(named)) ||
+          (named && ts.isNamedImports(named) && named.elements.some((e) => !e.isTypeOnly))
+        if (importsValue) bad.push(rel)
+      }
+    }
+    return bad
+  }
+
+  test('createClient z @supabase/supabase-js tylko w lib/supabase/**', () => {
+    expect(rawClientImports()).toEqual([])
   })
 
   test('lista dozwolonych bibliotek service wskazuje istniejące moduły lib/', () => {
