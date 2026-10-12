@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer'
 import { createServiceClient } from '@/lib/supabase/service'
+import { readAppConfig } from '@/lib/app-config'
 import { formatAmount } from '@/lib/utils'
 import { getEnvTier } from '@/lib/env'
 import fs from 'fs/promises'
@@ -17,12 +18,7 @@ type ProviderConfig = {
 // Nadawca = adres administratora z ustawień (app_config.admin_email),
 // hasło aplikacji Gmail pochodzi ze zmiennej środowiskowej GMAIL_APP_PASSWORD.
 async function getProviderConfig(): Promise<ProviderConfig> {
-  const supabase = createServiceClient()
-  const { data: config } = await supabase
-    .from('app_config')
-    .select('admin_email')
-    .eq('id', 1)
-    .single()
+  const config = await readAppConfig(['admin_email'])
 
   return {
     provider: 'gmail_smtp',

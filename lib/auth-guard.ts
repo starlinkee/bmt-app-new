@@ -50,6 +50,14 @@ export async function getUserClient() {
   return getVerifiedUser()
 }
 
+/**
+ * Wersja getUserClient() dla tras API (route handlers): zamiast rzucać zwraca null,
+ * a trasa odpowiada 401. Poza tym to samo - klient z sesją, zapytania przez RLS.
+ */
+export async function getApiUserClient() {
+  return verifiedSession()
+}
+
 export type UserClient = Awaited<ReturnType<typeof getUserClient>>['supabase']
 
 /**

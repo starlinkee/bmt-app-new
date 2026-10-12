@@ -1,4 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/service'
+import { readAppConfig } from '@/lib/app-config'
 import { logAudit } from '@/lib/audit'
 import { sendStatementUploadReminderEmail } from '@/lib/email'
 import { getCurrentDate } from '@/lib/clock'
@@ -14,11 +15,7 @@ export async function processStatementUploadReminder() {
 
   const supabase = createServiceClient()
 
-  const { data: config } = await supabase
-    .from('app_config')
-    .select('admin_email, statement_upload_reminder_subject, statement_upload_reminder_body')
-    .eq('id', 1)
-    .single()
+  const config = await readAppConfig(['admin_email', 'statement_upload_reminder_subject', 'statement_upload_reminder_body'])
 
   const adminEmail = config?.admin_email
   if (!adminEmail) {

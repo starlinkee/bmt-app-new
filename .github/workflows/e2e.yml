@@ -42,8 +42,12 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         env:
           BASE_URL: ${{ inputs.base_url }}
+        shell: bash
         run: |
-          if ! printf '%s' "$BASE_URL" | grep -Eq '^https://bmt-app-[a-z0-9]+-vikbobinskijunk-4072s-projects\.vercel\.app/?$'; then
+          # Cała wartość naraz (bash =~, nie grep per linia): wartość wieloliniowa nie przejdzie,
+          # nawet gdy pierwsza linia jest poprawna.
+          re='^https://bmt-app-[a-z0-9]+-vikbobinskijunk-4072s-projects\.vercel\.app/?$'
+          if [[ "$BASE_URL" == *$'\n'* || "$BASE_URL" == *$'\r'* || ! "$BASE_URL" =~ $re ]]; then
             echo "::error::base_url niezgodny z wzorcem deployu preview projektu - odrzucono."
             exit 1
           fi

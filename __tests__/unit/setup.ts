@@ -11,6 +11,10 @@ vi.mock('@/lib/auth-guard', () => ({
     user: { id: 'unit-test-user' },
     supabase: (globalThis as { __unitSessionClient?: unknown }).__unitSessionClient,
   }),
+  getApiUserClient: async () => ({
+    user: { id: 'unit-test-user' },
+    supabase: (globalThis as { __unitSessionClient?: unknown }).__unitSessionClient,
+  }),
   // Ta sama logika co w lib/auth-guard.ts (select na tenants klientem sesji).
   assertTenantOwned: async (
     supabase: { from: (t: string) => { select: (c: string) => { eq: (k: string, v: number) => { maybeSingle: () => Promise<{ data: unknown }> } } } },

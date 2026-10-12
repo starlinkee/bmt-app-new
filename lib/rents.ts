@@ -2,6 +2,7 @@ import 'server-only'
 
 import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/service'
+import { readAppConfig } from '@/lib/app-config'
 import { logAudit } from '@/lib/audit'
 import { tenantDisplayName } from '@/lib/utils'
 import { contractCoversPeriod } from '@/lib/contracts'
@@ -27,11 +28,7 @@ export async function getRentPreview(month: number, year: number) {
       .select('*, tenants(id, first_name, last_name, tenant_type, company_name, email, email2, nip, address1, address2, property_id, properties(name))')
       .eq('is_active', true)
       .not('id', 'in', existingContractIds.length ? `(${existingContractIds.join(',')})` : '(-1)'),
-    supabase
-      .from('app_config')
-      .select('admin_email')
-      .eq('id', 1)
-      .single(),
+    readAppConfig(['admin_email']),
   ])
 
   // Umowy z end_date wcześniejszym niż dany miesiąc są pomijane, nawet jeśli
@@ -51,7 +48,7 @@ export async function getRentPreview(month: number, year: number) {
   return {
     withEmail,
     withoutEmail,
-    senderEmail: appConfigResult.data?.admin_email ?? null,
+    senderEmail: appConfigResult?.admin_email ?? null,
     // Liczba aktywnych umów pominiętych, bo mają już rachunek RENT za ten
     // miesiąc/rok (patrz filtr .not('id', 'in', ...) powyżej) - pokazujemy to
     // w panelu testowym, żeby "wygenerowano 0" nie wyglądało jak błąd.

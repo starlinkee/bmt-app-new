@@ -40,6 +40,11 @@ const SESSION_CLIENT_FILES = [
   'app/(dashboard)/ustawienia/actions.ts',
   'app/(dashboard)/testowanie/actions.ts',
   'app/(dashboard)/baza-danych/actions.ts',
+  // Trasy API (route handlers): reguła "pierwsza instrukcja" ich nie dotyczy (to nie 'use server'),
+  // pilnujemy tylko zakazu klienta service role; 401 zwraca getApiUserClient() == null.
+  'app/api/skills/route.ts',
+  'app/api/skill-prompts/route.ts',
+  'app/api/media/save-readings/route.ts',
 ]
 // Świadomie POZA listą: rozlicz-media/uploads-actions.ts - bucket manual-uploads nie ma
 // polityk storage, więc klient sesji nie zadziała; zostaje na service role + requireUser do slice 5.
@@ -264,6 +269,25 @@ describe("server actions ('use server') wymagają zalogowanego użytkownika", ()
     }
     return bad
   }
+
+  // Jedyny kanał app_config to lib/app-config.ts (slice 3 przepnie go na wiersz per konto).
+  test("literał 'app_config' jako argument .from(...) tylko w lib/app-config.ts", () => {
+    const bad: string[] = []
+    for (const file of [...walk(path.join(ROOT, 'app')), ...walk(path.join(ROOT, 'lib'))]) {
+      const rel = path.relative(ROOT, file).split(path.sep).join('/')
+      if (rel === 'lib/app-config.ts') continue
+      const sf = ts.createSourceFile(file, fs.readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true)
+      const visit = (n: ts.Node) => {
+        if (
+          ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && n.expression.name.text === 'from' &&
+          n.arguments[0] && ts.isStringLiteralLike(n.arguments[0]) && n.arguments[0].text === 'app_config'
+        ) bad.push(rel)
+        ts.forEachChild(n, visit)
+      }
+      visit(sf)
+    }
+    expect(bad).toEqual([])
+  })
 
   test('createClient z @supabase/supabase-js tylko w lib/supabase/**', () => {
     expect(rawClientImports()).toEqual([])

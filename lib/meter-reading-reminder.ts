@@ -1,4 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/service'
+import { readAppConfig } from '@/lib/app-config'
 import { logAudit } from '@/lib/audit'
 import { sendMeterReadingReminderEmail } from '@/lib/email'
 import { getCurrentDate } from '@/lib/clock'
@@ -130,11 +131,7 @@ export async function processMeterReadingReminder() {
   }
 
   try {
-  const { data: config } = await supabase
-    .from('app_config')
-    .select('meter_reading_reminder_subject, meter_reading_reminder_body')
-    .eq('id', 1)
-    .single()
+  const config = await readAppConfig(['meter_reading_reminder_subject', 'meter_reading_reminder_body'])
 
   const { data: tenants, error: tenantsError } = await supabase
     .from('tenants')

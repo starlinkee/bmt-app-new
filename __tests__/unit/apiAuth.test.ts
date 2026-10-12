@@ -3,6 +3,7 @@ import { describe, test, expect, vi } from 'vitest'
 // Trasy API bez sesji muszą odpowiadać 401, zanim dotkną bazy / skill runnera.
 const getSession = vi.fn()
 vi.mock('@/lib/auth', () => ({ requireApiAuth: () => getSession() }))
+vi.mock('@/lib/auth-guard', () => ({ getApiUserClient: () => getSession() }))
 vi.mock('@/lib/supabase/service', () => ({
   createServiceClient: () => {
     throw new Error('baza nie powinna być odpytywana bez sesji')
