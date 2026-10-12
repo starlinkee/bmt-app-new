@@ -29,7 +29,12 @@ const SESSION_CLIENT_FILES = [
   'app/(dashboard)/import/actions.ts',
   'app/(dashboard)/kontrola-platnosci/actions.ts',
   'app/(dashboard)/historia/actions.ts',
+  'app/(dashboard)/media/actions.ts',
+  'app/(dashboard)/rozlicz-media/actions.ts',
+  'app/(dashboard)/historia-mediow/actions.ts',
 ]
+// Świadomie POZA listą: rozlicz-media/uploads-actions.ts - bucket manual-uploads nie ma
+// polityk storage, więc klient sesji nie zadziała; zostaje na service role + requireUser do slice 5.
 
 // Moduły z lib/, które same tworzą klienta service role (omijają RLS), a mimo to
 // mogą być używane w plikach zmigrowanych - jawna lista z uzasadnieniem.

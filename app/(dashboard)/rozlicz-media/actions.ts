@@ -1,8 +1,8 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createServiceClient } from '@/lib/supabase/service'
 import { logAudit } from '@/lib/audit'
+import { readAppConfig } from '@/lib/app-config'
 import {
   writeInputValues,
   validateNamedRanges,
@@ -16,7 +16,7 @@ import { copySpreadsheet, deleteFile, ensureMediaSettlementFolder } from '@/lib/
 import { sendMediaEmail, sendMediaSettlementAdminSummaryEmail } from '@/lib/email'
 import { buildInvoiceNumber, tenantDisplayName } from '@/lib/utils'
 import { getEnvTier } from '@/lib/env'
-import { requireUser } from '@/lib/auth-guard'
+import { getUserClient } from '@/lib/auth-guard'
 
 // Segment ścieżki/nazwy pliku bezpieczny dla kluczy Supabase Storage.
 // Storage odrzuca ("Invalid key") m.in. polskie znaki diakrytyczne, en-dash (–),
@@ -35,7 +35,7 @@ function sanitizePathSegment(name: string): string {
 
 // Struktura: [bucket "invoices"] / DEVELOPMENT|PREVIEW|PRODUCTION / rok / miesiąc / grupa mediów / plik.pdf
 // Zgodna 1:1 ze strukturą folderów w Google Drive (patrz ensureMediaSettlementFolder).
-async function uploadToSupabaseStorage(supabase: ReturnType<typeof createServiceClient>, envTier: string, year: number, month: number, groupName: string, fileName: string, buffer: Buffer): Promise<string> {
+async function uploadToSupabaseStorage(supabase: Awaited<ReturnType<typeof getUserClient>>['supabase'], envTier: string, year: number, month: number, groupName: string, fileName: string, buffer: Buffer): Promise<string> {
   const filePath = `${envTier}/${year}/${month}/${sanitizePathSegment(groupName)}/${sanitizePathSegment(fileName)}`
   const { error } = await supabase.storage.from('invoices').upload(filePath, buffer, {
     contentType: 'application/pdf',
@@ -48,8 +48,7 @@ async function uploadToSupabaseStorage(supabase: ReturnType<typeof createService
 }
 
 export async function getSettlementGroups() {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
   const { data, error } = await supabase
     .from('settlement_groups')
     .select('*, settlement_group_properties(property_id, properties(name, address1, address2))')
@@ -59,8 +58,7 @@ export async function getSettlementGroups() {
 }
 
 export async function getSettlementGroup(id: number) {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
   const { data, error } = await supabase
     .from('settlement_groups')
     .select('*, settlement_group_properties(property_id, properties(name, address1, address2))')
@@ -81,8 +79,7 @@ export async function createSettlementGroup(data: {
   property_ids: number[]
   tenant_reading_keys?: Record<string, { key: string; label: string }[]>
 }) {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { user, supabase } = await getUserClient()
   const { property_ids, tenant_reading_keys, ...groupData } = data
   
   const payload = { ...groupData }
@@ -107,6 +104,7 @@ export async function createSettlementGroup(data: {
   }
 
   await logAudit({
+    ownerId: user.id,
     actionName: 'createSettlementGroup',
     tableName: 'settlement_groups',
     operation: 'CREATE',
@@ -131,8 +129,7 @@ export async function updateSettlementGroup(
     tenant_reading_keys?: Record<string, { key: string; label: string }[]>
   },
 ) {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { user, supabase } = await getUserClient()
   const { property_ids, tenant_reading_keys, ...rest } = data
 
   const { data: before } = await supabase.from('settlement_groups').select('*').eq('id', id).single()
@@ -148,7 +145,7 @@ export async function updateSettlementGroup(
       .update(payload)
       .eq('id', id)
     if (error) {
-      await logAudit({ actionName: 'updateSettlementGroup', tableName: 'settlement_groups', operation: 'UPDATE', recordId: id, beforeData: before, errorData: error })
+      await logAudit({ ownerId: user.id, actionName: 'updateSettlementGroup', tableName: 'settlement_groups', operation: 'UPDATE', recordId: id, beforeData: before, errorData: error })
       throw error
     }
   }
@@ -170,7 +167,7 @@ export async function updateSettlementGroup(
   }
 
   const { data: after } = await supabase.from('settlement_groups').select('*').eq('id', id).single()
-  await logAudit({ actionName: 'updateSettlementGroup', tableName: 'settlement_groups', operation: 'UPDATE', recordId: id, beforeData: before, afterData: after })
+  await logAudit({ ownerId: user.id, actionName: 'updateSettlementGroup', tableName: 'settlement_groups', operation: 'UPDATE', recordId: id, beforeData: before, afterData: after })
 
   revalidatePath('/media')
   revalidatePath('/rozlicz-media')
@@ -178,18 +175,17 @@ export async function updateSettlementGroup(
 }
 
 export async function deleteSettlementGroup(id: number) {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { user, supabase } = await getUserClient()
   const { data: before } = await supabase.from('settlement_groups').select('*').eq('id', id).single()
   const { error } = await supabase
     .from('settlement_groups')
     .delete()
     .eq('id', id)
   if (error) {
-    await logAudit({ actionName: 'deleteSettlementGroup', tableName: 'settlement_groups', operation: 'DELETE', recordId: id, beforeData: before, errorData: error })
+    await logAudit({ ownerId: user.id, actionName: 'deleteSettlementGroup', tableName: 'settlement_groups', operation: 'DELETE', recordId: id, beforeData: before, errorData: error })
     throw error
   }
-  await logAudit({ actionName: 'deleteSettlementGroup', tableName: 'settlement_groups', operation: 'DELETE', recordId: id, beforeData: before })
+  await logAudit({ ownerId: user.id, actionName: 'deleteSettlementGroup', tableName: 'settlement_groups', operation: 'DELETE', recordId: id, beforeData: before })
   revalidatePath('/media')
   revalidatePath('/rozlicz-media')
 }
@@ -197,8 +193,7 @@ export async function deleteSettlementGroup(id: number) {
 type FieldDef = string | { range: string; source: 'user'; save_key?: string } | { range: string; source: 'db'; db_key: string } | { range: string; source: 'auto'; auto_type: string }
 
 export async function getMediaEmailPreview(groupId: number) {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
 
   const group = await getSettlementGroup(groupId)
   if (!group) return { entries: [] as { email: string | null; count: number; recipients: string[] }[], total: 0 }
@@ -211,11 +206,7 @@ export async function getMediaEmailPreview(groupId: number) {
       .from('tenants')
       .select('id, email, email2, contracts(is_active, has_media_invoice)')
       .in('id', tenantIds),
-    supabase
-      .from('app_config')
-      .select('admin_email')
-      .eq('id', 1)
-      .single(),
+    readAppConfig(['admin_email']),
   ])
 
   const recipients: string[] = []
@@ -230,7 +221,7 @@ export async function getMediaEmailPreview(groupId: number) {
   }
 
   const entries: { email: string | null; count: number; recipients: string[] }[] = []
-  if (recipients.length > 0) entries.push({ email: appConfigResult.data?.admin_email ?? null, count: recipients.length, recipients })
+  if (recipients.length > 0) entries.push({ email: appConfigResult?.admin_email ?? null, count: recipients.length, recipients })
 
   return { entries, total: recipients.length }
 }
@@ -240,8 +231,7 @@ export async function getSettlementForMonth(
   month: number,
   year: number,
 ): Promise<boolean> {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
   const { data } = await supabase
     .from('media_settlements')
     .select('id')
@@ -257,8 +247,7 @@ export async function getPreviousMeterReadings(
   month: number,
   year: number,
 ): Promise<Record<string, number>> {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data } = await (supabase as any)
     .from('media_meter_readings')
@@ -280,8 +269,7 @@ export async function getCurrentMeterReadings(
   month: number,
   year: number,
 ): Promise<Record<string, number>> {
-  await requireUser()
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
   const { data } = await supabase
     .from('media_meter_readings')
     .select('key, value')
@@ -303,9 +291,8 @@ export async function processSettlement(
   year: number,
   previousReadingOverrides?: Record<string, string>,
 ) {
-  await requireUser()
+  const { user, supabase } = await getUserClient()
   try {
-  const supabase = createServiceClient()
 
   const group = await getSettlementGroup(groupId)
   if (!group) throw new Error('Grupa nie istnieje')
@@ -315,11 +302,7 @@ export async function processSettlement(
     ? [firstProp.address2, firstProp.address1].filter(Boolean).join(', ')
     : ''
 
-  const { data: config } = await supabase
-    .from('app_config')
-    .select('drive_invoices_folder_id, rent_invoice_spreadsheet_id, rent_invoice_input_mapping_json, rent_invoice_pdf_gid')
-    .eq('id', 1)
-    .single()
+  const config = await readAppConfig(['drive_invoices_folder_id', 'rent_invoice_spreadsheet_id', 'rent_invoice_input_mapping_json', 'rent_invoice_pdf_gid'])
 
   // 1. Utwórz strukturę folderów DEVELOPMENT|PREVIEW|PRODUCTION / rok / miesiąc / grupa w Drive
   // i skopiuj do niej szablon arkusza (foldery powstają leniwie, tylko gdy trzeba).
@@ -574,7 +557,7 @@ export async function processSettlement(
   // wystawienia rachunków w KSeF. Wysyłka najemcom powyżej jest priorytetowa, więc
   // ten mail jest best-effort i nie może zawalić całego rozliczenia.
   try {
-    const { data: adminConfig } = await supabase.from('app_config').select('admin_email').eq('id', 1).single()
+    const adminConfig = await readAppConfig(['admin_email'])
     if (adminConfig?.admin_email) {
       await sendMediaSettlementAdminSummaryEmail(
         adminConfig.admin_email,
@@ -589,6 +572,7 @@ export async function processSettlement(
   }
 
   await logAudit({
+    ownerId: user.id,
     actionName: 'processSettlement',
     tableName: 'media_settlements',
     operation: 'UPSERT',
@@ -600,6 +584,7 @@ export async function processSettlement(
   return results
   } catch (e) {
     await logAudit({
+      ownerId: user.id,
       actionName: 'processSettlement',
       tableName: 'media_settlements',
       operation: 'UPSERT',
