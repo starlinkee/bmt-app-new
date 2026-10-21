@@ -1,5 +1,5 @@
 ---
-status: blocked
+status: todo
 ---
 # Krok 01: Crony i przypomnienia per konto (slice 4a)
 
