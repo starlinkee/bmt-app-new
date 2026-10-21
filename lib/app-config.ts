@@ -49,10 +49,18 @@ export async function updateSystemSettings(patch: SystemSettingsUpdate): Promise
   return data
 }
 
+/** Wszystkie konta (po jednym wierszu app_config) - pętla cronów. Tylko dla jobów bez sesji. */
+export async function listOwnerIds(): Promise<string[]> {
+  const supabase = createServiceClient()
+  const { data, error } = await supabase.from('app_config').select('owner_id')
+  if (error) throw error
+  return (data ?? []).map((r) => r.owner_id)
+}
+
 /**
  * Właściciel danych sprzed wprowadzenia kont (tabela legacy_owner).
- * @deprecated slice 4 - tylko dla cronów (globalne do czasu pracy per konto) i wspólnego
- * nadawcy e-mail (lib/email, do slice 7). Nie używać w kodzie z sesją.
+ * @deprecated tylko dla wspólnego nadawcy e-mail (lib/email, do slice 7) i fallbacku bazy
+ * (krok 02). Crony iterują po listOwnerIds(). Nie używać w kodzie z sesją.
  */
 export async function getLegacyOwnerId(): Promise<string> {
   const supabase = createServiceClient()

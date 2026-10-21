@@ -2,6 +2,18 @@ import nodemailer from 'nodemailer'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getLegacyOwnerId, readAppConfig } from '@/lib/app-config'
 import { formatAmount } from '@/lib/utils'
+import {
+  DEFAULT_RENT_EMAIL_SUBJECT,
+  DEFAULT_RENT_EMAIL_BODY,
+  DEFAULT_MEDIA_EMAIL_SUBJECT,
+  DEFAULT_MEDIA_EMAIL_BODY,
+  DEFAULT_STATEMENT_EMAIL_SUBJECT,
+  DEFAULT_STATEMENT_EMAIL_BODY,
+  DEFAULT_STATEMENT_UPLOAD_REMINDER_SUBJECT,
+  DEFAULT_STATEMENT_UPLOAD_REMINDER_BODY,
+  DEFAULT_METER_READING_REMINDER_SUBJECT,
+  DEFAULT_METER_READING_REMINDER_BODY,
+} from '@/lib/email-defaults'
 import { getEnvTier } from '@/lib/env'
 import fs from 'fs/promises'
 import path from 'path'
@@ -35,6 +47,8 @@ type SendParams = {
   html: string
   attachments?: { filename: string; content: Buffer }[]
   cfg: ProviderConfig
+  // Konto, w imieniu którego idzie wysyłka (email_logs.owner_id); nadawca zostaje wspólny do slice 7.
+  ownerId: string
 }
 
 function getEnvSubjectPrefix(): string {
@@ -44,7 +58,7 @@ function getEnvSubjectPrefix(): string {
   return ''
 }
 
-async function sendEmail({ to, subject, html, attachments = [], cfg }: SendParams) {
+async function sendEmail({ to, subject, html, attachments = [], cfg, ownerId }: SendParams) {
   const finalTo = to;
   const finalSubject = `${getEnvSubjectPrefix()}${subject}`;
   const finalHtml = html;
@@ -100,6 +114,7 @@ async function sendEmail({ to, subject, html, attachments = [], cfg }: SendParam
       }
 
       await supabase.from('email_logs').insert({
+        owner_id: ownerId,
         to_email: recipientsStr,
         subject: finalSubject,
         body: finalHtml,
@@ -118,11 +133,8 @@ function withTypeLabel(subject: string, typeLabel: string, propertyName?: string
   return `${prefix}: ${subject}`
 }
 
-const DEFAULT_RENT_EMAIL_SUBJECT = 'Faktura czynszu {numer_rachunku}'
-const DEFAULT_RENT_EMAIL_BODY =
-  'Szanowny/a {najemca},\n\nW załączeniu faktura za czynsz nr {numer_rachunku} za {miesiac}/{rok} na kwotę {kwota}.\n\nPozdrawiamy,\nBMT'
-
 export async function sendRentEmail(
+  ownerId: string,
   to: string | string[],
   tenantName: string,
   invoiceNumber: string | null,
@@ -149,7 +161,7 @@ export async function sendRentEmail(
   const attachments = pdfBuffer
     ? [{ filename: invoiceNumber ? `${invoiceNumber.replace(/\//g, '-')}.pdf` : 'Rachunek.pdf', content: pdfBuffer }]
     : []
-  await sendEmail({ to, subject, html, attachments, cfg })
+  await sendEmail({ to, subject, html, attachments, cfg, ownerId })
 }
 
 function applyMediaTemplate(
@@ -160,6 +172,7 @@ function applyMediaTemplate(
 }
 
 export async function sendMediaEmail(
+  ownerId: string,
   to: string | string[],
   tenantName: string,
   invoiceNumber: string,
@@ -180,13 +193,11 @@ export async function sendMediaEmail(
     rok: String(year),
   }
   const subject = withTypeLabel(
-    subjectTemplate ? applyMediaTemplate(subjectTemplate, vars) : `Faktura media ${invoiceNumber}`,
+    applyMediaTemplate(subjectTemplate || DEFAULT_MEDIA_EMAIL_SUBJECT, vars),
     'Media',
     propertyName,
   )
-  const bodyText = bodyTemplate
-    ? applyMediaTemplate(bodyTemplate, vars)
-    : `Szanowny/a ${tenantName},\nW załączeniu rozliczenie mediów nr ${invoiceNumber} za ${month}/${year} na kwotę ${formatAmount(amount)}.\n\nPozdrawiamy,\nBMT`
+  const bodyText = applyMediaTemplate(bodyTemplate || DEFAULT_MEDIA_EMAIL_BODY, vars)
   const html = bodyText
     .split('\n')
     .map((line) => `<p>${line}</p>`)
@@ -197,10 +208,12 @@ export async function sendMediaEmail(
     html,
     attachments: pdfAttachments.map((a) => ({ filename: a.filename, content: a.buffer })),
     cfg,
+    ownerId,
   })
 }
 
 export async function sendStatementEmail(
+  ownerId: string,
   to: string | string[],
   tenantName: string,
   balance: number,
@@ -216,22 +229,19 @@ export async function sendStatementEmail(
   }
   const applyVars = (tpl: string) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '')
 
-  const subjectText = subjectTemplate || 'Rozliczenie wpłat i rachunków - BMT'
-  const bodyText = bodyTemplate || 'Szanowny/a {imie},\n\nPrzesyłamy w załączeniu aktualne podsumowanie Państwa konta. Saldo na dzień dzisiejszy wynosi: {saldo}.\n\nProsimy o uregulowanie należności.\n\nPozdrawiamy,\nBMT'
+  const subjectText = subjectTemplate || DEFAULT_STATEMENT_EMAIL_SUBJECT
+  const bodyText = bodyTemplate || DEFAULT_STATEMENT_EMAIL_BODY
 
   const subject = withTypeLabel(applyVars(subjectText), 'Rozliczenie salda', propertyName)
   const html = applyVars(bodyText).split('\n').map(l => l ? `<p>${l}</p>` : '<br>').join('')
   
   const attachments = [{ filename: 'Wyciag_z_konta.pdf', content: pdfBuffer }]
 
-  await sendEmail({ to, subject, html, attachments, cfg })
+  await sendEmail({ to, subject, html, attachments, cfg, ownerId })
 }
 
-const DEFAULT_STATEMENT_UPLOAD_REMINDER_SUBJECT = 'Przypomnienie: wgraj wyciąg z banku'
-const DEFAULT_STATEMENT_UPLOAD_REMINDER_BODY =
-  'Przypomnienie automatyczne z systemu BMT.\n\nDzisiaj 16. dzień miesiąca — czas wgrać wyciąg z konta bankowego do systemu (sekcja Import).\n\nPozdrawiamy,\nBMT'
-
 export async function sendStatementUploadReminderEmail(
+  ownerId: string,
   to: string | string[],
   subjectTemplate?: string | null,
   bodyTemplate?: string | null,
@@ -240,10 +250,11 @@ export async function sendStatementUploadReminderEmail(
   const subject = subjectTemplate || DEFAULT_STATEMENT_UPLOAD_REMINDER_SUBJECT
   const bodyText = bodyTemplate || DEFAULT_STATEMENT_UPLOAD_REMINDER_BODY
   const html = bodyText.split('\n').map((l) => (l ? `<p>${l}</p>` : '<br>')).join('')
-  await sendEmail({ to, subject, html, cfg })
+  await sendEmail({ to, subject, html, cfg, ownerId })
 }
 
 export async function sendMediaSettlementAdminSummaryEmail(
+  ownerId: string,
   to: string | string[],
   groupName: string,
   month: number,
@@ -261,14 +272,11 @@ export async function sendMediaSettlementAdminSummaryEmail(
     `<p>Ostateczne kwoty per najemca (do wystawienia rachunków w KSeF):</p>` +
     `<ul>${rows}</ul>` +
     `<p>Suma: <strong>${formatAmount(total)}</strong></p>`
-  await sendEmail({ to, subject, html, cfg })
+  await sendEmail({ to, subject, html, cfg, ownerId })
 }
 
-const DEFAULT_METER_READING_REMINDER_SUBJECT = 'Przypomnienie: podaj odczyty liczników'
-const DEFAULT_METER_READING_REMINDER_BODY =
-  'Szanowny/a {imie},\n\nDzisiaj ostatni dzień miesiąca — prosimy o podanie odczytów liczników mediów pod poniższym linkiem:\n{link}\n\nPozdrawiamy,\nBMT'
-
 export async function sendMeterReadingReminderEmail(
+  ownerId: string,
   to: string | string[],
   tenantName: string,
   link: string,
@@ -281,6 +289,6 @@ export async function sendMeterReadingReminderEmail(
   const subject = applyVars(subjectTemplate || DEFAULT_METER_READING_REMINDER_SUBJECT)
   const bodyText = applyVars(bodyTemplate || DEFAULT_METER_READING_REMINDER_BODY)
   const html = bodyText.split('\n').map((l) => (l ? `<p>${l}</p>` : '<br>')).join('')
-  await sendEmail({ to, subject, html, cfg })
+  await sendEmail({ to, subject, html, cfg, ownerId })
 }
 

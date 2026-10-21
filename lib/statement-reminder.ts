@@ -1,5 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/service'
-import { getLegacyOwnerId, readAppConfig } from '@/lib/app-config'
+import { readAppConfig } from '@/lib/app-config'
 import { logAudit } from '@/lib/audit'
 import { sendStatementUploadReminderEmail } from '@/lib/email'
 import { getCurrentDate } from '@/lib/clock'
@@ -7,7 +7,7 @@ import { getCurrentDate } from '@/lib/clock'
 // Wysyła do administratora przypomnienie o wgraniu wyciągu z banku.
 // Wyzwalane 16. dnia miesiąca (cron uderza w endpoint częściej, więc pilnujemy
 // tu, żeby faktycznie wysłać tylko raz w danym miesiącu, dokładnie 16. dnia).
-export async function processStatementUploadReminder() {
+export async function processStatementUploadReminder(ownerId: string) {
   const now = await getCurrentDate()
   if (now.getDate() !== 16) {
     return { sent: false, reason: 'Not the 16th' }
@@ -15,8 +15,7 @@ export async function processStatementUploadReminder() {
 
   const supabase = createServiceClient()
 
-  // Cron globalny do slice 4 - ustawienia konta właściciela.
-  const config = await readAppConfig(await getLegacyOwnerId(), ['admin_email', 'statement_upload_reminder_subject', 'statement_upload_reminder_body'])
+  const config = await readAppConfig(ownerId, ['admin_email', 'statement_upload_reminder_subject', 'statement_upload_reminder_body'])
 
   const adminEmail = config?.admin_email
   if (!adminEmail) {
@@ -25,11 +24,11 @@ export async function processStatementUploadReminder() {
 
   const dedupKey = `${now.getFullYear()}-${now.getMonth() + 1}`
 
-  // Atomowe "zastrzeżenie" tego miesiąca - unique constraint na (action_name,
+  // Atomowe "zastrzeżenie" tego miesiąca - unique constraint na (owner_id, action_name,
   // dedup_key) gwarantuje, że dwa równoległe wywołania nie przejdą oba.
   const { error: claimError } = await supabase
     .from('reminder_dedup')
-    .insert({ action_name: 'statementUploadReminder', dedup_key: dedupKey })
+    .insert({ owner_id: ownerId, action_name: 'statementUploadReminder', dedup_key: dedupKey })
 
   if (claimError) {
     if (claimError.code === '23505') {
@@ -40,11 +39,13 @@ export async function processStatementUploadReminder() {
 
   try {
     await sendStatementUploadReminderEmail(
+      ownerId,
       adminEmail,
       config?.statement_upload_reminder_subject,
       config?.statement_upload_reminder_body,
     )
     await logAudit({
+      ownerId,
       actionName: 'statementUploadReminder',
       operation: 'CREATE',
       afterData: { to: adminEmail },
@@ -55,9 +56,11 @@ export async function processStatementUploadReminder() {
     await supabase
       .from('reminder_dedup')
       .delete()
+      .eq('owner_id', ownerId)
       .eq('action_name', 'statementUploadReminder')
       .eq('dedup_key', dedupKey)
     await logAudit({
+      ownerId,
       actionName: 'statementUploadReminder',
       operation: 'CREATE',
       errorData: e,

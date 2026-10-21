@@ -81,7 +81,7 @@ function parseBatchMs(name: string): number {
 }
 
 export async function createUploadFolder(name: string) {
-  await requireUser()
+  const { user } = await requireUser()
   const folder = requireSegment(name, 'Nazwa folderu')
   const supabase = createServiceClient()
   const { data: existing } = await supabase.storage.from(BUCKET).list('', { search: folder, limit: 100 })
@@ -92,7 +92,7 @@ export async function createUploadFolder(name: string) {
     .from(BUCKET)
     .upload(`${folder}/${PLACEHOLDER}`, new Uint8Array(0), { contentType: 'text/plain', upsert: true })
   if (error) throw new Error(error.message)
-  await logAudit({ actionName: 'createUploadFolder', tableName: 'manual-uploads', operation: 'CREATE', afterData: { info: `Utworzono folder wgranych plików "${folder}"` } })
+  await logAudit({ ownerId: user.id, actionName: 'createUploadFolder', tableName: 'manual-uploads', operation: 'CREATE', afterData: { info: `Utworzono folder wgranych plików "${folder}"` } })
   return folder
 }
 
@@ -114,23 +114,23 @@ async function removeRecursive(prefix: string) {
 }
 
 export async function deleteUploadFolder(folder: string) {
-  await requireUser()
+  const { user } = await requireUser()
   await removeRecursive(requireSegment(folder, 'Nazwa folderu'))
-  await logAudit({ actionName: 'deleteUploadFolder', tableName: 'manual-uploads', operation: 'DELETE', afterData: { info: `Usunięto folder wgranych plików "${folder}"` } })
+  await logAudit({ ownerId: user.id, actionName: 'deleteUploadFolder', tableName: 'manual-uploads', operation: 'DELETE', afterData: { info: `Usunięto folder wgranych plików "${folder}"` } })
 }
 
 export async function deleteUploadBatch(folder: string, batch: string) {
-  await requireUser()
+  const { user } = await requireUser()
   const f = requireSegment(folder, 'Nazwa folderu')
   const b = requireSegment(batch, 'Nazwa podfolderu')
   await removeRecursive(`${f}/${b}`)
-  await logAudit({ actionName: 'deleteUploadBatch', tableName: 'manual-uploads', operation: 'DELETE', afterData: { info: `Usunięto wgraną paczkę "${f}/${b}"` } })
+  await logAudit({ ownerId: user.id, actionName: 'deleteUploadBatch', tableName: 'manual-uploads', operation: 'DELETE', afterData: { info: `Usunięto wgraną paczkę "${f}/${b}"` } })
 }
 
 // Pliki trafiają do Storage bezpośrednio z przeglądarki (limit body Server Actions),
 // więc serwer tylko tworzy nowy podfolder i wystawia podpisane adresy uploadu.
 export async function prepareUpload(folder: string, fileNames: string[]) {
-  await requireUser()
+  const { user } = await requireUser()
   if (fileNames.length === 0) throw new Error('Nie wybrano plików.')
   const f = requireSegment(folder, 'Nazwa folderu')
   const batch = batchName()
@@ -154,7 +154,7 @@ export async function prepareUpload(folder: string, fileNames: string[]) {
     if (error || !data) throw new Error(error?.message ?? 'Nie udało się przygotować uploadu.')
     targets.push({ original, path, token: data.token })
   }
-  await logAudit({ actionName: 'prepareUpload', tableName: 'manual-uploads', operation: 'CREATE', afterData: { info: `Wgrano ${fileNames.length} plik(ów) do "${f}/${batch}"` } })
+  await logAudit({ ownerId: user.id, actionName: 'prepareUpload', tableName: 'manual-uploads', operation: 'CREATE', afterData: { info: `Wgrano ${fileNames.length} plik(ów) do "${f}/${batch}"` } })
   return { batch, targets }
 }
 

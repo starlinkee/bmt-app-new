@@ -523,6 +523,7 @@ export async function processSettlement(
         const recipients = [tenant.email, tenant.email2].filter(Boolean) as string[]
         try {
           await sendMediaEmail(
+            user.id,
             recipients,
             tenantDisplayName(tenant),
             `${String(month).padStart(2, '0')}/${year}`,

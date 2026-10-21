@@ -143,7 +143,7 @@ export async function sendBulkStatements() {
     
     const recipients = [tDb.email, tDb.email2].filter(Boolean) as string[]
     
-    await sendStatementEmail(recipients, tenantName, tenant.balance, pdfBuffer, config.late_reminder_subject, config.late_reminder_body, tenant.property?.name ?? null)
+    await sendStatementEmail(user.id, recipients, tenantName, tenant.balance, pdfBuffer, config.late_reminder_subject, config.late_reminder_body, tenant.property?.name ?? null)
     sentCount++
   }
 
@@ -204,7 +204,7 @@ export async function sendStatementToTenant(tenantId: number) {
     const pdfBuffer = await generateStatementPdfBuffer(tenantName, reversedStatement, tenant.balance)
     
     const recipients = [tDb.email, tDb.email2].filter(Boolean) as string[]
-    await sendStatementEmail(recipients, tenantName, tenant.balance, pdfBuffer, config.late_reminder_subject, config.late_reminder_body, tenant.property?.name ?? null)
+    await sendStatementEmail(user.id, recipients, tenantName, tenant.balance, pdfBuffer, config.late_reminder_subject, config.late_reminder_body, tenant.property?.name ?? null)
 
     return { success: true }
   } catch (err: unknown) {

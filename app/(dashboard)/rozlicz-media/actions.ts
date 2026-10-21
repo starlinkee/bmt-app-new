@@ -521,6 +521,7 @@ export async function processSettlement(
         const recipients = [tenant.email, tenant.email2].filter(Boolean) as string[]
         try {
           await sendMediaEmail(
+            user.id,
             recipients,
             tenantDisplayName(tenant),
             `${String(month).padStart(2, '0')}/${year}`,
@@ -560,6 +561,7 @@ export async function processSettlement(
     const adminConfig = await readAppConfig(user.id, ['admin_email'])
     if (adminConfig?.admin_email) {
       await sendMediaSettlementAdminSummaryEmail(
+        user.id,
         adminConfig.admin_email,
         group.name,
         month,

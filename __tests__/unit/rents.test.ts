@@ -16,7 +16,7 @@ const tenant = (id: number, extra: Record<string, unknown> = {}) => ({
   ...extra,
 })
 const contract = (id: number, t: ReturnType<typeof tenant>, extra: Record<string, unknown> = {}) => ({
-  id, tenant_id: t.id, is_active: true, rent_amount: 1000, end_date: null, tenants: t, ...extra,
+  id, owner_id: 'o1', tenant_id: t.id, is_active: true, rent_amount: 1000, end_date: null, tenants: t, ...extra,
 })
 
 function seed(contracts: unknown[], invoices: unknown[] = []) {
@@ -42,7 +42,7 @@ describe('getRentPreview', () => {
       contract(2, tenant(2, { email: null })),
     ])
 
-    const preview = await getRentPreview(6, 2026)
+    const preview = await getRentPreview('o1', 6, 2026)
 
     expect(preview.withEmail.map((c) => c.id)).toEqual([1])
     expect(preview.withoutEmail.map((c) => c.id)).toEqual([2])
@@ -52,7 +52,7 @@ describe('getRentPreview', () => {
 
   test('pomija nieaktywne umowy', async () => {
     seed([contract(1, tenant(1), { is_active: false }), contract(2, tenant(2))])
-    const { withEmail, withoutEmail } = await getRentPreview(6, 2026)
+    const { withEmail, withoutEmail } = await getRentPreview('o1', 6, 2026)
     expect([...withEmail, ...withoutEmail].map((c) => c.id)).toEqual([2])
   })
 
@@ -62,16 +62,16 @@ describe('getRentPreview', () => {
       contract(2, tenant(2), { end_date: '2026-06-30' }),
       contract(3, tenant(3), { end_date: '2026-07-31' }),
     ])
-    const { withEmail } = await getRentPreview(6, 2026)
+    const { withEmail } = await getRentPreview('o1', 6, 2026)
     expect(withEmail.map((c) => c.id)).toEqual([2, 3])
   })
 
   test('pomija umowy z już istniejącym rachunkiem RENT za ten miesiąc i liczy je w skippedCount', async () => {
     seed(
       [contract(1, tenant(1)), contract(2, tenant(2))],
-      [{ type: 'RENT', month: 6, year: 2026, contract_id: 1, tenant_id: 1, amount: 1000 }],
+      [{ owner_id: 'o1', type: 'RENT', month: 6, year: 2026, contract_id: 1, tenant_id: 1, amount: 1000 }],
     )
-    const preview = await getRentPreview(6, 2026)
+    const preview = await getRentPreview('o1', 6, 2026)
     expect(preview.withEmail.map((c) => c.id)).toEqual([2])
     expect(preview.skippedCount).toBe(1)
   })
@@ -79,9 +79,9 @@ describe('getRentPreview', () => {
   test('rachunek z innego miesiąca nie blokuje naliczenia', async () => {
     seed(
       [contract(1, tenant(1))],
-      [{ type: 'RENT', month: 5, year: 2026, contract_id: 1, tenant_id: 1, amount: 1000 }],
+      [{ owner_id: 'o1', type: 'RENT', month: 5, year: 2026, contract_id: 1, tenant_id: 1, amount: 1000 }],
     )
-    const preview = await getRentPreview(6, 2026)
+    const preview = await getRentPreview('o1', 6, 2026)
     expect(preview.withEmail.map((c) => c.id)).toEqual([1])
     expect(preview.skippedCount).toBe(0)
   })
@@ -91,7 +91,7 @@ describe('generateRents', () => {
   test('tworzy tylko rekord rachunku RENT z number: null (bez PDF i e-maila)', async () => {
     seed([contract(1, tenant(1, { email: 't1@example.com' }), { rent_amount: 1234.5 })])
 
-    const { results, skippedCount } = await generateRents(6, 2026, 'CRON')
+    const { results, skippedCount } = await generateRents('o1', 6, 2026, 'CRON')
 
     expect(results).toHaveLength(1)
     expect(results[0]).toMatchObject({ invoiceNumber: null })
@@ -113,8 +113,8 @@ describe('generateRents', () => {
   test('ponowne uruchomienie za ten sam miesiąc nie dubluje rachunków', async () => {
     seed([contract(1, tenant(1)), contract(2, tenant(2))])
 
-    await generateRents(6, 2026)
-    const second = await generateRents(6, 2026)
+    await generateRents('o1', 6, 2026)
+    const second = await generateRents('o1', 6, 2026)
 
     expect(db.tables.invoices).toHaveLength(2)
     expect(second.results).toHaveLength(0)
@@ -123,19 +123,19 @@ describe('generateRents', () => {
 
   test.each(['CRON', 'MANUAL', 'TEST_MANUAL'] as const)('zapisuje źródło %s', async (source) => {
     seed([contract(1, tenant(1))])
-    await generateRents(6, 2026, source)
+    await generateRents('o1', 6, 2026, source)
     expect(db.tables.invoices[0].source).toBe(source)
   })
 
   test('domyślne źródło to MANUAL', async () => {
     seed([contract(1, tenant(1))])
-    await generateRents(6, 2026)
+    await generateRents('o1', 6, 2026)
     expect(db.tables.invoices[0].source).toBe('MANUAL')
   })
 
   test('uwzględnia też najemców bez e-maila', async () => {
     seed([contract(1, tenant(1, { email: null }))])
-    const { results } = await generateRents(6, 2026)
+    const { results } = await generateRents('o1', 6, 2026)
     expect(results).toHaveLength(1)
     expect(db.tables.invoices).toHaveLength(1)
   })
@@ -145,18 +145,19 @@ describe('generateRents', () => {
       contract(1, tenant(1)),
       contract(2, tenant(2, { tenant_type: 'BUSINESS', company_name: 'Acme Sp. z o.o.' })),
     ])
-    const { results } = await generateRents(6, 2026)
+    const { results } = await generateRents('o1', 6, 2026)
     expect(results.map((r) => r.tenantName).sort()).toEqual(['Acme Sp. z o.o.', 'Jan1 Kowalski'])
   })
 
   test('zapisuje wpis audytu z liczbą wygenerowanych i pominiętych', async () => {
     seed(
       [contract(1, tenant(1)), contract(2, tenant(2))],
-      [{ type: 'RENT', month: 6, year: 2026, contract_id: 1, tenant_id: 1, amount: 1000 }],
+      [{ owner_id: 'o1', type: 'RENT', month: 6, year: 2026, contract_id: 1, tenant_id: 1, amount: 1000 }],
     )
-    await generateRents(6, 2026, 'CRON')
+    await generateRents('o1', 6, 2026, 'CRON')
     expect(logAuditMock).toHaveBeenCalledWith(
       expect.objectContaining({
+        ownerId: 'o1',
         actionName: 'generateRents',
         tableName: 'invoices',
         afterData: expect.objectContaining({ month: 6, year: 2026, source: 'CRON', count: 1, skippedCount: 1 }),

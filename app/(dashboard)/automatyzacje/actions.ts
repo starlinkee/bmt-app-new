@@ -5,6 +5,7 @@ import { logAudit } from '@/lib/audit'
 import { readAppConfig, readAppConfigRow, updateAppConfig } from '@/lib/app-config'
 import { getEligibleMeterReminderTenants } from '@/lib/meter-reading-reminder'
 import { getRentPreview } from '@/lib/rents'
+import { DEFAULT_MEDIA_EMAIL_SUBJECT, DEFAULT_MEDIA_EMAIL_BODY } from '@/lib/email-defaults'
 import { getCurrentDate } from '@/lib/clock'
 import { tenantDisplayName } from '@/lib/utils'
 import type { Json } from '@/types/supabase'
@@ -14,7 +15,7 @@ import { getUserClient, requireUser } from '@/lib/auth-guard'
 // teraz dla NASTĘPNEGO miesiąca (czyli to, co realnie naliczy się 1. dnia
 // tego nadchodzącego miesiąca) — do podglądu w Automatyzacjach.
 export async function getUpcomingRentCharges() {
-  await requireUser()
+  const { user } = await requireUser()
   const now = await getCurrentDate()
   let month = now.getMonth() + 2 // getMonth() jest 0-indeksowany; +2 = następny miesiąc, 1-indeksowany
   let year = now.getFullYear()
@@ -23,7 +24,7 @@ export async function getUpcomingRentCharges() {
     year += 1
   }
 
-  const { withEmail, withoutEmail } = await getRentPreview(month, year)
+  const { withEmail, withoutEmail } = await getRentPreview(user.id, month, year)
   const contracts = [...withEmail, ...withoutEmail]
 
   return {
@@ -41,12 +42,8 @@ export async function getUpcomingRentCharges() {
   }
 }
 
-// Te same domyślne szablony co w lib/email.ts (sendMediaEmail), używane gdy
-// grupa nie ma ustawionego własnego — pokazujemy je tu tylko informacyjnie,
-// żeby podgląd nie kłamał, że maila w ogóle nie będzie.
-const DEFAULT_MEDIA_EMAIL_SUBJECT = 'Faktura media {numer_rachunku}'
-const DEFAULT_MEDIA_EMAIL_BODY =
-  'Szanowny/a {imie},\nW załączeniu rozliczenie mediów nr {numer_rachunku} za {miesiac}/{rok} na kwotę {kwota}.\n\nPozdrawiamy,\nBMT'
+// Domyślne szablony (lib/email-defaults) trafiają do maila, gdy grupa nie ma własnego —
+// pokazujemy je tu informacyjnie, żeby podgląd nie kłamał, że maila w ogóle nie będzie.
 
 // Dla każdej grupy rozliczeniowej: kto obecnie (na podstawie umów z włączonymi
 // mediami) dostałby maila po rozliczeniu tej grupy, i jaka jest skonfigurowana
@@ -173,7 +170,7 @@ export async function getAutomationStatus() {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
-    getEligibleMeterReminderTenants(),
+    getEligibleMeterReminderTenants(user.id),
   ])
 
   const lastRentGenerationData = lastRentGeneration?.after_data as

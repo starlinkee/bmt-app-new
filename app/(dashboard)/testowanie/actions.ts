@@ -62,19 +62,19 @@ export async function resetTestClock() {
 }
 
 export async function runLateRemindersTest() {
-  await guardTestPanel()
+  const { user } = await guardTestPanel()
   if (!isTestClockAllowed()) {
     throw new Error('Niedozwolone na tym środowisku')
   }
-  return processLateReminders()
+  return processLateReminders(user.id)
 }
 
 export async function runStatementReminderTest() {
-  await guardTestPanel()
+  const { user } = await guardTestPanel()
   if (!isTestClockAllowed()) {
     throw new Error('Niedozwolone na tym środowisku')
   }
-  return processStatementUploadReminder()
+  return processStatementUploadReminder(user.id)
 }
 
 export async function getGroupDetailsForTest(groupId: number) {

@@ -36,6 +36,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { TableFilterBar } from '@/components/ui/table-filter-bar'
+import { DEFAULT_MEDIA_GROUP_EMAIL_BODY } from '@/lib/email-defaults'
 import { Pencil, Trash2, Plus, ExternalLink, ChevronUp, ChevronDown, ChevronsUpDown, FileSpreadsheet } from 'lucide-react'
 
 // W polach JSON klawisz Tab wstawia wcięcie (2 spacje) w miejscu kursora,
@@ -111,7 +112,6 @@ function matchesGroupFilter(g: Group, text: string): boolean {
 }
 
 const DEFAULT_EMAIL_SUBJECT = 'Rozliczenie mediów - {miesiac}/{rok}'
-const DEFAULT_EMAIL_BODY = `Szanowny/a {imie},\nW załączeniu rozliczenie mediów za {miesiac}/{rok} na kwotę {kwota}.\n\nPozdrawiamy,\nBMT`
 
 type TenantReadingEntry = { key: string; label: string }
 
@@ -171,7 +171,7 @@ function emptyForm() {
     output_mapping_json: '[]',
     pdf_sheets_json: '[]',
     email_subject_template: 'Rozliczenie mediów {miesiac}/{rok}',
-    email_body_template: DEFAULT_EMAIL_BODY,
+    email_body_template: DEFAULT_MEDIA_GROUP_EMAIL_BODY,
     property_ids: [] as number[],
     tenant_reading_keys: {} as Record<string, string>,
   }
@@ -271,7 +271,7 @@ export default function MediaPage() {
       output_mapping_json: JSON.stringify(g.output_mapping_json, null, 2),
       pdf_sheets_json: JSON.stringify(raw.pdf_sheets_json ?? [], null, 2),
       email_subject_template: (raw.email_subject_template as string) || 'Rozliczenie mediów {miesiac}/{rok}',
-      email_body_template: (raw.email_body_template as string) || DEFAULT_EMAIL_BODY,
+      email_body_template: (raw.email_body_template as string) || DEFAULT_MEDIA_GROUP_EMAIL_BODY,
       property_ids: propIds,
       tenant_reading_keys: parsedTrk,
     }
@@ -698,7 +698,7 @@ export default function MediaPage() {
                 value={form.email_body_template}
                 onChange={(e) => setForm({ ...form, email_body_template: e.target.value })}
                 rows={6}
-                placeholder={'Szanowny/a {imie},\nW załączeniu rozliczenie mediów za {miesiac}/{rok} na kwotę {kwota}.\n\nPozdrawiamy,\nBMT'}
+                placeholder={DEFAULT_MEDIA_GROUP_EMAIL_BODY}
               />
               <p className="text-xs text-muted-foreground">Każda linia tekstu = osobny akapit w mailu. Puste = domyślna treść.</p>
             </div>
