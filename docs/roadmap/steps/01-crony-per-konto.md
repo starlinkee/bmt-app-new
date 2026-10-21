@@ -1,5 +1,5 @@
 ---
-status: todo
+status: blocked
 ---
 # Krok 01: Crony i przypomnienia per konto (slice 4a)
 
@@ -43,3 +43,6 @@ Pomoc (niezweryfikowana, nie stosować na ślepo): `…/06-s4a-crons-per-owner/r
 - Lista zmienionych tekstów (stary → nowy) i dowód, że szablony właściciela na preview mają dawne treści.
 - Log builda preview zawiera `Migracje OK.`; e2e run zielony dla SHA tego builda.
 - `grep` po „BMT” w `automatyzacje`, `media`, `rozlicz-media` i fallbackach `lib/email.ts` nic nie zwraca.
+
+## Zablokowane (2026-10-21)
+BLOCKED: preview dla 1ffb11c nie zbudował się - supabase db push odrzucony przez bazę preview (tenant/user postgres.emjiqrfpvdiyodzezzlm not found, connection string/projekt Supabase do poprawy przez właściciela); migracja 20261021090000 niezweryfikowana na bazie, brak Migracje OK., e2e i generate-rents nie wykonane. Kod + testy lokalne (260) zielone.
