@@ -88,3 +88,6 @@ report.txt
 /.openrig/
 /rigs/
 /.mcp.json
+
+# run-roadmap
+.roadmap/
