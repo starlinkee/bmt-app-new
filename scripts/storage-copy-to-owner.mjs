@@ -104,7 +104,12 @@ async function main() {
         if (bucket === 'invoices') copiedLegacy.add(src)
         continue
       }
-      if (!apply) { copied++; continue }
+      if (!apply) {
+        // Dry-run: licz tak, jakby kopia się udała, żeby podgląd media_settlements był wiarygodny.
+        copied++
+        if (bucket === 'invoices') copiedLegacy.add(src)
+        continue
+      }
       const { error } = await supabase.storage.from(bucket).copy(src, dest)
       if (error) failed.push(`${src}: ${error.message}`)
       else {
