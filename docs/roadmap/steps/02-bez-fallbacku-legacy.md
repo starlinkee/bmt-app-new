@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 # Krok 02: Usunięcie fallbacku legacy (slice 4b)
 
