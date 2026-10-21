@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 # Krok 01: Crony i przypomnienia per konto (slice 4a)
 
