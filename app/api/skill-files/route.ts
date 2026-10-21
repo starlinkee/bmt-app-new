@@ -1,13 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireApiAuth } from '@/lib/auth'
 import { createServiceClient } from '@/lib/supabase/service'
+import { getLegacyOwnerId } from '@/lib/app-config'
 
 export async function GET(req: NextRequest) {
-  if (!(await requireApiAuth())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const user = await requireApiAuth()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const browse = req.nextUrl.searchParams.get('browse')
   const filePath = req.nextUrl.searchParams.get('path') // e.g. "skillName/jobId/fileName"
   const jobId = req.nextUrl.searchParams.get('jobId')
   const fileName = req.nextUrl.searchParams.get('file')
+
+  // Pliki AI (`ai-files/`) pisze zewnętrzny runner VPS bez prefiksu konta, więc nie da się ich
+  // przypisać do konta - widzi je wyłącznie właściciel legacy. Pozostałe konta: pusta lista / 404.
+  // TODO (poza repo): runner powinien pisać pod `<owner_id>/ai-files/`.
+  if (user.id !== (await getLegacyOwnerId())) {
+    return browse === '1' ? NextResponse.json({ skills: [] }) : NextResponse.json({ error: 'File not found' }, { status: 404 })
+  }
 
   const supabase = createServiceClient()
 

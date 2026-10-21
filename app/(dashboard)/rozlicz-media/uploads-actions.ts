@@ -3,9 +3,10 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { logAudit } from '@/lib/audit'
 import { requireUser } from '@/lib/auth-guard'
+import { ownerPath } from '@/lib/storage-paths'
 
 // Osobny bucket (nie "invoices"), żeby ręcznie wgrane pliki nie mieszały się z plikami z AI.
-// Struktura: folder (np. lokal/najemca) / paczka "RRRR-MM-DD_GG-MM-SS" / plik.
+// Struktura: <owner_id> / folder (np. lokal/najemca) / paczka "RRRR-MM-DD_GG-MM-SS" / plik.
 const BUCKET = 'manual-uploads'
 // Storage nie przechowuje pustych folderów — pusty folder utrzymuje plik-znacznik.
 const PLACEHOLDER = '.keep'
@@ -48,19 +49,20 @@ function batchName(date = new Date()): string {
 }
 
 export async function getUploads(): Promise<UploadFolder[]> {
-  await requireUser()
+  const { user } = await requireUser()
+  const root = user.id
   const supabase = createServiceClient()
-  const { data: folders, error } = await supabase.storage.from(BUCKET).list('', { limit: 1000 })
+  const { data: folders, error } = await supabase.storage.from(BUCKET).list(root, { limit: 1000 })
   if (error) throw new Error(error.message)
 
   const result: UploadFolder[] = []
   for (const f of folders ?? []) {
     if (f.id) continue // pliki luzem w korzeniu ignorujemy
-    const { data: batchesData } = await supabase.storage.from(BUCKET).list(f.name, { limit: 1000 })
+    const { data: batchesData } = await supabase.storage.from(BUCKET).list(`${root}/${f.name}`, { limit: 1000 })
     const batches: UploadBatch[] = []
     for (const b of batchesData ?? []) {
       if (b.id) continue
-      const { data: filesData } = await supabase.storage.from(BUCKET).list(`${f.name}/${b.name}`, { limit: 1000 })
+      const { data: filesData } = await supabase.storage.from(BUCKET).list(`${root}/${f.name}/${b.name}`, { limit: 1000 })
       const files = (filesData ?? [])
         .filter((x) => x.id && x.name !== PLACEHOLDER)
         .map((x) => ({ name: x.name, size: Number(x.metadata?.size ?? 0) }))
@@ -84,13 +86,13 @@ export async function createUploadFolder(name: string) {
   const { user } = await requireUser()
   const folder = requireSegment(name, 'Nazwa folderu')
   const supabase = createServiceClient()
-  const { data: existing } = await supabase.storage.from(BUCKET).list('', { search: folder, limit: 100 })
+  const { data: existing } = await supabase.storage.from(BUCKET).list(user.id, { search: folder, limit: 100 })
   if (existing?.some((f) => !f.id && f.name === folder)) {
     throw new Error('Folder o takiej nazwie już istnieje.')
   }
   const { error } = await supabase.storage
     .from(BUCKET)
-    .upload(`${folder}/${PLACEHOLDER}`, new Uint8Array(0), { contentType: 'text/plain', upsert: true })
+    .upload(ownerPath(user.id, `${folder}/${PLACEHOLDER}`), new Uint8Array(0), { contentType: 'text/plain', upsert: true })
   if (error) throw new Error(error.message)
   await logAudit({ ownerId: user.id, actionName: 'createUploadFolder', tableName: 'manual-uploads', operation: 'CREATE', afterData: { info: `Utworzono folder wgranych plików "${folder}"` } })
   return folder
@@ -115,7 +117,7 @@ async function removeRecursive(prefix: string) {
 
 export async function deleteUploadFolder(folder: string) {
   const { user } = await requireUser()
-  await removeRecursive(requireSegment(folder, 'Nazwa folderu'))
+  await removeRecursive(ownerPath(user.id, requireSegment(folder, 'Nazwa folderu')))
   await logAudit({ ownerId: user.id, actionName: 'deleteUploadFolder', tableName: 'manual-uploads', operation: 'DELETE', afterData: { info: `Usunięto folder wgranych plików "${folder}"` } })
 }
 
@@ -123,7 +125,7 @@ export async function deleteUploadBatch(folder: string, batch: string) {
   const { user } = await requireUser()
   const f = requireSegment(folder, 'Nazwa folderu')
   const b = requireSegment(batch, 'Nazwa podfolderu')
-  await removeRecursive(`${f}/${b}`)
+  await removeRecursive(ownerPath(user.id, `${f}/${b}`))
   await logAudit({ ownerId: user.id, actionName: 'deleteUploadBatch', tableName: 'manual-uploads', operation: 'DELETE', afterData: { info: `Usunięto wgraną paczkę "${f}/${b}"` } })
 }
 
@@ -149,7 +151,7 @@ export async function prepareUpload(folder: string, fileNames: string[]) {
       name = `${base} (${i})${ext}`
     }
     used.add(name)
-    const path = `${f}/${batch}/${name}`
+    const path = ownerPath(user.id, `${f}/${batch}/${name}`)
     const { data, error } = await supabase.storage.from(BUCKET).createSignedUploadUrl(path)
     if (error || !data) throw new Error(error?.message ?? 'Nie udało się przygotować uploadu.')
     targets.push({ original, path, token: data.token })
@@ -159,9 +161,9 @@ export async function prepareUpload(folder: string, fileNames: string[]) {
 }
 
 export async function getUploadFileUrl(folder: string, batch: string, file: string, download = false) {
-  await requireUser()
+  const { user } = await requireUser()
   const supabase = createServiceClient()
-  const path = `${requireSegment(folder, 'Folder')}/${requireSegment(batch, 'Podfolder')}/${file}`
+  const path = ownerPath(user.id, `${requireSegment(folder, 'Folder')}/${requireSegment(batch, 'Podfolder')}/${requireSegment(file, 'Plik')}`)
   const { data, error } = await supabase.storage
     .from(BUCKET)
     .createSignedUrl(path, 60, download ? { download: file } : undefined)

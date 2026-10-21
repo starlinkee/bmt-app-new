@@ -18,6 +18,7 @@ import { getEnvTier } from '@/lib/env'
 import fs from 'fs/promises'
 import path from 'path'
 import crypto from 'crypto'
+import { emailAttachmentPath } from '@/lib/storage-paths'
 
 type EmailProvider = 'gmail_smtp'
 
@@ -94,7 +95,7 @@ async function sendEmail({ to, subject, html, attachments = [], cfg, ownerId }: 
       if (attachments && attachments.length > 0) {
         for (const a of attachments) {
           const uniqueName = crypto.randomUUID() + '_' + a.filename
-          const uploadPath = isPreview ? `preview/emails/${uniqueName}` : `emails/${uniqueName}`
+          const uploadPath = emailAttachmentPath(ownerId, uniqueName, isPreview)
           
           const { error: uploadError } = await supabase.storage
             .from('invoices')

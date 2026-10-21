@@ -2,12 +2,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { createServiceClient } from '@/lib/supabase/service'
+import { emailAttachmentPath, isPreviewEnv } from '@/lib/storage-paths'
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ filename: string }> }
 ) {
-  await requireAuth()
+  const user = await requireAuth()
 
   const { filename } = await params
   if (!filename || filename.includes('..') || filename.includes('/')) {
@@ -19,10 +20,11 @@ export async function GET(
   const searchParams = request.nextUrl.searchParams
   const shouldDownload = searchParams.get('download') === '1'
   
-  // Try finding it in 'emails/' folder
+  // Ścieżka składana z id zalogowanego konta tym samym helperem co zapis (lib/email.ts):
+  // cudzy plik nie istnieje pod prefiksem tego konta -> 404.
   const { data, error } = await supabase.storage
     .from('invoices')
-    .createSignedUrl(`emails/${filename}`, 60, { download: shouldDownload })
+    .createSignedUrl(emailAttachmentPath(user.id, filename, isPreviewEnv()), 60, { download: shouldDownload })
 
   if (error || !data) {
     return new NextResponse('File not found', { status: 404 })

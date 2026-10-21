@@ -17,6 +17,7 @@ import { sendMediaEmail } from '@/lib/email'
 import { buildInvoiceNumber, tenantDisplayName } from '@/lib/utils'
 import { getEnvTier } from '@/lib/env'
 import { getUserClient } from '@/lib/auth-guard'
+import { ownerPath } from '@/lib/storage-paths'
 
 // Segment ścieżki/nazwy pliku bezpieczny dla kluczy Supabase Storage.
 // Storage odrzuca ("Invalid key") m.in. polskie znaki diakrytyczne, en-dash (–),
@@ -33,10 +34,10 @@ function sanitizePathSegment(name: string): string {
     .trim()
 }
 
-// Struktura: [bucket "invoices"] / DEVELOPMENT|PREVIEW|PRODUCTION / rok / miesiąc / grupa mediów / plik.pdf
+// Struktura: [bucket "invoices"] / <owner_id> / DEVELOPMENT|PREVIEW|PRODUCTION / rok / miesiąc / grupa mediów / plik.pdf
 // Zgodna 1:1 ze strukturą folderów w Google Drive (patrz ensureMediaSettlementFolder).
-async function uploadToSupabaseStorage(supabase: Awaited<ReturnType<typeof getUserClient>>['supabase'], envTier: string, year: number, month: number, groupName: string, fileName: string, buffer: Buffer): Promise<string> {
-  const filePath = `${envTier}/${year}/${month}/${sanitizePathSegment(groupName)}/${sanitizePathSegment(fileName)}`
+async function uploadToSupabaseStorage(supabase: Awaited<ReturnType<typeof getUserClient>>['supabase'], ownerId: string, envTier: string, year: number, month: number, groupName: string, fileName: string, buffer: Buffer): Promise<string> {
+  const filePath = ownerPath(ownerId, `${envTier}/${year}/${month}/${sanitizePathSegment(groupName)}/${sanitizePathSegment(fileName)}`)
   const { error } = await supabase.storage.from('invoices').upload(filePath, buffer, {
     contentType: 'application/pdf',
     upsert: true,
@@ -392,7 +393,7 @@ export async function processSettlement(
 
   if (!pdfSheets || pdfSheets.length === 0) {
     const buffer = await exportSheetAsPdf(workingSheetId)
-    const driveId = await uploadToSupabaseStorage(supabase, envTier, year, month, group.name, `${baseName}.pdf`, buffer)
+    const driveId = await uploadToSupabaseStorage(supabase, user.id, envTier, year, month, group.name, `${baseName}.pdf`, buffer)
     exportedPdfs.push({ name: baseName, driveId, buffer })
   } else {
     const allGids = await getAllSheetGids(workingSheetId)
@@ -401,7 +402,7 @@ export async function processSettlement(
         const gid = sheet.tab ? allGids[sheet.tab] : sheet.gid
         const buffer = await exportSheetAsPdf(workingSheetId, gid, { printRange: sheet.range, portrait: sheet.portrait, fitToPage: sheet.fitToPage })
         const fileName = `${baseName} – ${sheet.name}.pdf`
-        const driveId = await uploadToSupabaseStorage(supabase, envTier, year, month, group.name, fileName, buffer)
+        const driveId = await uploadToSupabaseStorage(supabase, user.id, envTier, year, month, group.name, fileName, buffer)
         return { name: sheet.name, driveId, buffer }
       }),
     )
