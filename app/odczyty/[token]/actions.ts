@@ -169,7 +169,7 @@ export async function saveReadings(token: string, groupId: number, month: number
   if (Object.keys(readings).some((k) => !allowedKeys.includes(k))) throw new Error('Unauthorized')
   const supabase = createServiceClient()
   
-  // owner_id jawnie: rola service nie ma auth.uid(), inaczej wiersz trafiłby do legacy ownera.
+  // owner_id jawnie: rola service nie ma auth.uid(), insert bez owner_id padłby na NOT NULL.
   const rows = Object.entries(readings).map(([key, val]) => ({
     owner_id: ownerId,
     group_id: groupId,

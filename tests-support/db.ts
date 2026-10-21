@@ -2,6 +2,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/supabase'
 import { assertNotProduction } from './guard'
+import { TEST_SESSION_OWNER_ENV, withSessionOwner } from './sessionOwner'
 
 // Współdzielone przez testy Playwright (e2e/) i vitestowe testy integracyjne
 // (__tests__/integration/) - jedna implementacja klienta bazy i sprzątania.
@@ -11,7 +12,7 @@ import { assertNotProduction } from './guard'
  * używany WYŁĄCZNIE do zakładania i sprzątania danych testowych z poziomu
  * testów (poza UI), żeby nie zależeć od kolejności innych scenariuszy.
  */
-export function createTestDbClient() {
+export function createTestDbClient(opts: { raw?: boolean } = {}) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) {
@@ -19,7 +20,11 @@ export function createTestDbClient() {
       'Brak NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY dla preview — ustaw je w .env.e2e.',
     )
   }
-  return createClient<Database>(url, key)
+  const client = createClient<Database>(url, key)
+  // Testy integracyjne (setup.ts) ustawiają konto "sesji" - odpowiednik DEFAULT = auth.uid().
+  // Bez niego (e2e: fixtures podają owner_id jawnie) i z `raw` zostaje czysta rola service.
+  const sessionOwner = process.env[TEST_SESSION_OWNER_ENV]
+  return sessionOwner && !opts.raw ? withSessionOwner(client, sessionOwner) : client
 }
 
 // Prefiks pozwalający jednoznacznie rozpoznać (i w razie czego posprzątać ręcznie)
@@ -35,7 +40,7 @@ let cachedOwnerId: Promise<string | undefined> | undefined
  * id konta E2E_LOGIN_EMAIL (konto, którym loguje się Playwright). Po slice 2 UI
  * pokazuje tylko dane zalogowanego konta (RLS "owner access"), więc fixtures
  * e2e muszą wstawiać wiersze z owner_id tego konta. Bez E2E_LOGIN_EMAIL (np. testy
- * integracyjne, które omijają RLS) zwraca undefined - wtedy owner_id dostaje DEFAULT.
+ * integracyjne, które omijają RLS) zwraca undefined - wtedy owner_id uzupełnia wrapper sesji (tests-support/sessionOwner.ts).
  */
 export function getTestOwnerId(db: Db): Promise<string | undefined> {
   cachedOwnerId ??= (async () => {
