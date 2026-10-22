@@ -150,7 +150,7 @@ describe('processSettlement - ścieżka pozytywna', () => {
     expect(settlement).toMatchObject({ month: MONTH, year: YEAR, spreadsheet_id: 'copy-1' })
     const pdfs = settlement.drive_pdf_ids as { name: string; id: string }[]
     expect(pdfs.map((p) => p.name).sort()).toEqual(['Nota', 'Zestawienie'])
-    for (const pdf of pdfs) expect(pdf.id.startsWith(`PREVIEW/${YEAR}/${MONTH}/`)).toBe(true)
+    for (const pdf of pdfs) expect(pdf.id.startsWith(`${process.env.TEST_SESSION_OWNER_ID}/PREVIEW/${YEAR}/${MONTH}/`)).toBe(true)
 
     // Należności (nie faktury!): number = null, powiązane z umową i rozliczeniem.
     const [invoiceA] = await invoicesOf(tenantA.id)

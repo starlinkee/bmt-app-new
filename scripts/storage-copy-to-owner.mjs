@@ -122,7 +122,8 @@ async function main() {
     let underOwner = existing.size
     if (apply) {
       const after = await listAll(supabase.storage, bucket, owner)
-      const afterSet = new Set(after.map((p) => `${owner}/${p}`))
+      // listAll(owner) zwraca pełne ścieżki (już z prefiksem <owner>/).
+      const afterSet = new Set(after)
       underOwner = afterSet.size
       const missing = legacyPaths.filter((p) => !afterSet.has(`${owner}/${p}`))
       if (missing.length > 0 || failed.length > 0) {

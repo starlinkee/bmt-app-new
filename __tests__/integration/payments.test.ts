@@ -138,10 +138,10 @@ describe('sendStatementToTenant', () => {
     expect(logs![0].to_email).toBe(`${email}, ${email2}`)
     expect(logs![0].subject).toBe(mail.subject)
     expect(logs![0].attachments).toEqual([expect.objectContaining({ name: 'Wyciag_z_konta.pdf' })])
-    // Załącznik trafia do Storage pod prefiksem preview/ (kopia na potrzeby podglądu w wiadomościach).
+    // Załącznik trafia do Storage pod prefiksem <owner_id>/preview/ (kopia na potrzeby podglądu w wiadomościach).
     expect(storage.uploads).toHaveLength(1)
     expect(storage.uploads[0]).toMatchObject({ bucket: 'invoices', contentType: 'application/pdf' })
-    expect(storage.uploads[0].path.startsWith('preview/emails/')).toBe(true)
+    expect(storage.uploads[0].path.startsWith(`${process.env.TEST_SESSION_OWNER_ID}/preview/emails/`)).toBe(true)
   })
 
   test('najemca bez adresu e-mail -> błąd i brak wysyłki', async () => {
