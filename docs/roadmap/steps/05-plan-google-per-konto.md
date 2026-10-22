@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 # Krok 05: Plan Gmail/Google per konto (slice 7 — research i plan)
 
