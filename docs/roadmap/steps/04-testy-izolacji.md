@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 # Krok 04: Testy izolacji kont (slice 6)
 
