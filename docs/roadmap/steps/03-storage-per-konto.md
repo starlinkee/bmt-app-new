@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 # Krok 03: Pliki per konto (slice 5)
 
