@@ -16,7 +16,7 @@ export const OWNER_TABLES = new Set([
 export const TEST_SESSION_OWNER_ENV = 'TEST_SESSION_OWNER_ID'
 
 function fill(values: any, ownerId: string): any {
-  const one = (row: any) => (row && typeof row === 'object' && !('owner_id' in row) ? { ...row, owner_id: ownerId } : row)
+  const one = (row: any) => (row && typeof row === 'object' && row.owner_id == null ? { ...row, owner_id: ownerId } : row)
   return Array.isArray(values) ? values.map(one) : one(values)
 }
 

@@ -18,6 +18,7 @@ import { buildInvoiceNumber, tenantDisplayName } from '@/lib/utils'
 import { getEnvTier } from '@/lib/env'
 import { getUserClient } from '@/lib/auth-guard'
 import { ownerPath } from '@/lib/storage-paths'
+import { normalizeSheetValue } from '@/lib/sheet-values'
 
 // Segment ścieżki/nazwy pliku bezpieczny dla kluczy Supabase Storage.
 // Storage odrzuca ("Invalid key") m.in. polskie znaki diakrytyczne, en-dash (–),
@@ -367,7 +368,7 @@ export async function processSettlement(
 
   const normalizedAllValues: Record<string, string | number> = {}
   for (const [k, v] of Object.entries(allValues)) {
-    normalizedAllValues[k] = typeof v === 'string' ? v.replace(/,/g, '.') : v
+    normalizedAllValues[k] = normalizeSheetValue(v)
   }
 
   await writeInputValues(workingSheetId, flatMapping, normalizedAllValues)

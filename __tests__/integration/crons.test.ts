@@ -10,6 +10,7 @@ const processMeterReadingReminder = vi.hoisted(() => vi.fn())
 
 // Lista kont też zamockowana - test nie dotyka prawdziwych kont w bazie preview.
 vi.mock('@/lib/app-config', () => ({ listOwnerIds: async () => ['o1', 'o2'] }))
+const { listOwnerIds } = await import('@/lib/app-config')
 vi.mock('@/lib/rents', () => ({ generateRents }))
 vi.mock('@/lib/statement-reminder', () => ({ processStatementUploadReminder }))
 vi.mock('@/lib/meter-reading-reminder', () => ({ processMeterReadingReminder }))
@@ -160,7 +161,8 @@ describe('GET /api/cron/generate-rents', () => {
 
 describe.each([
   ['statement-reminder', statementReminderRoute.GET, processStatementUploadReminder, { sent: true }],
-  ['meter-reading-reminder', meterReadingRoute.GET, processMeterReadingReminder, { sent: 4 }],
+  // Trasa przypomnień o odczytach dokłada do wyniku konta licznik błędnych wysyłek (`errors`).
+  ['meter-reading-reminder', meterReadingRoute.GET, processMeterReadingReminder, { sent: 4, errors: 0 }],
 ])('GET /api/cron/%s', (name, GET, job, payload) => {
   const path = `/api/cron/${name}`
 
@@ -179,24 +181,24 @@ describe.each([
   })
 
   test('poprawny sekret -> 200 z wynikiem zadania', async () => {
+    const owners = await listOwnerIds()
     const res = await GET(request(path, bearer()))
 
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({
       success: true,
-      results: [
-        { ownerId: 'o1', ok: true, ...payload },
-        { ownerId: 'o2', ok: true, ...payload },
-      ],
+      results: owners.map((ownerId) => ({ ownerId, ok: true, ...payload })),
     })
-    expect(job).toHaveBeenCalledTimes(1)
+    // Cron robi pętlę po kontach: jedno wywołanie zadania na konto, każde z innym ownerId.
+    expect(job).toHaveBeenCalledTimes(owners.length)
+    expect(job.mock.calls.map(([ownerId]) => ownerId)).toEqual(owners)
   })
 
   test('nagłówek Vercel Cron -> 200', async () => {
     const res = await GET(request(path, vercelCron))
 
     expect(res.status).toBe(200)
-    expect(job).toHaveBeenCalledTimes(1)
+    expect(job).toHaveBeenCalledTimes((await listOwnerIds()).length)
   })
 
   test('błąd zadania we wszystkich kontach -> 500 z wynikami per konto', async () => {

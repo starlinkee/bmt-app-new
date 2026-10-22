@@ -154,7 +154,9 @@ describe('sendStatementToTenant', () => {
   })
 
   test('nieistniejący najemca -> błąd', async () => {
-    expect(await sendStatementToTenant(2_000_000_000)).toEqual({ success: false, error: 'Nie znaleziono najemcy' })
+    // assertTenantOwned (slice 2) rzuca to samo 'Not found' dla cudzego i nieistniejącego id,
+    // żeby nie zdradzać istnienia cudzych wierszy - komunikat 'Nie znaleziono najemcy' nie jest już osiągalny.
+    expect(await sendStatementToTenant(2_000_000_000)).toEqual({ success: false, error: 'Not found' })
   })
 
   test('awaria SMTP jest zwrócona jako błąd, a nie wyjątek, i nie zostawia wpisu w logach', async () => {
@@ -186,7 +188,11 @@ describe('sendStatementToTenant', () => {
 describe('sendBulkStatements', () => {
   // Wysyłka zbiorcza obejmuje WSZYSTKICH dłużników w bazie - zawężamy tabelę
   // tenants do danych testowych, żeby nie trafić w prawdziwych najemców.
-  beforeEach(() => {
+  // Dłużnicy z e-mailem z wcześniejszych testów (sendStatementToTenant) zostają do
+  // afterAll, więc bez sprzątania liczyłyby się do wysyłki zbiorczej - każdy test
+  // bulk ma widzieć tylko własne dane.
+  beforeEach(async () => {
+    await purgeAllTestData(db)
     scopeTable('tenants', (q) => q.like('last_name', `${E2E_PREFIX}%`))
   })
 

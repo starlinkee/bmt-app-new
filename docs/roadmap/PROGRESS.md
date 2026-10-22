@@ -22,3 +22,20 @@
 
 - **Skrypt `storage-copy-to-owner` na preview (`emjiqrfpvdiyodzezzlm`, właściciel = `legacy_owner`):** dry-run: `invoices` legacy 2 / do skopiowania 2, `manual-uploads` 0, `media_settlements` do zmiany 0 (z 0 wierszy). `--apply`: `invoices` skopiowane 2, pod `<owner>/` po kopiowaniu 2; `manual-uploads` 0/0. Powtórne `--apply`: skopiowane 0, pominięte (cel istnieje) 2, pod `<owner>/` 2 — idempotentne, exit 0, „OK: liczby zgodne”. Stare obiekty nie usuwane. Przy pierwszym `--apply` weryfikacja końcowa fałszywie zgłosiła braki celów (błąd skryptu: podwójny prefiks w porównaniu — `listAll(owner)` zwraca już pełne ścieżki); naprawione w skrypcie, kopiowanie samo było poprawne (2 obiekty, 0 błędów).
 - **`test:integration` na preview:** 76 zielonych, 9 czerwonych na starcie. Dwa dotyczyły tego kroku (oczekiwały starych ścieżek bez `<owner_id>/`: `media-settlement` i `payments` → poprawione). Pozostałe NIE są z kroku 03 i zostają odłożone: `crons.test.ts` (4: job wołany dla 2 kont zamiast 1, dodatkowe pole `errors: 0` w wyniku — testy z kroku 01 nieaktualne), `payments.test.ts` (3: komunikat `Not found` z mocka `assertTenantOwned` zamiast „Nie znaleziono najemcy”; `sendBulkStatements` widzi dłużników spoza danych testowych, count 4), `media-settlement.test.ts` (separator adresu „lok. 3. ul.” zamiast „lok. 3, ul.”). `owner-default.test.ts` (krok 02) zielony.
+
+## Krok 03 — naprawa testów integracyjnych (22.10)
+
+Cel: zielony `npm run test:integration` na preview. Zmierzone 8 czerwonych (nie 7): crons x4, payments x3, media-settlement x1. Każdą przyczynę potwierdziłem osobnym przebiegiem przed zmianą.
+
+**Błąd produkcyjny (nie test): adres w nocie obciążeniowej.** `processSettlement` (`media/actions.ts` i `rozlicz-media/actions.ts`) robił `replace(/,/g, '.')` na każdej wartości tekstowej przed zapisem do arkusza, więc adres `lok. 3, ul. Wodna 5` trafiał na notę jako `lok. 3. ul. Wodna 5`. Teraz wspólny helper `normalizeSheetValue` (`lib/sheet-values.ts`) zamienia przecinek na kropkę tylko w wartościach wyglądających na liczbę (`120,5` → `120.5`); teksty idą bez zmian. Test jednostkowy: `__tests__/unit/sheetValues.test.ts`. Ten fix zmienia kod aplikacji, więc wymaga deployu preview i e2e.
+
+**Pozostałe to testy:**
+- crons x4: po kroku 01 cron robi pętlę po kontach, a trasa przypomnień o odczytach dokłada `errors: 0`. Oczekiwania liczą wywołania z `listOwnerIds()` (bez sztywnego 2), sprawdzają inny `ownerId` w każdym wywołaniu i ścisły `toEqual` na kształcie.
+- payments „bez dłużników” / „tylko do dłużników”: izolacja, nie wyciek. Dłużnicy z e-mailem z testów `sendStatementToTenant` zostawali do `afterAll` i liczyli się do wysyłki zbiorczej. `describe('sendBulkStatements')` czyści dane testowe w `beforeEach`; asercje bez zmian.
+- payments „nieistniejący najemca”: `assertTenantOwned` (slice 2) rzuca `'Not found'` także dla nieistniejącego id, test oczekuje teraz tego komunikatu (z komentarzem).
+- media-settlement: asercje ścieżek Storage uwzględniają prefiks konta (`<owner>/PREVIEW/...`, `<owner>/preview/emails/...`) z kroku 03/slice 5.
+- `withSessionOwner`: warunek `row.owner_id == null` zamiast `!('owner_id' in row)` (odwzorowuje DEFAULT także przy jawnym NULL).
+
+**Wynik:** typecheck 0, lint 0 błędów (24 ostrzeżenia sprzed zmian), `npm run test` 281/281, `npm run test:integration` na preview 2× z rzędu: 85 passed / 0 failed (+2 expected fail bez zmian).
+
+**Co odłożono:** komunikat guarda `'Not found'` jest po angielsku i widoczny w UI przy `sendStatementToTenant` — osobny temat, guarda nie ruszałem (używają go inne ścieżki i testy jednostkowe).
