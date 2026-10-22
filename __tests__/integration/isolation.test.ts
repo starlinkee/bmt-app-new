@@ -233,7 +233,7 @@ async function seedRow(table: string, owner: string): Promise<Row> {
 }
 
 beforeAll(async () => {
-  admin = serviceClient()
+  admin = serviceClient({ strict: true })
   anon = anonClient()
   A = await createIsolationUser(admin, 'a')
   B = await createIsolationUser(admin, 'b')

@@ -37,11 +37,12 @@ export type IsolationUser = {
   client: SupabaseClient<any>
 }
 
-export function serviceClient(): SupabaseClient<any> {
+export function serviceClient(opts: { strict?: boolean } = {}): SupabaseClient<any> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) throw new Error('Brak NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY - ustaw je w .env.e2e.')
-  assertNotProduction(undefined, { requireConfigured: true })
+  // Sprzątanie z e2e (purgeAllTestData) idzie bez PRODUCTION_SUPABASE_REFS, jak createTestDbClient; test izolacji wymaga ich (strict).
+  assertNotProduction(undefined, { requireConfigured: !!opts.strict })
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
 }
 
