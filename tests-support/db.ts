@@ -2,6 +2,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/supabase'
 import { assertNotProduction } from './guard'
+import { purgeIsolationUsers, serviceClient } from './isolationUsers'
 import { TEST_SESSION_OWNER_ENV, withSessionOwner } from './sessionOwner'
 
 // Współdzielone przez testy Playwright (e2e/) i vitestowe testy integracyjne
@@ -204,6 +205,9 @@ export async function purgeAllTestData(db: Db, options: PurgeOptions = {}) {
       'audit_log',
     )
   }
+
+  // Użytkownicy testów izolacji kont (e2e_test__iso_…) razem z ich wierszami i plikami.
+  await purgeIsolationUsers(serviceClient())
 }
 
 /** Liczba rekordów z prefiksem testowym per tabela - po udanym sprzątaniu wszędzie 0. */
