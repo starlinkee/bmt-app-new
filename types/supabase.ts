@@ -16,10 +16,10 @@ export type Database = {
     Tables: {
       app_config: {
         Row: {
+          owner_id: string
           drive_invoices_folder_id: string
           email_provider: string
           email_provider_2: string
-          id: number
           late_reminder_subject: string
           late_reminder_body: string
           reminder_body: string
@@ -32,8 +32,6 @@ export type Database = {
             tenant_reading_keys: Json
             ignored_source_accounts: string
             statement_cutoff_day: number
-            time_offset_ms: number
-            allow_destructive_test_deletes: boolean
             meter_reading_reminder_subject: string | null
             meter_reading_reminder_body: string | null
             meter_reading_closed_message: string | null
@@ -41,14 +39,16 @@ export type Database = {
             payment_account_1_name: string
             payment_account_2_name: string
             backfill_rents_enabled: boolean
+            import_pekao_enabled: boolean
+            import_millennium_enabled: boolean
             statement_upload_reminder_subject: string | null
             statement_upload_reminder_body: string | null
           }
           Insert: {
+          owner_id?: string
           drive_invoices_folder_id?: string
           email_provider?: string
           email_provider_2?: string
-          id?: number
           late_reminder_subject?: string
           late_reminder_body?: string
           reminder_body?: string
@@ -61,8 +61,6 @@ export type Database = {
             tenant_reading_keys?: Json
             ignored_source_accounts?: string
             statement_cutoff_day?: number
-            time_offset_ms?: number
-            allow_destructive_test_deletes?: boolean
             meter_reading_reminder_subject?: string | null
             meter_reading_reminder_body?: string | null
             meter_reading_closed_message?: string | null
@@ -70,14 +68,16 @@ export type Database = {
             payment_account_1_name?: string
             payment_account_2_name?: string
             backfill_rents_enabled?: boolean
+            import_pekao_enabled?: boolean
+            import_millennium_enabled?: boolean
             statement_upload_reminder_subject?: string | null
             statement_upload_reminder_body?: string | null
           }
           Update: {
+          owner_id?: string
           drive_invoices_folder_id?: string
           email_provider?: string
           email_provider_2?: string
-          id?: number
           late_reminder_subject?: string
           late_reminder_body?: string
           reminder_body?: string
@@ -90,8 +90,6 @@ export type Database = {
             tenant_reading_keys?: Json
             ignored_source_accounts?: string
             statement_cutoff_day?: number
-            time_offset_ms?: number
-            allow_destructive_test_deletes?: boolean
             meter_reading_reminder_subject?: string | null
             meter_reading_reminder_body?: string | null
             meter_reading_closed_message?: string | null
@@ -99,13 +97,28 @@ export type Database = {
             payment_account_1_name?: string
             payment_account_2_name?: string
             backfill_rents_enabled?: boolean
+            import_pekao_enabled?: boolean
+            import_millennium_enabled?: boolean
             statement_upload_reminder_subject?: string | null
             statement_upload_reminder_body?: string | null
           }
           Relationships: []
       }
+      system_settings: {
+        Row: { id: number; time_offset_ms: number; allow_destructive_test_deletes: boolean }
+        Insert: { id?: number; time_offset_ms?: number; allow_destructive_test_deletes?: boolean }
+        Update: { id?: number; time_offset_ms?: number; allow_destructive_test_deletes?: boolean }
+        Relationships: []
+      }
+      legacy_owner: {
+        Row: { id: number; owner_id: string }
+        Insert: { id?: number; owner_id: string }
+        Update: { id?: number; owner_id?: string }
+        Relationships: []
+      }
       contracts: {
         Row: {
+          owner_id: string
           contract_type: string
           end_date: string | null
           has_media_invoice: boolean
@@ -121,6 +134,7 @@ export type Database = {
           tenant_id: number
         }
         Insert: {
+          owner_id?: string
           contract_type?: string
           end_date?: string | null
           has_media_invoice?: boolean
@@ -136,6 +150,7 @@ export type Database = {
           tenant_id: number
         }
         Update: {
+          owner_id?: string
           contract_type?: string
           end_date?: string | null
           has_media_invoice?: boolean
@@ -162,6 +177,7 @@ export type Database = {
       }
       invoices: {
         Row: {
+          owner_id: string
           amount: number
           contract_id: number | null
           id: number
@@ -174,6 +190,7 @@ export type Database = {
           year: number
         }
         Insert: {
+          owner_id?: string
           amount: number
           contract_id?: number | null
           id?: never
@@ -186,6 +203,7 @@ export type Database = {
           year: number
         }
         Update: {
+          owner_id?: string
           amount?: number
           contract_id?: number | null
           id?: never
@@ -216,6 +234,7 @@ export type Database = {
       }
       media_meter_readings: {
         Row: {
+          owner_id: string
           created_at: string
           group_id: number
           id: number
@@ -225,6 +244,7 @@ export type Database = {
           year: number
         }
         Insert: {
+          owner_id?: string
           created_at?: string
           group_id: number
           id?: never
@@ -234,6 +254,7 @@ export type Database = {
           year: number
         }
         Update: {
+          owner_id?: string
           created_at?: string
           group_id?: number
           id?: never
@@ -254,6 +275,7 @@ export type Database = {
       }
       media_settlements: {
         Row: {
+          owner_id: string
           created_at: string
           drive_pdf_id: string | null
           drive_pdf_ids: Json
@@ -264,6 +286,7 @@ export type Database = {
           year: number
         }
         Insert: {
+          owner_id?: string
           created_at?: string
           drive_pdf_id?: string | null
           drive_pdf_ids?: Json
@@ -274,6 +297,7 @@ export type Database = {
           year: number
         }
         Update: {
+          owner_id?: string
           created_at?: string
           drive_pdf_id?: string | null
           drive_pdf_ids?: Json
@@ -322,6 +346,7 @@ export type Database = {
       }
       properties: {
         Row: {
+          owner_id: string
           address1: string
           address2: string | null
           created_at: string
@@ -331,6 +356,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          owner_id?: string
           address1: string
           address2?: string | null
           created_at?: string
@@ -340,6 +366,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          owner_id?: string
           address1?: string
           address2?: string | null
           created_at?: string
@@ -352,14 +379,17 @@ export type Database = {
       }
       settlement_group_properties: {
         Row: {
+          owner_id: string
           property_id: number
           settlement_group_id: number
         }
         Insert: {
+          owner_id?: string
           property_id: number
           settlement_group_id: number
         }
         Update: {
+          owner_id?: string
           property_id?: number
           settlement_group_id?: number
         }
@@ -382,6 +412,7 @@ export type Database = {
       }
       settlement_groups: {
         Row: {
+          owner_id: string
           id: number
           email_body_template: string | null
           email_subject_template: string | null
@@ -395,6 +426,7 @@ export type Database = {
             tenant_reading_keys: Json
           }
           Insert: {
+          owner_id?: string
           id?: never
           email_body_template?: string | null
           email_subject_template?: string | null
@@ -408,6 +440,7 @@ export type Database = {
             tenant_reading_keys?: Json
           }
           Update: {
+          owner_id?: string
           id?: never
           email_body_template?: string | null
           email_subject_template?: string | null
@@ -424,6 +457,7 @@ export type Database = {
       }
       tenants: {
         Row: {
+          owner_id: string
           address1: string | null
           address2: string | null
           bank_accounts_as_text: string
@@ -441,6 +475,7 @@ export type Database = {
           tenant_type: string
         }
         Insert: {
+          owner_id?: string
           address1?: string | null
           address2?: string | null
           bank_accounts_as_text?: string
@@ -458,6 +493,7 @@ export type Database = {
           tenant_type?: string
         }
         Update: {
+          owner_id?: string
           address1?: string | null
           address2?: string | null
           bank_accounts_as_text?: string
@@ -486,6 +522,7 @@ export type Database = {
       }
       transaction_staging: {
         Row: {
+          owner_id: string
           amount: number
           bank_account: string | null
           category: string | null
@@ -498,6 +535,7 @@ export type Database = {
           title: string
         }
         Insert: {
+          owner_id?: string
           amount: number
           bank_account?: string | null
           category?: string | null
@@ -510,6 +548,7 @@ export type Database = {
           title?: string
         }
         Update: {
+          owner_id?: string
           amount?: number
           bank_account?: string | null
           category?: string | null
@@ -525,6 +564,7 @@ export type Database = {
       }
       transactions: {
         Row: {
+          owner_id: string
           amount: number
           bank_account: string | null
           category: string | null
@@ -539,6 +579,7 @@ export type Database = {
           type: string
         }
         Insert: {
+          owner_id?: string
           amount: number
           bank_account?: string | null
           category?: string | null
@@ -553,6 +594,7 @@ export type Database = {
           type?: string
         }
         Update: {
+          owner_id?: string
           amount?: number
           bank_account?: string | null
           category?: string | null
@@ -578,18 +620,21 @@ export type Database = {
       }
       operation_log: {
         Row: {
+          owner_id: string
           id: number
           operation: string
           result: Json | null
           called_at: string
         }
         Insert: {
+          owner_id?: string
           id?: never
           operation: string
           result?: Json | null
           called_at?: string
         }
         Update: {
+          owner_id?: string
           id?: never
           operation?: string
           result?: Json | null
@@ -599,6 +644,7 @@ export type Database = {
       }
       audit_log: {
         Row: {
+          owner_id: string
           id: number
           action_name: string
           table_name: string | null
@@ -610,6 +656,7 @@ export type Database = {
           created_at: string
         }
         Insert: {
+          owner_id?: string
           id?: never
           action_name: string
           table_name?: string | null
@@ -621,6 +668,7 @@ export type Database = {
           created_at?: string
         }
         Update: {
+          owner_id?: string
           id?: never
           action_name?: string
           table_name?: string | null
@@ -635,6 +683,7 @@ export type Database = {
       }
         email_logs: {
           Row: {
+            owner_id: string
             id: number
             to_email: string
             subject: string
@@ -643,6 +692,7 @@ export type Database = {
             attachments: Json | null
           }
           Insert: {
+            owner_id?: string
             id?: never
             to_email: string
             subject: string
@@ -651,6 +701,7 @@ export type Database = {
             attachments?: Json | null
           }
           Update: {
+            owner_id?: string
             id?: never
             to_email?: string
             subject?: string
@@ -662,18 +713,21 @@ export type Database = {
         }
         reminder_dedup: {
           Row: {
+            owner_id: string
             id: number
             action_name: string
             dedup_key: string
             created_at: string
           }
           Insert: {
+            owner_id?: string
             id?: never
             action_name: string
             dedup_key: string
             created_at?: string
           }
           Update: {
+            owner_id?: string
             id?: never
             action_name?: string
             dedup_key?: string

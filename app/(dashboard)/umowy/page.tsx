@@ -209,17 +209,22 @@ export default function ContractsPage() {
       tenant_id: Number(form.tenant_id),
     }
     startTransition(async () => {
-      if (editing) {
-        await updateContract(editing.id, payload)
-        toast.success('Umowa zaktualizowana.')
-      } else {
-        await createContract(payload)
-        toast.success('Umowa dodana.')
+      try {
+        if (editing) {
+          await updateContract(editing.id, payload)
+          toast.success('Umowa zaktualizowana.')
+        } else {
+          await createContract(payload)
+          toast.success('Umowa dodana.')
+        }
+        setOpen(false)
+        setConfirmOpen(false)
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.contracts })
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tenants })
+      } catch (e) {
+        setConfirmOpen(false)
+        toast.error(e instanceof Error && e.message ? e.message : 'Nie udało się zapisać umowy.')
       }
-      setOpen(false)
-      setConfirmOpen(false)
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.contracts })
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tenants })
     })
   }
 
@@ -249,12 +254,17 @@ export default function ContractsPage() {
     if (pct === null) return
     const toUpdate = contracts.filter((c) => selectedIds.has(c.id))
     startTransition(async () => {
-      for (const c of toUpdate) {
-        await revaluateContract(c.id, pct)
+      try {
+        for (const c of toUpdate) {
+          await revaluateContract(c.id, pct)
+        }
+        toast.success(`Zaktualizowano ${toUpdate.length} ${toUpdate.length === 1 ? 'umowę' : 'umów'}.`)
+        setBulkRevalConfirmOpen(false)
+        setBulkRevalOpen(false)
+      } catch (e) {
+        setBulkRevalConfirmOpen(false)
+        toast.error(e instanceof Error && e.message ? e.message : 'Nie udało się zaktualizować umów.')
       }
-      toast.success(`Zaktualizowano ${toUpdate.length} ${toUpdate.length === 1 ? 'umowę' : 'umów'}.`)
-      setBulkRevalConfirmOpen(false)
-      setBulkRevalOpen(false)
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.contracts })
     })
   }
@@ -262,10 +272,14 @@ export default function ContractsPage() {
   function handleDelete(c: Contract) {
     if (!confirm('Usunąć tę umowę?')) return
     startTransition(async () => {
-      await deleteContract(c.id)
-      toast.success('Umowa usunięta.')
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.contracts })
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tenants })
+      try {
+        await deleteContract(c.id)
+        toast.success('Umowa usunięta.')
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.contracts })
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tenants })
+      } catch (e) {
+        toast.error(e instanceof Error && e.message ? e.message : 'Nie udało się usunąć umowy.')
+      }
     })
   }
 

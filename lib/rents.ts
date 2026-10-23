@@ -1,18 +1,20 @@
-'use server'
+import 'server-only'
 
 import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/service'
+import { readAppConfig } from '@/lib/app-config'
 import { logAudit } from '@/lib/audit'
 import { tenantDisplayName } from '@/lib/utils'
 import { contractCoversPeriod } from '@/lib/contracts'
 
-export async function getRentPreview(month: number, year: number) {
+export async function getRentPreview(ownerId: string, month: number, year: number) {
   const supabase = createServiceClient()
 
   // Aktywne umowy BUSINESS bez rachunku RENT w tym miesiącu
   const { data: existingInvoices } = await supabase
     .from('invoices')
     .select('contract_id')
+    .eq('owner_id', ownerId)
     .eq('type', 'RENT')
     .eq('month', month)
     .eq('year', year)
@@ -25,13 +27,10 @@ export async function getRentPreview(month: number, year: number) {
     supabase
       .from('contracts')
       .select('*, tenants(id, first_name, last_name, tenant_type, company_name, email, email2, nip, address1, address2, property_id, properties(name))')
+      .eq('owner_id', ownerId)
       .eq('is_active', true)
       .not('id', 'in', existingContractIds.length ? `(${existingContractIds.join(',')})` : '(-1)'),
-    supabase
-      .from('app_config')
-      .select('admin_email')
-      .eq('id', 1)
-      .single(),
+    readAppConfig(ownerId, ['admin_email']),
   ])
 
   // Umowy z end_date wcześniejszym niż dany miesiąc są pomijane, nawet jeśli
@@ -51,7 +50,7 @@ export async function getRentPreview(month: number, year: number) {
   return {
     withEmail,
     withoutEmail,
-    senderEmail: appConfigResult.data?.admin_email ?? null,
+    senderEmail: appConfigResult?.admin_email ?? null,
     // Liczba aktywnych umów pominiętych, bo mają już rachunek RENT za ten
     // miesiąc/rok (patrz filtr .not('id', 'in', ...) powyżej) - pokazujemy to
     // w panelu testowym, żeby "wygenerowano 0" nie wyglądało jak błąd.
@@ -61,9 +60,9 @@ export async function getRentPreview(month: number, year: number) {
 
 export type RentGenerationSource = 'CRON' | 'MANUAL' | 'TEST_MANUAL'
 
-export async function generateRents(month: number, year: number, source: RentGenerationSource = 'MANUAL') {
+export async function generateRents(ownerId: string, month: number, year: number, source: RentGenerationSource = 'MANUAL') {
   const supabase = createServiceClient()
-  const { withEmail, withoutEmail, skippedCount } = await getRentPreview(month, year)
+  const { withEmail, withoutEmail, skippedCount } = await getRentPreview(ownerId, month, year)
   const allContracts = [...(withEmail ?? []), ...(withoutEmail ?? [])]
 
 
@@ -91,6 +90,7 @@ export async function generateRents(month: number, year: number, source: RentGen
 
       const { error } = await supabase.from('invoices').upsert(
         {
+          owner_id: ownerId,
           type: 'RENT',
           number: null, // No official invoice number generated here anymore
           amount: contract.rent_amount,
@@ -116,6 +116,7 @@ export async function generateRents(month: number, year: number, source: RentGen
   }, [])
 
   await logAudit({
+    ownerId,
     actionName: 'generateRents',
     tableName: 'invoices',
     operation: 'UPSERT',
@@ -126,11 +127,12 @@ export async function generateRents(month: number, year: number, source: RentGen
   return { results, skippedCount }
 }
 
-export async function getRentInvoices(month: number, year: number) {
+export async function getRentInvoices(ownerId: string, month: number, year: number) {
   const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('invoices')
     .select('*, tenants(first_name, last_name, tenant_type, company_name)')
+    .eq('owner_id', ownerId)
     .eq('type', 'RENT')
     .eq('month', month)
     .eq('year', year)

@@ -1,9 +1,9 @@
 'use server'
 
-import { createServiceClient } from '@/lib/supabase/service'
+import { getUserClient } from '@/lib/auth-guard'
 
 export async function getAuditLogs() {
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
   const { data, error } = await supabase
     .from('audit_log')
     .select('*')

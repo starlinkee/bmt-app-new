@@ -1,15 +1,19 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createServiceClient } from '@/lib/supabase/service'
 import { logAudit } from '@/lib/audit'
+import { assertTenantOwned, getUserClient } from '@/lib/auth-guard'
 
 export async function getTenantStatement(tenantId: number) {
+  const { supabase } = await getUserClient()
+  await assertTenantOwned(supabase, tenantId)
   const { getStatement } = await import('@/lib/statement')
   return getStatement(tenantId)
 }
 
 export async function getTenantBalance(tenantId: number) {
+  const { supabase } = await getUserClient()
+  await assertTenantOwned(supabase, tenantId)
   const { calculateBalance } = await import('@/lib/balance')
   return calculateBalance(tenantId)
 }
@@ -20,7 +24,7 @@ export async function addAdjustment(
   description: string,
   date: string,
 ) {
-  const supabase = createServiceClient()
+  const { user, supabase } = await getUserClient()
   const { data: created, error } = await supabase.from('transactions').insert({
     type: 'ADJUSTMENT',
     status: 'MANUAL',
@@ -30,10 +34,10 @@ export async function addAdjustment(
     tenant_id: tenantId,
   }).select().single()
   if (error) {
-    await logAudit({ actionName: 'addAdjustment', tableName: 'transactions', operation: 'CREATE', errorData: error })
+    await logAudit({ ownerId: user.id, actionName: 'addAdjustment', tableName: 'transactions', operation: 'CREATE', errorData: error })
     throw error
   }
-  await logAudit({ actionName: 'addAdjustment', tableName: 'transactions', operation: 'CREATE', recordId: created.id, afterData: created })
+  await logAudit({ ownerId: user.id, actionName: 'addAdjustment', tableName: 'transactions', operation: 'CREATE', recordId: created.id, afterData: created })
   revalidatePath(`/najemcy/${tenantId}`)
 }
 
@@ -43,7 +47,7 @@ export async function addManualBankTransaction(
   description: string,
   date: string,
 ) {
-  const supabase = createServiceClient()
+  const { user, supabase } = await getUserClient()
   const { data: created, error } = await supabase.from('transactions').insert({
     type: 'BANK',
     status: 'MANUAL',
@@ -53,10 +57,10 @@ export async function addManualBankTransaction(
     tenant_id: tenantId,
   }).select().single()
   if (error) {
-    await logAudit({ actionName: 'addManualBankTransaction', tableName: 'transactions', operation: 'CREATE', errorData: error })
+    await logAudit({ ownerId: user.id, actionName: 'addManualBankTransaction', tableName: 'transactions', operation: 'CREATE', errorData: error })
     throw error
   }
-  await logAudit({ actionName: 'addManualBankTransaction', tableName: 'transactions', operation: 'CREATE', recordId: created.id, afterData: created })
+  await logAudit({ ownerId: user.id, actionName: 'addManualBankTransaction', tableName: 'transactions', operation: 'CREATE', recordId: created.id, afterData: created })
   revalidatePath(`/najemcy/${tenantId}`)
 }
 
@@ -66,7 +70,7 @@ export async function updateTransaction(
   data: { amount: number; title: string; date: string },
   note?: string,
 ) {
-  const supabase = createServiceClient()
+  const { user, supabase } = await getUserClient()
 
   const { data: before } = await supabase
     .from('transactions')
@@ -92,16 +96,16 @@ export async function updateTransaction(
     .single()
 
   if (error) {
-    await logAudit({ actionName: 'updateTransaction', tableName: 'transactions', operation: 'UPDATE', recordId: txId, beforeData: before, errorData: error })
+    await logAudit({ ownerId: user.id, actionName: 'updateTransaction', tableName: 'transactions', operation: 'UPDATE', recordId: txId, beforeData: before, errorData: error })
     throw error
   }
-  await logAudit({ actionName: 'updateTransaction', tableName: 'transactions', operation: 'UPDATE', recordId: txId, beforeData: before, afterData: after })
+  await logAudit({ ownerId: user.id, actionName: 'updateTransaction', tableName: 'transactions', operation: 'UPDATE', recordId: txId, beforeData: before, afterData: after })
 
   revalidatePath(`/najemcy/${tenantId}`)
 }
 
 export async function getTransactionAmendments(txId: number) {
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from('transaction_amendments')

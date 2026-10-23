@@ -7,7 +7,7 @@ vi.mock('@/lib/audit', () => ({ logAudit: (...args: unknown[]) => logAuditMock(.
 let db: FakeSupabase
 vi.mock('@/lib/supabase/service', () => ({ createServiceClient: () => db }))
 
-// Wirtualny zegar: testy ustawiają "teraz" bez dotykania app_config.time_offset_ms.
+// Wirtualny zegar: testy ustawiają "teraz" bez dotykania system_settings.time_offset_ms.
 let now: Date
 vi.mock('@/lib/clock', () => ({ getCurrentDate: async () => now }))
 
@@ -29,10 +29,10 @@ const { processLateReminders } = await import('@/lib/late-reminders')
 const { processStatementUploadReminder } = await import('@/lib/statement-reminder')
 const { processMeterReadingReminder, getEligibleMeterReminderTenants } = await import('@/lib/meter-reading-reminder')
 
-const DEDUP_UNIQUE = { reminder_dedup: ['action_name', 'dedup_key'] }
+const DEDUP_UNIQUE = { reminder_dedup: ['owner_id', 'action_name', 'dedup_key'] }
 
 function freshDb(initial: Record<string, unknown[]> = {}) {
-  db = createFakeSupabase({ reminder_dedup: [], ...initial } as never, { unique: DEDUP_UNIQUE })
+  db = createFakeSupabase({ reminder_dedup: [], legacy_owner: [{ id: 1, owner_id: 'o1' }], ...initial } as never, { unique: DEDUP_UNIQUE })
 }
 
 beforeEach(() => {
@@ -60,7 +60,7 @@ describe('processLateReminders', () => {
     now = new Date(2026, 5, day)
     getTenantsWithBalancesMock.mockResolvedValue(debtors)
 
-    const result = await processLateReminders()
+    const result = await processLateReminders('o1')
 
     expect(result).toEqual({ sent: 0, skipped: 0, reason: 'Before 15th' })
     expect(sendStatementToTenantMock).not.toHaveBeenCalled()
@@ -70,7 +70,7 @@ describe('processLateReminders', () => {
     now = new Date(2026, 5, 15)
     getTenantsWithBalancesMock.mockResolvedValue(debtors)
 
-    const result = await processLateReminders()
+    const result = await processLateReminders('o1')
 
     expect(result).toEqual({ sent: 2, skipped: 0 })
     expect(sendStatementToTenantMock.mock.calls.map((c) => c[0])).toEqual([1, 4])
@@ -81,9 +81,9 @@ describe('processLateReminders', () => {
     now = new Date(2026, 5, 20)
     getTenantsWithBalancesMock.mockResolvedValue(debtors)
 
-    await processLateReminders()
+    await processLateReminders('o1')
     sendStatementToTenantMock.mockClear()
-    const second = await processLateReminders()
+    const second = await processLateReminders('o1')
 
     expect(second).toEqual({ sent: 0, skipped: 2 })
     expect(sendStatementToTenantMock).not.toHaveBeenCalled()
@@ -93,9 +93,9 @@ describe('processLateReminders', () => {
     getTenantsWithBalancesMock.mockResolvedValue([{ id: 1, balance: -500 }])
 
     now = new Date(2026, 5, 20)
-    await processLateReminders()
+    await processLateReminders('o1')
     now = new Date(2026, 6, 20)
-    const july = await processLateReminders()
+    const july = await processLateReminders('o1')
 
     expect(july).toEqual({ sent: 1, skipped: 0 })
     expect(sendStatementToTenantMock).toHaveBeenCalledTimes(2)
@@ -107,23 +107,23 @@ describe('processLateReminders', () => {
     sendStatementToTenantMock.mockRejectedValueOnce(new Error('SMTP down'))
     vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    const first = await processLateReminders()
+    const first = await processLateReminders('o1')
     expect(first).toEqual({ sent: 0, skipped: 1 })
     expect(db.tables.reminder_dedup).toHaveLength(0)
 
-    const retry = await processLateReminders()
+    const retry = await processLateReminders('o1')
     expect(retry).toEqual({ sent: 1, skipped: 0 })
   })
 })
 
 describe('processStatementUploadReminder', () => {
-  const config = { id: 1, admin_email: 'admin@example.com', statement_upload_reminder_subject: 'S', statement_upload_reminder_body: 'B' }
+  const config = { owner_id: 'o1', admin_email: 'admin@example.com', statement_upload_reminder_subject: 'S', statement_upload_reminder_body: 'B' }
 
   test.each([1, 15, 17, 31])('inny dzień niż 16. (%i.) — nie wysyła', async (day) => {
     now = new Date(2026, 4, day)
     freshDb({ app_config: [config] })
 
-    const result = await processStatementUploadReminder()
+    const result = await processStatementUploadReminder('o1')
 
     expect(result).toEqual({ sent: false, reason: 'Not the 16th' })
     expect(sendStatementUploadReminderEmailMock).not.toHaveBeenCalled()
@@ -133,10 +133,10 @@ describe('processStatementUploadReminder', () => {
     now = new Date(2026, 5, 16)
     freshDb({ app_config: [config] })
 
-    const result = await processStatementUploadReminder()
+    const result = await processStatementUploadReminder('o1')
 
     expect(result).toEqual({ sent: true })
-    expect(sendStatementUploadReminderEmailMock).toHaveBeenCalledWith('admin@example.com', 'S', 'B')
+    expect(sendStatementUploadReminderEmailMock).toHaveBeenCalledWith('o1', 'admin@example.com', 'S', 'B')
     expect(db.tables.reminder_dedup).toEqual([
       expect.objectContaining({ action_name: 'statementUploadReminder', dedup_key: '2026-6' }),
     ])
@@ -144,9 +144,9 @@ describe('processStatementUploadReminder', () => {
 
   test('brak adresu admina -> nie wysyła i nie zastrzega miesiąca', async () => {
     now = new Date(2026, 5, 16)
-    freshDb({ app_config: [{ id: 1, admin_email: null }] })
+    freshDb({ app_config: [{ owner_id: 'o1', admin_email: null }] })
 
-    const result = await processStatementUploadReminder()
+    const result = await processStatementUploadReminder('o1')
 
     expect(result.sent).toBe(false)
     expect(sendStatementUploadReminderEmailMock).not.toHaveBeenCalled()
@@ -157,8 +157,8 @@ describe('processStatementUploadReminder', () => {
     now = new Date(2026, 5, 16)
     freshDb({ app_config: [config] })
 
-    await processStatementUploadReminder()
-    const second = await processStatementUploadReminder()
+    await processStatementUploadReminder('o1')
+    const second = await processStatementUploadReminder('o1')
 
     expect(second).toEqual({ sent: false, reason: 'Already sent this month' })
     expect(sendStatementUploadReminderEmailMock).toHaveBeenCalledTimes(1)
@@ -169,10 +169,10 @@ describe('processStatementUploadReminder', () => {
     freshDb({ app_config: [config] })
     sendStatementUploadReminderEmailMock.mockRejectedValueOnce(new Error('SMTP down'))
 
-    await expect(processStatementUploadReminder()).rejects.toThrow('SMTP down')
+    await expect(processStatementUploadReminder('o1')).rejects.toThrow('SMTP down')
     expect(db.tables.reminder_dedup).toHaveLength(0)
 
-    await expect(processStatementUploadReminder()).resolves.toEqual({ sent: true })
+    await expect(processStatementUploadReminder('o1')).resolves.toEqual({ sent: true })
   })
 })
 
@@ -180,25 +180,25 @@ describe('meter reading reminder', () => {
   const eligibleData = () => ({
     tenants: [
       // spełnia wszystko
-      { id: 1, first_name: 'Jan', last_name: 'Nowak', email: 'jan@example.com', email2: 'jan2@example.com', property_id: 10, reading_token: 'tok1', contracts: [{ is_active: true, has_media_invoice: true }] },
+      { owner_id: 'o1', id: 1, first_name: 'Jan', last_name: 'Nowak', email: 'jan@example.com', email2: 'jan2@example.com', property_id: 10, reading_token: 'tok1', contracts: [{ is_active: true, has_media_invoice: true }] },
       // brak e-maila
-      { id: 2, first_name: 'Ewa', last_name: 'Bez', email: null, email2: null, property_id: 10, reading_token: 'tok2', contracts: [{ is_active: true, has_media_invoice: true }] },
+      { owner_id: 'o1', id: 2, first_name: 'Ewa', last_name: 'Bez', email: null, email2: null, property_id: 10, reading_token: 'tok2', contracts: [{ is_active: true, has_media_invoice: true }] },
       // umowa bez mediów
-      { id: 3, first_name: 'Adam', last_name: 'BezMediow', email: 'a@example.com', email2: null, property_id: 10, reading_token: 'tok3', contracts: [{ is_active: true, has_media_invoice: false }] },
+      { owner_id: 'o1', id: 3, first_name: 'Adam', last_name: 'BezMediow', email: 'a@example.com', email2: null, property_id: 10, reading_token: 'tok3', contracts: [{ is_active: true, has_media_invoice: false }] },
       // umowa nieaktywna
-      { id: 4, first_name: 'Ola', last_name: 'Nieaktywna', email: 'o@example.com', email2: null, property_id: 10, reading_token: 'tok4', contracts: [{ is_active: false, has_media_invoice: true }] },
+      { owner_id: 'o1', id: 4, first_name: 'Ola', last_name: 'Nieaktywna', email: 'o@example.com', email2: null, property_id: 10, reading_token: 'tok4', contracts: [{ is_active: false, has_media_invoice: true }] },
       // brak kluczy odczytów
-      { id: 5, first_name: 'Piotr', last_name: 'BezKluczy', email: 'p@example.com', email2: null, property_id: 10, reading_token: 'tok5', contracts: [{ is_active: true, has_media_invoice: true }] },
+      { owner_id: 'o1', id: 5, first_name: 'Piotr', last_name: 'BezKluczy', email: 'p@example.com', email2: null, property_id: 10, reading_token: 'tok5', contracts: [{ is_active: true, has_media_invoice: true }] },
     ],
-    settlement_group_properties: [{ property_id: 10, settlement_group_id: 100 }],
-    settlement_groups: [{ id: 100, tenant_reading_keys: { '1': ['woda', 'prad'], '2': ['woda'], '3': ['woda'], '4': ['woda'], '5': [] } }],
-    app_config: [{ id: 1, meter_reading_reminder_subject: 'Temat', meter_reading_reminder_body: 'Treść' }],
+    settlement_group_properties: [{ owner_id: 'o1', property_id: 10, settlement_group_id: 100 }],
+    settlement_groups: [{ owner_id: 'o1', id: 100, tenant_reading_keys: { '1': ['woda', 'prad'], '2': ['woda'], '3': ['woda'], '4': ['woda'], '5': [] } }],
+    app_config: [{ owner_id: 'o1', meter_reading_reminder_subject: 'Temat', meter_reading_reminder_body: 'Treść' }],
   })
 
   test('getEligibleMeterReminderTenants: tylko aktywna umowa z mediami, e-mail i klucze odczytów', async () => {
     freshDb(eligibleData())
 
-    const eligible = await getEligibleMeterReminderTenants()
+    const eligible = await getEligibleMeterReminderTenants('o1')
 
     expect(eligible).toEqual([{ id: 1, name: 'Jan Nowak', emails: ['jan@example.com', 'jan2@example.com'] }])
   })
@@ -215,7 +215,7 @@ describe('meter reading reminder', () => {
     vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://app.example.com')
     freshDb(eligibleData())
 
-    const result = await processMeterReadingReminder()
+    const result = await processMeterReadingReminder('o1')
 
     expect(result.sent).toBe(shouldSend)
     if (!shouldSend) expect(result.reason).toBe('Not the last day of month')
@@ -226,11 +226,12 @@ describe('meter reading reminder', () => {
     vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://app.example.com')
     freshDb(eligibleData())
 
-    const result = await processMeterReadingReminder()
+    const result = await processMeterReadingReminder('o1')
 
     expect(result).toMatchObject({ sent: true, count: 1 })
     expect(sendMeterReadingReminderEmailMock).toHaveBeenCalledTimes(1)
     expect(sendMeterReadingReminderEmailMock).toHaveBeenCalledWith(
+      'o1',
       ['jan@example.com', 'jan2@example.com'],
       'Jan Nowak',
       'https://app.example.com/odczyty/tok1',
@@ -244,8 +245,8 @@ describe('meter reading reminder', () => {
     vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://app.example.com')
     freshDb(eligibleData())
 
-    await processMeterReadingReminder()
-    const second = await processMeterReadingReminder()
+    await processMeterReadingReminder('o1')
+    const second = await processMeterReadingReminder('o1')
 
     expect(second).toEqual({ sent: false, reason: 'Already sent this month' })
     expect(sendMeterReadingReminderEmailMock).toHaveBeenCalledTimes(1)
@@ -256,7 +257,7 @@ describe('meter reading reminder', () => {
     vi.stubEnv('NEXT_PUBLIC_APP_URL', '')
     freshDb(eligibleData())
 
-    const result = await processMeterReadingReminder()
+    const result = await processMeterReadingReminder('o1')
 
     expect(result).toEqual({ sent: false, reason: 'NEXT_PUBLIC_APP_URL not configured' })
     expect(sendMeterReadingReminderEmailMock).not.toHaveBeenCalled()
@@ -268,14 +269,14 @@ describe('meter reading reminder', () => {
     vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://app.example.com')
     const data = eligibleData()
     data.tenants.push({
-      id: 6, first_name: 'Kasia', last_name: 'Druga', email: 'k@example.com', email2: null, property_id: 10, reading_token: 'tok6',
+      owner_id: 'o1', id: 6, first_name: 'Kasia', last_name: 'Druga', email: 'k@example.com', email2: null, property_id: 10, reading_token: 'tok6',
       contracts: [{ is_active: true, has_media_invoice: true }],
     })
     ;(data.settlement_groups[0].tenant_reading_keys as Record<string, string[]>)['6'] = ['woda']
     freshDb(data)
     sendMeterReadingReminderEmailMock.mockRejectedValueOnce(new Error('SMTP down'))
 
-    const result = await processMeterReadingReminder()
+    const result = await processMeterReadingReminder('o1')
 
     expect(result).toMatchObject({ sent: true, count: 1 })
     expect(result.results).toEqual([

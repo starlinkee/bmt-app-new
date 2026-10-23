@@ -1,20 +1,21 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getVerifiedUserOrNull } from '@/lib/auth-guard'
 
-/** Zwraca sesję lub null. */
-export async function getSession() {
-  const supabase = await createClient()
-  const { data } = await supabase.auth.getSession()
-  return data.session
+/**
+ * Dla tras API: zwraca zweryfikowanego użytkownika lub null (bez przekierowania -
+ * trasa odpowiada 401). Weryfikacja (getClaims, jedna na żądanie) żyje w
+ * lib/auth-guard.ts; getSession() na serwerze tylko dekoduje ciasteczko, więc
+ * przyjęłoby podrobione.
+ */
+export async function requireApiAuth() {
+  return getVerifiedUserOrNull()
 }
 
-/** Przekierowuje na /login jeśli brak sesji. */
+/** Przekierowuje na /login jeśli brak zweryfikowanego użytkownika. */
 export async function requireAuth() {
-  const session = await getSession()
-  if (!session) {
-    redirect('/login')
-  }
-  return session
+  const user = await getVerifiedUserOrNull()
+  if (!user) redirect('/login')
+  return user
 }

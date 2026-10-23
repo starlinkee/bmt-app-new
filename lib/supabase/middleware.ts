@@ -29,8 +29,9 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // Odświeżenie sesji — nie usuwaj tej linii.
-  await supabase.auth.getUser();
+  // Odświeżenie sesji — nie usuwaj tej linii. getClaims() weryfikuje JWT (lokalnie
+  // przy kluczach asymetrycznych) i w razie potrzeby odświeża tokeny w ciasteczkach.
+  await supabase.auth.getClaims();
 
   return supabaseResponse;
 }

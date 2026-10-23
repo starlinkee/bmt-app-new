@@ -1,6 +1,7 @@
 import { test as base, expect } from '@playwright/test'
 import {
   createTestDbClient,
+  getTestOwnerId,
   E2E_PREFIX,
   deleteProperties,
   deleteSettlementGroups,
@@ -54,6 +55,14 @@ type Fixtures = {
   makeSettlementGroup: (overrides?: SettlementGroupOverrides) => Promise<SettlementGroupHandle>
 }
 
+// Po slice 2 UI pokazuje tylko dane zalogowanego konta (RLS), więc dane wstawiane
+// przez service role muszą należeć do konta E2E_LOGIN_EMAIL (id nie trafia do logów).
+async function ownerFields(db: Db): Promise<{ owner_id: string }> {
+  const owner_id = await getTestOwnerId(db)
+  if (!owner_id) throw new Error('Brak E2E_LOGIN_EMAIL - fixtures e2e nie wiedzą, do którego konta przypisać dane.')
+  return { owner_id }
+}
+
 export const test = base.extend<Fixtures>({
   db: async ({}, use) => {
     await use(createTestDbClient())
@@ -94,7 +103,7 @@ export const test = base.extend<Fixtures>({
 
       const { data: property, error: propertyError } = await db
         .from('properties')
-        .insert({ name: propertyName, address1: 'ul. Testowa 1', type: 'RESIDENTIAL' })
+        .insert({ name: propertyName, address1: 'ul. Testowa 1', type: 'RESIDENTIAL', ...(await ownerFields(db)) })
         .select()
         .single()
       if (propertyError) throw propertyError
@@ -108,6 +117,7 @@ export const test = base.extend<Fixtures>({
           last_name: lastName,
           property_id: property.id,
           bank_accounts_as_text: '',
+          ...(await ownerFields(db)),
         })
         .select()
         .single()
@@ -138,6 +148,7 @@ export const test = base.extend<Fixtures>({
           is_active: true,
           tenant_id: tenantId,
           ...overrides,
+          ...(await ownerFields(db)),
         })
         .select()
         .single()
@@ -163,6 +174,7 @@ export const test = base.extend<Fixtures>({
           address1: overrides.address1 ?? 'ul. Testowa 1',
           address2: overrides.address2 ?? undefined,
           type: overrides.type ?? 'Mieszkanie',
+          ...(await ownerFields(db)),
         })
         .select()
         .single()
@@ -188,15 +200,17 @@ export const test = base.extend<Fixtures>({
 
       const { data, error } = await db
         .from('settlement_groups')
-        .insert({ name, spreadsheet_id: overrides.spreadsheet_id ?? '' })
+        .insert({ name, spreadsheet_id: overrides.spreadsheet_id ?? '', ...(await ownerFields(db)) })
         .select()
         .single()
       if (error) throw error
       createdGroupIds.push(data.id)
 
       if (overrides.property_ids?.length) {
+        const ownerRow = await ownerFields(db)
         await db.from('settlement_group_properties').insert(
           overrides.property_ids.map((propertyId) => ({
+            ...ownerRow,
             settlement_group_id: data.id,
             property_id: propertyId,
           })),

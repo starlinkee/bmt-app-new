@@ -1,8 +1,8 @@
-import { createServiceClient } from '@/lib/supabase/service'
+import { readSystemSettings, updateSystemSettings } from '@/lib/app-config'
 
 // Wirtualny zegar do testowania automatyzacji (crony, przypomnienia).
 //
-// Zasada: przechowujemy w bazie (app_config.time_offset_ms) przesunięcie
+// Zasada: przechowujemy w bazie (system_settings.time_offset_ms) przesunięcie
 // w milisekundach. Efektywny "teraz" to zawsze `Date.now() + offset` - czas
 // płynie normalnie, tylko przesunięty. Dzięki temu np. cron sprawdzający
 // "czy dziś jest 16. dzień miesiąca, godzina 8:00" da się przetestować bez
@@ -20,12 +20,7 @@ export function isTestClockAllowed(): boolean {
 export async function getTimeOffsetMs(): Promise<number> {
   if (!isTestClockAllowed()) return 0
 
-  const supabase = createServiceClient()
-  const { data } = await supabase
-    .from('app_config')
-    .select('time_offset_ms')
-    .eq('id', 1)
-    .single()
+  const data = await readSystemSettings()
 
   return data?.time_offset_ms ? Number(data.time_offset_ms) : 0
 }
@@ -43,11 +38,5 @@ export async function setTimeOffsetMs(offsetMs: number): Promise<void> {
     throw new Error('Wirtualny zegar jest wyłączony na tym środowisku')
   }
 
-  const supabase = createServiceClient()
-  const { error } = await supabase
-    .from('app_config')
-    .update({ time_offset_ms: Math.round(offsetMs) })
-    .eq('id', 1)
-
-  if (error) throw error
+  await updateSystemSettings({ time_offset_ms: Math.round(offsetMs) })
 }

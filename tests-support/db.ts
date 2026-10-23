@@ -2,6 +2,8 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/supabase'
 import { assertNotProduction } from './guard'
+import { purgeIsolationUsers, serviceClient } from './isolationUsers'
+import { TEST_SESSION_OWNER_ENV, withSessionOwner } from './sessionOwner'
 
 // Współdzielone przez testy Playwright (e2e/) i vitestowe testy integracyjne
 // (__tests__/integration/) - jedna implementacja klienta bazy i sprzątania.
@@ -11,7 +13,7 @@ import { assertNotProduction } from './guard'
  * używany WYŁĄCZNIE do zakładania i sprzątania danych testowych z poziomu
  * testów (poza UI), żeby nie zależeć od kolejności innych scenariuszy.
  */
-export function createTestDbClient() {
+export function createTestDbClient(opts: { raw?: boolean } = {}) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) {
@@ -19,7 +21,11 @@ export function createTestDbClient() {
       'Brak NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY dla preview — ustaw je w .env.e2e.',
     )
   }
-  return createClient<Database>(url, key)
+  const client = createClient<Database>(url, key)
+  // Testy integracyjne (setup.ts) ustawiają konto "sesji" - odpowiednik DEFAULT = auth.uid().
+  // Bez niego (e2e: fixtures podają owner_id jawnie) i z `raw` zostaje czysta rola service.
+  const sessionOwner = process.env[TEST_SESSION_OWNER_ENV]
+  return sessionOwner && !opts.raw ? withSessionOwner(client, sessionOwner) : client
 }
 
 // Prefiks pozwalający jednoznacznie rozpoznać (i w razie czego posprzątać ręcznie)
@@ -28,6 +34,30 @@ export function createTestDbClient() {
 export const E2E_PREFIX = 'E2E_TEST__'
 
 export type Db = ReturnType<typeof createTestDbClient>
+
+let cachedOwnerId: Promise<string | undefined> | undefined
+
+/**
+ * id konta E2E_LOGIN_EMAIL (konto, którym loguje się Playwright). Po slice 2 UI
+ * pokazuje tylko dane zalogowanego konta (RLS "owner access"), więc fixtures
+ * e2e muszą wstawiać wiersze z owner_id tego konta. Bez E2E_LOGIN_EMAIL (np. testy
+ * integracyjne, które omijają RLS) zwraca undefined - wtedy owner_id uzupełnia wrapper sesji (tests-support/sessionOwner.ts).
+ */
+export function getTestOwnerId(db: Db): Promise<string | undefined> {
+  cachedOwnerId ??= (async () => {
+    const email = process.env.E2E_LOGIN_EMAIL?.trim().toLowerCase()
+    if (!email) return undefined
+    for (let page = 1; page <= 20; page++) {
+      const { data, error } = await db.auth.admin.listUsers({ page, perPage: 200 })
+      if (error) throw error
+      const user = data.users.find((u) => u.email?.toLowerCase() === email)
+      if (user) return user.id
+      if (data.users.length < 200) break
+    }
+    throw new Error('Nie znaleziono w bazie konta E2E_LOGIN_EMAIL - fixtures nie wiedzą, czyje dane założyć.')
+  })()
+  return cachedOwnerId
+}
 
 /**
  * Ten sam klient bez typów tabel. `types/supabase.ts` nie zna jeszcze kolumn
@@ -51,23 +81,23 @@ function must<T extends { error: { message: string } | null }>(res: T, what: str
 /**
  * DELETE z `transactions` i `invoices` jest domyślnie blokowany triggerem
  * (patrz migracja 20260911140000_configurable_delete_protection.sql) - włącza
- * go dopiero `app_config.allow_destructive_test_deletes`. Na czas sprzątania
+ * go dopiero `system_settings.allow_destructive_test_deletes`. Na czas sprzątania
  * włączamy flagę i przywracamy ją do poprzedniej wartości. Odmawia, jeśli
  * cel to projekt produkcyjny z PRODUCTION_SUPABASE_REFS.
  */
 async function withDestructiveDeletes<T>(db: Db, fn: () => Promise<T>): Promise<T> {
   assertNotProduction()
   const { data } = must(
-    await db.from('app_config').select('allow_destructive_test_deletes').eq('id', 1).single(),
-    'app_config lookup',
+    await db.from('system_settings').select('allow_destructive_test_deletes').eq('id', 1).single(),
+    'system_settings lookup',
   )
   if (data?.allow_destructive_test_deletes) return fn()
 
-  must(await db.from('app_config').update({ allow_destructive_test_deletes: true }).eq('id', 1), 'app_config unlock')
+  must(await db.from('system_settings').update({ allow_destructive_test_deletes: true }).eq('id', 1), 'system_settings unlock')
   try {
     return await fn()
   } finally {
-    must(await db.from('app_config').update({ allow_destructive_test_deletes: false }).eq('id', 1), 'app_config relock')
+    must(await db.from('system_settings').update({ allow_destructive_test_deletes: false }).eq('id', 1), 'system_settings relock')
   }
 }
 
@@ -175,6 +205,9 @@ export async function purgeAllTestData(db: Db, options: PurgeOptions = {}) {
       'audit_log',
     )
   }
+
+  // Użytkownicy testów izolacji kont (e2e_test__iso_…) razem z ich wierszami i plikami.
+  await purgeIsolationUsers(serviceClient())
 }
 
 /** Liczba rekordów z prefiksem testowym per tabela - po udanym sprzątaniu wszędzie 0. */

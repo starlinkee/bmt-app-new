@@ -5,6 +5,9 @@ deployu **preview** na Vercelu, przeciwko temu deployowi i jego bazie Supabase
 (środowisko `preview`). Nie dotykają produkcji ani lokalnego `next dev`.
 `scripts/push-preview.sh` czeka na wynik tego workflow, a dopiero potem otwiera PR dev → master (merge ręcznie na GitHubie).
 
+Ręcznie (gdy Vercel nie zgłosił `deployment_status`):
+`gh workflow run e2e.yml --ref dev -f base_url=<URL deploya preview>`.
+
 ## Sekrety w GitHubie (jednorazowo)
 
 Settings → Secrets and variables → Actions → New repository secret:

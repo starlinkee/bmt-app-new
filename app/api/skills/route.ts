@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server'
-import { createServiceClient } from '@/lib/supabase/service'
+import { getApiUserClient } from '@/lib/auth-guard'
 
 export async function GET() {
-  const supabase = createServiceClient()
+  const ctx = await getApiUserClient()
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const supabase = ctx.supabase
   
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

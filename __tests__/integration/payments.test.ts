@@ -138,10 +138,10 @@ describe('sendStatementToTenant', () => {
     expect(logs![0].to_email).toBe(`${email}, ${email2}`)
     expect(logs![0].subject).toBe(mail.subject)
     expect(logs![0].attachments).toEqual([expect.objectContaining({ name: 'Wyciag_z_konta.pdf' })])
-    // Załącznik trafia do Storage pod prefiksem preview/ (kopia na potrzeby podglądu w wiadomościach).
+    // Załącznik trafia do Storage pod prefiksem <owner_id>/preview/ (kopia na potrzeby podglądu w wiadomościach).
     expect(storage.uploads).toHaveLength(1)
     expect(storage.uploads[0]).toMatchObject({ bucket: 'invoices', contentType: 'application/pdf' })
-    expect(storage.uploads[0].path.startsWith('preview/emails/')).toBe(true)
+    expect(storage.uploads[0].path.startsWith(`${process.env.TEST_SESSION_OWNER_ID}/preview/emails/`)).toBe(true)
   })
 
   test('najemca bez adresu e-mail -> błąd i brak wysyłki', async () => {
@@ -154,7 +154,9 @@ describe('sendStatementToTenant', () => {
   })
 
   test('nieistniejący najemca -> błąd', async () => {
-    expect(await sendStatementToTenant(2_000_000_000)).toEqual({ success: false, error: 'Nie znaleziono najemcy' })
+    // assertTenantOwned (slice 2) rzuca to samo 'Not found' dla cudzego i nieistniejącego id,
+    // żeby nie zdradzać istnienia cudzych wierszy - komunikat 'Nie znaleziono najemcy' nie jest już osiągalny.
+    expect(await sendStatementToTenant(2_000_000_000)).toEqual({ success: false, error: 'Not found' })
   })
 
   test('awaria SMTP jest zwrócona jako błąd, a nie wyjątek, i nie zostawia wpisu w logach', async () => {
@@ -186,7 +188,11 @@ describe('sendStatementToTenant', () => {
 describe('sendBulkStatements', () => {
   // Wysyłka zbiorcza obejmuje WSZYSTKICH dłużników w bazie - zawężamy tabelę
   // tenants do danych testowych, żeby nie trafić w prawdziwych najemców.
-  beforeEach(() => {
+  // Dłużnicy z e-mailem z wcześniejszych testów (sendStatementToTenant) zostają do
+  // afterAll, więc bez sprzątania liczyłyby się do wysyłki zbiorczej - każdy test
+  // bulk ma widzieć tylko własne dane.
+  beforeEach(async () => {
+    await purgeAllTestData(db)
     scopeTable('tenants', (q) => q.like('last_name', `${E2E_PREFIX}%`))
   })
 

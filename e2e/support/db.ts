@@ -2,6 +2,7 @@
 // integracyjnymi (__tests__/integration/) - implementacja żyje w tests-support/.
 export {
   createTestDbClient,
+  getTestOwnerId,
   E2E_PREFIX,
   deleteTenants,
   deleteProperties,

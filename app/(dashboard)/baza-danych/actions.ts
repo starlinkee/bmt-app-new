@@ -1,19 +1,7 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
-
-/**
- * Ten ekran pokazuje DOWOLNĄ tabelę 1-1 tak, jak wygląda w bazie, więc
- * celowo nie używamy typowanego klienta (types/supabase.ts) — ograniczałby
- * nas do znanych z góry tabel/kolumn. Zamiast tego autoryzację i zakres
- * dostępu pilnuje biała lista ALLOWED_TABLES poniżej.
- */
-function createRawServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  )
-}
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { getUserClient } from '@/lib/auth-guard'
 
 // Biała lista tabel, które można przeglądać. Trzymana po stronie serwera,
 // żeby nazwa tabeli przekazana z klienta nigdy nie trafiła do zapytania
@@ -30,7 +18,6 @@ const ALLOWED_TABLES = new Set([
   'settlement_group_properties',
   'media_settlements',
   'media_meter_readings',
-  'app_config',
   'profiles',
   'operation_log',
   'audit_log',
@@ -51,6 +38,7 @@ export async function getDbTableRows(
   page: number,
   pageSize: number,
 ): Promise<DbTableRowsResult> {
+  const { supabase: session } = await getUserClient()
   if (!ALLOWED_TABLES.has(table)) {
     throw new Error(`Nieznana lub niedozwolona tabela: ${table}`)
   }
@@ -60,7 +48,9 @@ export async function getDbTableRows(
   const from = (safePage - 1) * safePageSize
   const to = from + safePageSize - 1
 
-  const supabase = createRawServiceClient()
+  // Nietypowany klient: nazwa tabeli jest dynamiczna (biała lista wyżej). Klient z sesją -
+  // RLS zawęża wiersze do własnego konta.
+  const supabase = session as unknown as SupabaseClient
   const { data, error, count } = await supabase
     .from(table)
     .select('*', { count: 'exact' })
