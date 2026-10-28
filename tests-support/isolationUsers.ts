@@ -12,6 +12,8 @@ export const ISOLATION_BUCKETS = ['invoices', 'manual-uploads'] as const
 
 // Kolejność: tabele zależne przed rodzicami (owner_id nie ma ON DELETE CASCADE).
 const WIPE_ORDER = [
+  'google_credentials',
+  'google_connections',
   'transaction_amendments',
   'invoices',
   'transaction_staging',

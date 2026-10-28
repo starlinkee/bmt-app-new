@@ -116,6 +116,55 @@ export type Database = {
         Update: { id?: number; owner_id?: string }
         Relationships: []
       }
+      google_connections: {
+        Row: {
+          owner_id: string
+          google_email: string | null
+          scopes: string[]
+          status: 'connected' | 'needs_reauth' | 'disconnected'
+          connected_at: string | null
+          last_ok_at: string | null
+          last_error: string | null
+          template_file_id: string | null
+          folder_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          owner_id: string
+          google_email?: string | null
+          scopes?: string[]
+          status: 'connected' | 'needs_reauth' | 'disconnected'
+          connected_at?: string | null
+          last_ok_at?: string | null
+          last_error?: string | null
+          template_file_id?: string | null
+          folder_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          owner_id?: string
+          google_email?: string | null
+          scopes?: string[]
+          status?: 'connected' | 'needs_reauth' | 'disconnected'
+          connected_at?: string | null
+          last_ok_at?: string | null
+          last_error?: string | null
+          template_file_id?: string | null
+          folder_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      // bytea przez PostgREST to tekst hex z prefiksem "\\x" (patrz toPgBytea/fromPgBytea w lib/secret-box).
+      google_credentials: {
+        Row: { owner_id: string; refresh_token_ct: string; iv: string; key_version: number; created_at: string; rotated_at: string | null }
+        Insert: { owner_id: string; refresh_token_ct: string; iv: string; key_version: number; created_at?: string; rotated_at?: string | null }
+        Update: { owner_id?: string; refresh_token_ct?: string; iv?: string; key_version?: number; created_at?: string; rotated_at?: string | null }
+        Relationships: []
+      }
       contracts: {
         Row: {
           owner_id: string

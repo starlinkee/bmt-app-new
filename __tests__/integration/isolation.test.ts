@@ -136,7 +136,9 @@ const SPECS: Record<string, Spec> = {
 }
 
 // Tabele celowo bez dostępu dla ról użytkowników (REVOKE ALL) - sprawdzane osobno poniżej.
-const SERVICE_ONLY = ['legacy_owner']
+const SERVICE_ONLY = ['legacy_owner', 'google_credentials']
+// Tabele tylko do odczytu dla właściciela: authenticated czyta własny wiersz (RLS), zapis wyłącznie rolą service.
+const READ_ONLY = ['google_connections']
 // Tabele globalne, świadomie bez owner_id (wyjątek opisany w raporcie).
 const GLOBAL_TABLES = ['system_settings']
 
@@ -272,13 +274,13 @@ afterAll(async () => {
 
 describe('lista tabel (strażnik)', () => {
   test('każda tabela z kolumną owner_id (z OpenAPI bazy) ma wpis w macierzy albo jest jawnie service-only', () => {
-    const covered = new Set([...Object.keys(SPECS), ...SERVICE_ONLY])
+    const covered = new Set([...Object.keys(SPECS), ...SERVICE_ONLY, ...READ_ONLY])
     const missing = openApiTables.withOwner.filter((t) => !covered.has(t))
     expect(missing, `Tabele z owner_id bez pokrycia w isolation.test.ts: ${missing.join(', ')}`).toEqual([])
   })
 
   test('wpisy macierzy odpowiadają istniejącym tabelom', () => {
-    const stale = [...Object.keys(SPECS), ...SERVICE_ONLY].filter((t) => !openApiTables.all.includes(t))
+    const stale = [...Object.keys(SPECS), ...SERVICE_ONLY, ...READ_ONLY].filter((t) => !openApiTables.all.includes(t))
     expect(stale).toEqual([])
   })
 
@@ -400,6 +402,121 @@ describe.each(Object.entries(SPECS))('izolacja: %s', (table, spec) => {
     record(table, 'anDel', delOk, del.error ? errCode(del.error) : '0 usuniętych')
     expect(updOk).toBe(true)
     expect(delOk).toBe(true)
+  })
+})
+
+// Wiersz sekretu wstawiany rolą service; treść nie ma znaczenia (nikt tu nie odszyfrowuje).
+const fakeCredential = (owner: string) => ({ owner_id: owner, refresh_token_ct: '\\xdeadbeef', iv: '\\x000000000000000000000000', key_version: 1 })
+
+describe('google_credentials (service-only)', () => {
+  beforeAll(async () => {
+    for (const owner of [A.id, B.id]) await ins('google_credentials', fakeCredential(owner))
+  })
+
+  test.each([
+    ['A (authenticated)', () => A.client],
+    ['anon', () => anon],
+  ])('%s nie ma żadnego dostępu do żadnego wiersza', async (name, client) => {
+    const c = client()
+    const sel = await c.from('google_credentials').select('*')
+    const selB = await c.from('google_credentials').select('*').eq('owner_id', B.id)
+    const selA = await c.from('google_credentials').select('*').eq('owner_id', A.id)
+    const upd = await c.from('google_credentials').update({ key_version: 9 }).eq('owner_id', B.id).select()
+    const updA = await c.from('google_credentials').update({ key_version: 9 }).eq('owner_id', A.id).select()
+    const del = await c.from('google_credentials').delete().eq('owner_id', B.id).select()
+    const delA = await c.from('google_credentials').delete().eq('owner_id', A.id).select()
+    const insB = await c.from('google_credentials').insert({ ...fakeCredential(B.id), owner_id: B.id }).select()
+    const insA = await c.from('google_credentials').insert({ ...fakeCredential(A.id), owner_id: A.id }).select()
+    for (const r of [sel, selB, selA, upd, updA, del, delA, insB, insA]) expect(r.error?.code).toBe('42501')
+
+    const { data } = await admin.from('google_credentials').select('owner_id, key_version').in('owner_id', [A.id, B.id])
+    expect(data).toHaveLength(2)
+    expect(data!.every((r) => r.key_version === 1)).toBe(true)
+
+    cells.set(`google_credentials (${name})`, {
+      selB: `${denied(selB.error) ? 'OK' : 'PRZECIEK'} (${errCode(selB.error)})`,
+      updB: `${denied(upd.error) ? 'OK' : 'PRZECIEK'} (${errCode(upd.error)})`,
+      delB: `${denied(del.error) ? 'OK' : 'PRZECIEK'} (${errCode(del.error)})`,
+      insB: `${denied(insB.error) ? 'OK' : 'PRZECIEK'} (${errCode(insB.error)})`,
+      selA: `${denied(selA.error) ? 'OK' : 'PRZECIEK'} (${errCode(selA.error)})`,
+      updA: `${denied(updA.error) ? 'OK' : 'PRZECIEK'} (${errCode(updA.error)})`,
+      insA: `${denied(insA.error) ? 'OK' : 'PRZECIEK'} (${errCode(insA.error)})`,
+      delA: `${denied(delA.error) ? 'OK' : 'PRZECIEK'} (${errCode(delA.error)})`,
+    })
+  })
+})
+
+describe('google_connections (tylko odczyt własnego wiersza)', () => {
+  const t = 'google_connections'
+  let rowA: Row
+  let rowB: Row
+  const connection = (owner: string) => ({ owner_id: owner, status: 'connected', google_email: `${E2E_PREFIX}iso@example.invalid`, scopes: ['gmail.send'] })
+  const reread = async (owner: string) => (await admin.from(t).select('*').eq('owner_id', owner).maybeSingle()).data as Row | null
+
+  beforeAll(async () => {
+    rowA = await ins(t, connection(A.id))
+    rowB = await ins(t, connection(B.id))
+  })
+
+  test('A: SELECT wiersza B -> 0 wierszy', async () => {
+    const { data, error } = await A.client.from(t).select('*').eq('owner_id', B.id)
+    record(t, 'selB', !error && data?.length === 0, error ? errCode(error) : `${data?.length} wierszy`)
+    expect(error).toBeNull()
+    expect(data).toHaveLength(0)
+  })
+
+  test('A: UPDATE i DELETE wiersza B -> odmowa, wiersz bez zmian', async () => {
+    const upd = await A.client.from(t).update({ status: 'disconnected' }).eq('owner_id', B.id).select()
+    const del = await A.client.from(t).delete().eq('owner_id', B.id).select()
+    const after = await reread(B.id)
+    record(t, 'updB', denied(upd.error), errCode(upd.error) || 'zmieniono')
+    record(t, 'delB', denied(del.error), errCode(del.error) || 'usunięto')
+    expect(upd.error?.code).toBe('42501')
+    expect(del.error?.code).toBe('42501')
+    expect(after?.status).toBe('connected')
+  })
+
+  test('A: INSERT z owner_id=B -> odmowa', async () => {
+    const { error } = await A.client.from(t).insert({ ...connection(B.id), owner_id: B.id }).select()
+    record(t, 'insB', denied(error), errCode(error) || 'wstawiono')
+    expect(error?.code).toBe('42501')
+  })
+
+  test('kontrola pozytywna: A czyta własny wiersz (i tylko jego)', async () => {
+    const { data, error } = await A.client.from(t).select('*')
+    record(t, 'selA', !error && data?.length === 1 && data[0].owner_id === A.id, error ? errCode(error) : `${data?.length} wiersz`)
+    expect(error).toBeNull()
+    expect(data).toHaveLength(1)
+    expect(data![0].owner_id).toBe(A.id)
+    expect(data![0].google_email).toBe(rowA.google_email)
+  })
+
+  test('A: UPDATE, INSERT i DELETE własnego wiersza -> odmowa (zapis tylko rolą service)', async () => {
+    const upd = await A.client.from(t).update({ status: 'disconnected' }).eq('owner_id', A.id).select()
+    const ins2 = await A.client.from(t).insert(connection(A.id)).select()
+    const del = await A.client.from(t).delete().eq('owner_id', A.id).select()
+    const after = await reread(A.id)
+    record(t, 'updA', denied(upd.error), errCode(upd.error) || 'zmieniono')
+    record(t, 'insA', denied(ins2.error), errCode(ins2.error) || 'wstawiono')
+    record(t, 'delA', denied(del.error), errCode(del.error) || 'usunięto')
+    expect(upd.error?.code).toBe('42501')
+    expect(ins2.error?.code).toBe('42501')
+    expect(del.error?.code).toBe('42501')
+    expect(after?.status).toBe('connected')
+  })
+
+  test('anon: nic nie czyta ani nie zmienia', async () => {
+    const sel = await anon.from(t).select('*').eq('owner_id', B.id)
+    const ins2 = await anon.from(t).insert(connection(B.id)).select()
+    const upd = await anon.from(t).update({ status: 'disconnected' }).eq('owner_id', B.id).select()
+    const del = await anon.from(t).delete().eq('owner_id', B.id).select()
+    const after = await reread(B.id)
+    record(t, 'anSel', denied(sel.error), errCode(sel.error) || `${sel.data?.length} wierszy`)
+    record(t, 'anIns', denied(ins2.error), errCode(ins2.error) || 'wstawiono')
+    record(t, 'anUpd', denied(upd.error), errCode(upd.error) || 'zmieniono')
+    record(t, 'anDel', denied(del.error), errCode(del.error) || 'usunięto')
+    for (const r of [sel, ins2, upd, del]) expect(r.error?.code).toBe('42501')
+    expect(after?.status).toBe(rowB.status)
   })
 })
 
@@ -563,6 +680,8 @@ function writeReport() {
     '',
     '## Wyjątki',
     '',
+    '- `google_credentials`: tylko service role, bez polityk RLS (`REVOKE ALL` dla authenticated i anon); w tabeli wyżej wszystkie próby (także na własnym wierszu A) kończą się odmową.',
+    '- `google_connections`: authenticated tylko `SELECT` własnego wiersza (RLS), zapis wyłącznie rolą service, anon nic; próby zapisu na własnym wierszu A to odmowa (42501), nie kontrola pozytywna.',
     '- `legacy_owner`: tylko service role (`REVOKE ALL` dla authenticated i anon); wiersze `legacy_owner (…)` w tabeli wyżej to próby odczytu i zmian.',
     '- `system_settings`: tabela globalna (flagi środowiska), celowo bez `owner_id`; zamknięta dla authenticated i anon (`REVOKE ALL`).',
     '- `profiles`: klucz `id` = id konta (bez `owner_id`); dopisana do macierzy jawnie. Brak polityki INSERT/DELETE, więc te operacje są odrzucane.',
