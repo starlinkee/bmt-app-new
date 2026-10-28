@@ -1,6 +1,14 @@
 import { getAutomationStatus, getAppConfig, getUpcomingRentCharges, getMediaGroupEmailPreviews } from './actions'
 import { LateReminderForm, MeterReminderForm, MeterClosedMessageForm, StatementUploadReminderForm } from './settings-forms'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import {
+  DEFAULT_STATEMENT_UPLOAD_REMINDER_SUBJECT,
+  DEFAULT_STATEMENT_UPLOAD_REMINDER_BODY,
+  DEFAULT_METER_READING_REMINDER_SUBJECT,
+  DEFAULT_METER_READING_REMINDER_BODY,
+  DEFAULT_STATEMENT_EMAIL_SUBJECT,
+  DEFAULT_STATEMENT_EMAIL_BODY,
+} from '@/lib/email-defaults'
 import { formatDateTime, formatAmount } from '@/lib/utils'
 import { Mail, CalendarClock, ClipboardList, Gauge, Receipt } from 'lucide-react'
 
@@ -61,8 +69,8 @@ export default async function AutomatyzacjePage() {
               value={status.lastUploadReminderSentAt ? formatDateTime(status.lastUploadReminderSentAt) : 'jeszcze nigdy'}
             />
             <StatementUploadReminderForm
-              initialSubject={(cfg.statement_upload_reminder_subject as string) ?? 'Przypomnienie: wgraj wyciąg z banku'}
-              initialBody={(cfg.statement_upload_reminder_body as string) ?? 'Przypomnienie automatyczne z systemu BMT.\n\nDzisiaj 16. dzień miesiąca — czas wgrać wyciąg z konta bankowego do systemu (sekcja Import).\n\nPozdrawiamy,\nBMT'}
+              initialSubject={(cfg.statement_upload_reminder_subject as string) ?? DEFAULT_STATEMENT_UPLOAD_REMINDER_SUBJECT}
+              initialBody={(cfg.statement_upload_reminder_body as string) ?? DEFAULT_STATEMENT_UPLOAD_REMINDER_BODY}
             />
           </CardContent>
         </Card>
@@ -122,8 +130,8 @@ export default async function AutomatyzacjePage() {
               )}
             </div>
             <MeterReminderForm
-              initialSubject={(cfg.meter_reading_reminder_subject as string) ?? 'Przypomnienie: podaj odczyty liczników'}
-              initialBody={(cfg.meter_reading_reminder_body as string) ?? 'Szanowny/a {imie},\n\nDzisiaj ostatni dzień miesiąca — prosimy o podanie odczytów liczników mediów pod poniższym linkiem:\n{link}\n\nPozdrawiamy,\nBMT'}
+              initialSubject={(cfg.meter_reading_reminder_subject as string) ?? DEFAULT_METER_READING_REMINDER_SUBJECT}
+              initialBody={(cfg.meter_reading_reminder_body as string) ?? DEFAULT_METER_READING_REMINDER_BODY}
             />
             <MeterClosedMessageForm
               initialMessage={(cfg.meter_reading_closed_message as string) ?? 'Podawanie odczytów jest teraz zamknięte. Sprawdź ponownie pod koniec miesiąca.'}
@@ -202,8 +210,8 @@ export default async function AutomatyzacjePage() {
               tego maila — nic nie wychodzi samo z siebie.
             </p>
             <LateReminderForm
-              initialSubject={(cfg.late_reminder_subject as string) ?? 'Rozliczenie wpłat i rachunków - BMT'}
-              initialBody={(cfg.late_reminder_body as string) ?? 'Szanowny/a {imie},\n\nPrzesyłamy w załączeniu aktualne podsumowanie Państwa konta. Saldo na dzień dzisiejszy wynosi: {saldo}.\n\nProsimy o uregulowanie należności.\n\nPozdrawiamy,\nBMT'}
+              initialSubject={(cfg.late_reminder_subject as string) ?? DEFAULT_STATEMENT_EMAIL_SUBJECT}
+              initialBody={(cfg.late_reminder_body as string) ?? DEFAULT_STATEMENT_EMAIL_BODY}
             />
           </CardContent>
         </Card>

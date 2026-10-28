@@ -1,7 +1,9 @@
 'use server'
 
 import { createServiceClient } from '@/lib/supabase/service'
+import { readAppConfig } from '@/lib/app-config'
 import { getCurrentDate } from '@/lib/clock'
+import { readingKeysOf } from '@/lib/reading-keys'
 import { DEFAULT_METER_READING_CLOSED_MESSAGE } from '@/lib/meter-reading-reminder'
 
 export async function getTenantReadingsContext(token: string) {
@@ -10,7 +12,7 @@ export async function getTenantReadingsContext(token: string) {
   // Znajdź najemcę po tokenie i pobierz jego aktywne umowy z włączonymi mediami
   const { data: tenant, error: tenantErr } = await supabase
     .from('tenants')
-    .select('id, first_name, last_name, property_id, contracts(is_active, has_media_invoice)')
+    .select('id, owner_id, first_name, last_name, property_id, contracts(is_active, has_media_invoice)')
     .eq('reading_token', token)
     .single()
     
@@ -25,9 +27,14 @@ export async function getTenantReadingsContext(token: string) {
   if (propertyIds.length === 0) return null
 
   // Znajdź grupy rozliczeniowe, do których należą te nieruchomości
+  // Strona publiczna działa rolą service (omija RLS), więc KAŻDE zapytanie zawężamy
+  // do konta właściciela najemcy z tokenu.
+  const ownerId = tenant.owner_id
+
   const { data: sgp } = await supabase
     .from('settlement_group_properties')
     .select('settlement_group_id')
+    .eq('owner_id', ownerId)
     .in('property_id', propertyIds)
 
   if (!sgp || sgp.length === 0) return null
@@ -37,11 +44,13 @@ export async function getTenantReadingsContext(token: string) {
   const { data: groups } = await supabase
     .from('settlement_groups')
     .select('id, name, tenant_reading_keys')
+    .eq('owner_id', ownerId)
     .in('id', groupIds)
     
   if (!groups || groups.length === 0) return null
 
   return {
+    ownerId,
     tenant: {
       id: tenant.id,
       name: `${tenant.first_name} ${tenant.last_name}`,
@@ -52,6 +61,20 @@ export async function getTenantReadingsContext(token: string) {
       const keys = trk[tenant.id.toString()];
       return Array.isArray(keys) && keys.length > 0;
     })
+  }
+}
+
+// Publiczna strona bez sesji - jedyną autoryzacją jest sekretny token najemcy
+// z linku. Każda akcja dotykająca odczytów musi zaczynać się od tego wywołania:
+// token musi należeć do najemcy, a grupa (groupId) do jego aktywnych umów z
+// mediami. Zwraca klucze liczników, które ten najemca może podawać w grupie.
+async function resolveReadingAccess(token: string, groupId: number): Promise<{ keys: string[]; ownerId: string }> {
+  const ctx = typeof token === 'string' && token ? await getTenantReadingsContext(token) : null
+  const group = ctx?.groups.find((g) => g.id === groupId)
+  if (!ctx || !group) throw new Error('Unauthorized')
+  return {
+    keys: readingKeysOf((group.tenant_reading_keys as Record<string, unknown>)[ctx.tenant.id.toString()]),
+    ownerId: ctx.ownerId,
   }
 }
 
@@ -79,27 +102,32 @@ export async function getTargetMonthYear() {
   return { month, year, windowOpen }
 }
 
-export async function getClosedWindowMessage(): Promise<string> {
-  const supabase = createServiceClient()
-  const { data } = await supabase
-    .from('app_config')
-    .select('meter_reading_closed_message')
-    .eq('id', 1)
-    .single()
+// Komunikat jest ustawieniem konta najemcy z tokenu; nieznany token -> komunikat domyślny.
+export async function getClosedWindowMessage(token: string): Promise<string> {
+  let data: { meter_reading_closed_message: string | null } | null = null
+  if (typeof token === 'string' && token) {
+    const supabase = createServiceClient()
+    const { data: tenant } = await supabase.from('tenants').select('owner_id').eq('reading_token', token).maybeSingle()
+    if (tenant) data = await readAppConfig(tenant.owner_id, ['meter_reading_closed_message'])
+  }
   return data?.meter_reading_closed_message || DEFAULT_METER_READING_CLOSED_MESSAGE
 }
 
 export async function getPreviousMeterReadings(
+  token: string,
   groupId: number,
   month: number,
   year: number,
-  keys: string[],
+  requestedKeys: string[],
 ): Promise<Record<string, number>> {
+  const { keys: allowedKeys, ownerId } = await resolveReadingAccess(token, groupId)
+  const keys = (requestedKeys ?? []).filter((k) => allowedKeys.includes(k))
   if (!keys || keys.length === 0) return {}
   const supabase = createServiceClient()
   const { data } = await supabase
     .from('media_meter_readings')
     .select('key, value, month, year')
+    .eq('owner_id', ownerId)
     .eq('group_id', groupId)
     .in('key', keys)
     .or(`year.lt.${year},and(year.eq.${year},month.lt.${month})`)
@@ -113,12 +141,15 @@ export async function getPreviousMeterReadings(
   return result
 }
 
-export async function hasAlreadySubmitted(groupId: number, month: number, year: number, keys: string[]) {
+export async function hasAlreadySubmitted(token: string, groupId: number, month: number, year: number, requestedKeys: string[]) {
+  const { keys: allowedKeys, ownerId } = await resolveReadingAccess(token, groupId)
+  const keys = (requestedKeys ?? []).filter((k) => allowedKeys.includes(k))
   if (!keys || keys.length === 0) return false
   const supabase = createServiceClient()
   const { data } = await supabase
     .from('media_meter_readings')
     .select('key')
+    .eq('owner_id', ownerId)
     .eq('group_id', groupId)
     .eq('month', month)
     .eq('year', year)
@@ -132,10 +163,15 @@ export async function hasAlreadySubmitted(groupId: number, month: number, year: 
   return keys.every(k => submittedKeys.has(k))
 }
 
-export async function saveReadings(groupId: number, month: number, year: number, readings: Record<string, string>) {
+export async function saveReadings(token: string, groupId: number, month: number, year: number, readings: Record<string, string>) {
+  const { keys: allowedKeys, ownerId } = await resolveReadingAccess(token, groupId)
+  // Najemca może zapisać wyłącznie własne klucze liczników w swojej grupie.
+  if (Object.keys(readings).some((k) => !allowedKeys.includes(k))) throw new Error('Unauthorized')
   const supabase = createServiceClient()
   
+  // owner_id jawnie: rola service nie ma auth.uid(), insert bez owner_id padłby na NOT NULL.
   const rows = Object.entries(readings).map(([key, val]) => ({
+    owner_id: ownerId,
     group_id: groupId,
     month,
     year,

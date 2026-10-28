@@ -1,4 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/service'
+import { readAppConfig } from '@/lib/app-config'
 import { logAudit } from '@/lib/audit'
 import { sendMeterReadingReminderEmail } from '@/lib/email'
 import { getCurrentDate } from '@/lib/clock'
@@ -20,12 +21,13 @@ export type EligibleMeterReminderTenant = {
 // klucz odczytu do podania (tenant_reading_keys w grupie rozliczeniowej ich
 // nieruchomości). Współdzielone przez cron (processMeterReadingReminder) i
 // podgląd w zakładce Automatyzacje.
-export async function getEligibleMeterReminderTenants(): Promise<EligibleMeterReminderTenant[]> {
+export async function getEligibleMeterReminderTenants(ownerId: string): Promise<EligibleMeterReminderTenant[]> {
   const supabase = createServiceClient()
 
   const { data: tenants, error: tenantsError } = await supabase
     .from('tenants')
     .select('id, first_name, last_name, email, email2, property_id, contracts(is_active, has_media_invoice)')
+    .eq('owner_id', ownerId)
 
   if (tenantsError) throw tenantsError
 
@@ -42,6 +44,7 @@ export async function getEligibleMeterReminderTenants(): Promise<EligibleMeterRe
     const { data: sgp } = await supabase
       .from('settlement_group_properties')
       .select('property_id, settlement_group_id')
+      .eq('owner_id', ownerId)
       .in('property_id', propertyIds)
 
     const groupIds = Array.from(new Set((sgp ?? []).map((s) => s.settlement_group_id)))
@@ -50,6 +53,7 @@ export async function getEligibleMeterReminderTenants(): Promise<EligibleMeterRe
       const { data: groups } = await supabase
         .from('settlement_groups')
         .select('id, tenant_reading_keys')
+        .eq('owner_id', ownerId)
         .in('id', groupIds)
 
       const readingKeysByGroup = new Map(
@@ -88,7 +92,7 @@ export async function getEligibleMeterReminderTenants(): Promise<EligibleMeterRe
 // żeby dzisiaj podali odczyty - bo dzisiaj ostatni dzień miesiąca. Cron uderza
 // w endpoint codziennie, więc tu pilnujemy, żeby faktycznie wysłać tylko raz,
 // dokładnie ostatniego dnia miesiąca (sprawdzane jako "jutro jest 1. dzień").
-export async function processMeterReadingReminder() {
+export async function processMeterReadingReminder(ownerId: string) {
   const now = await getCurrentDate()
   const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
   if (tomorrow.getDate() !== 1) {
@@ -98,11 +102,11 @@ export async function processMeterReadingReminder() {
   const supabase = createServiceClient()
   const dedupKey = `${now.getFullYear()}-${now.getMonth() + 1}`
 
-  // Atomowe "zastrzeżenie" tego miesiąca - unique constraint na (action_name,
+  // Atomowe "zastrzeżenie" tego miesiąca - unique constraint na (owner_id, action_name,
   // dedup_key) gwarantuje, że dwa równoległe wywołania nie przejdą oba.
   const { error: claimError } = await supabase
     .from('reminder_dedup')
-    .insert({ action_name: 'meterReadingReminder', dedup_key: dedupKey })
+    .insert({ owner_id: ownerId, action_name: 'meterReadingReminder', dedup_key: dedupKey })
 
   if (claimError) {
     if (claimError.code === '23505') {
@@ -115,6 +119,7 @@ export async function processMeterReadingReminder() {
     supabase
       .from('reminder_dedup')
       .delete()
+      .eq('owner_id', ownerId)
       .eq('action_name', 'meterReadingReminder')
       .eq('dedup_key', dedupKey)
 
@@ -122,6 +127,7 @@ export async function processMeterReadingReminder() {
   if (!baseUrl) {
     await releaseClaim()
     await logAudit({
+      ownerId,
       actionName: 'meterReadingReminder',
       operation: 'CREATE',
       errorData: 'NEXT_PUBLIC_APP_URL not configured',
@@ -130,15 +136,12 @@ export async function processMeterReadingReminder() {
   }
 
   try {
-  const { data: config } = await supabase
-    .from('app_config')
-    .select('meter_reading_reminder_subject, meter_reading_reminder_body')
-    .eq('id', 1)
-    .single()
+  const config = await readAppConfig(ownerId, ['meter_reading_reminder_subject', 'meter_reading_reminder_body'])
 
   const { data: tenants, error: tenantsError } = await supabase
     .from('tenants')
     .select('id, first_name, last_name, email, email2, property_id, reading_token, contracts(is_active, has_media_invoice)')
+    .eq('owner_id', ownerId)
 
   if (tenantsError) throw tenantsError
 
@@ -158,6 +161,7 @@ export async function processMeterReadingReminder() {
     const { data: sgp } = await supabase
       .from('settlement_group_properties')
       .select('property_id, settlement_group_id')
+      .eq('owner_id', ownerId)
       .in('property_id', propertyIds)
 
     const groupIds = Array.from(new Set((sgp ?? []).map((s) => s.settlement_group_id)))
@@ -166,6 +170,7 @@ export async function processMeterReadingReminder() {
       const { data: groups } = await supabase
         .from('settlement_groups')
         .select('id, tenant_reading_keys')
+        .eq('owner_id', ownerId)
         .in('id', groupIds)
 
       const readingKeysByGroup = new Map(
@@ -200,6 +205,7 @@ export async function processMeterReadingReminder() {
     const tenantName = `${tenant.first_name} ${tenant.last_name}`.trim()
     try {
       await sendMeterReadingReminderEmail(
+        ownerId,
         to,
         tenantName,
         link,
@@ -217,6 +223,7 @@ export async function processMeterReadingReminder() {
   }
 
   await logAudit({
+    ownerId,
     actionName: 'meterReadingReminder',
     operation: 'CREATE',
     afterData: {
@@ -235,6 +242,7 @@ export async function processMeterReadingReminder() {
     // i nie trafiają tutaj.
     await releaseClaim()
     await logAudit({
+      ownerId,
       actionName: 'meterReadingReminder',
       operation: 'CREATE',
       errorData: e,

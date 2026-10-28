@@ -4,7 +4,7 @@ import { sendStatementToTenant } from '@/app/(dashboard)/kontrola-platnosci/acti
 import { logAudit } from '@/lib/audit'
 import { getCurrentDate } from '@/lib/clock'
 
-export async function processLateReminders() {
+export async function processLateReminders(ownerId: string) {
   const now = await getCurrentDate()
   if (now.getDate() <= 14) {
     return { sent: 0, skipped: 0, reason: 'Before 15th' }
@@ -23,11 +23,11 @@ export async function processLateReminders() {
     const dedupKey = `${tenant.id}-${dedupKeySuffix}`
 
     // Atomowe "zastrzeżenie" tego najemcy na ten miesiąc - unique constraint
-    // na (action_name, dedup_key) gwarantuje, że dwa równoległe wywołania
+    // na (owner_id, action_name, dedup_key) gwarantuje, że dwa równoległe wywołania
     // (np. cron trafiony dwa razy blisko siebie) nie wyślą obu maili.
     const { error: claimError } = await supabase
       .from('reminder_dedup')
-      .insert({ action_name: 'lateReminder', dedup_key: dedupKey })
+      .insert({ owner_id: ownerId, action_name: 'lateReminder', dedup_key: dedupKey })
 
     if (claimError) {
       if (claimError.code === '23505') {
@@ -42,6 +42,7 @@ export async function processLateReminders() {
     try {
       await sendStatementToTenant(tenant.id)
       await logAudit({
+        ownerId,
         actionName: 'lateReminder',
         tableName: 'tenants',
         operation: 'UPDATE',
@@ -54,6 +55,7 @@ export async function processLateReminders() {
       await supabase
         .from('reminder_dedup')
         .delete()
+        .eq('owner_id', ownerId)
         .eq('action_name', 'lateReminder')
         .eq('dedup_key', dedupKey)
       console.error('Failed to send late reminder to tenant', tenant.id, e)

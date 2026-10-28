@@ -150,7 +150,7 @@ describe('processSettlement - ścieżka pozytywna', () => {
     expect(settlement).toMatchObject({ month: MONTH, year: YEAR, spreadsheet_id: 'copy-1' })
     const pdfs = settlement.drive_pdf_ids as { name: string; id: string }[]
     expect(pdfs.map((p) => p.name).sort()).toEqual(['Nota', 'Zestawienie'])
-    for (const pdf of pdfs) expect(pdf.id.startsWith(`PREVIEW/${YEAR}/${MONTH}/`)).toBe(true)
+    for (const pdf of pdfs) expect(pdf.id.startsWith(`${process.env.TEST_SESSION_OWNER_ID}/PREVIEW/${YEAR}/${MONTH}/`)).toBe(true)
 
     // Należności (nie faktury!): number = null, powiązane z umową i rozliczeniem.
     const [invoiceA] = await invoicesOf(tenantA.id)
@@ -187,11 +187,13 @@ describe('processSettlement - ścieżka pozytywna', () => {
     expect(adminMails[0].html).toContain(`Anna ${tenantA.last_name}`)
     expect(adminMails[0].html).toContain(`Bogdan ${tenantB.last_name}`)
 
-    // PDF-y rozliczenia (PREVIEW/...) i kopia załącznika maila (preview/emails/...) w Storage.
-    const settlementUploads = storage.uploads.filter((u) => u.path.startsWith(`PREVIEW/${YEAR}/${MONTH}/`))
+    // Pliki w Storage leżą pod prefiksem konta (slice 5): PDF-y rozliczenia (<owner>/PREVIEW/...)
+    // i kopia załącznika maila (<owner>/preview/emails/...).
+    const ownerId = process.env.TEST_SESSION_OWNER_ID
+    const settlementUploads = storage.uploads.filter((u) => u.path.startsWith(`${ownerId}/PREVIEW/${YEAR}/${MONTH}/`))
     expect(settlementUploads).toHaveLength(2)
     expect(settlementUploads.every((u) => u.bucket === 'invoices' && u.contentType === 'application/pdf')).toBe(true)
-    expect(storage.uploads.filter((u) => u.path.startsWith('preview/emails/'))).toHaveLength(1)
+    expect(storage.uploads.filter((u) => u.path.startsWith(`${ownerId}/preview/emails/`))).toHaveLength(1)
   })
 
   test('bez zdefiniowanych zakładek PDF eksportuje cały arkusz jako jeden plik', async () => {

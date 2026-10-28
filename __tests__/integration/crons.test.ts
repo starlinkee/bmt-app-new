@@ -8,6 +8,9 @@ const generateRents = vi.hoisted(() => vi.fn())
 const processStatementUploadReminder = vi.hoisted(() => vi.fn())
 const processMeterReadingReminder = vi.hoisted(() => vi.fn())
 
+// Lista kont też zamockowana - test nie dotyka prawdziwych kont w bazie preview.
+vi.mock('@/lib/app-config', () => ({ listOwnerIds: async () => ['o1', 'o2'] }))
+const { listOwnerIds } = await import('@/lib/app-config')
 vi.mock('@/lib/rents', () => ({ generateRents }))
 vi.mock('@/lib/statement-reminder', () => ({ processStatementUploadReminder }))
 vi.mock('@/lib/meter-reading-reminder', () => ({ processMeterReadingReminder }))
@@ -59,21 +62,32 @@ describe('GET /api/cron/generate-rents', () => {
       const res = await GET(request('/api/cron/generate-rents', vercelCron))
 
       expect(res.status).toBe(200)
-      expect(generateRents).toHaveBeenCalledWith(9, 2026, 'CRON')
-      expect(await res.json()).toEqual({ success: true, generated: 2, skipped: 3, month: 9, year: 2026, source: 'CRON', simulated: false })
+      expect(generateRents).toHaveBeenCalledWith('o1', 9, 2026, 'CRON')
+      expect(generateRents).toHaveBeenCalledWith('o2', 9, 2026, 'CRON')
+      expect(await res.json()).toEqual({
+        success: true,
+        results: [
+          { ownerId: 'o1', ok: true, generated: 2, skipped: 3 },
+          { ownerId: 'o2', ok: true, generated: 2, skipped: 3 },
+        ],
+        month: 9,
+        year: 2026,
+        source: 'CRON',
+        simulated: false,
+      })
     })
 
     test('wywołanie ręczne z sekretem -> źródło MANUAL', async () => {
       const res = await GET(request('/api/cron/generate-rents', bearer()))
 
       expect(res.status).toBe(200)
-      expect(generateRents).toHaveBeenCalledWith(9, 2026, 'MANUAL')
+      expect(generateRents).toHaveBeenCalledWith('o1', 9, 2026, 'MANUAL')
     })
 
     test('nadpisanie month/year jest ignorowane na produkcji, nawet z poprawnym sekretem', async () => {
       const res = await GET(request('/api/cron/generate-rents?month=2&year=2020', bearer()))
 
-      expect(generateRents).toHaveBeenCalledWith(9, 2026, 'MANUAL')
+      expect(generateRents).toHaveBeenCalledWith('o1', 9, 2026, 'MANUAL')
       expect(await res.json()).toMatchObject({ month: 9, year: 2026, simulated: false })
     })
 
@@ -83,7 +97,7 @@ describe('GET /api/cron/generate-rents', () => {
       const res = await GET(request('/api/cron/generate-rents?month=2&year=2020'))
 
       expect(res.status).toBe(200)
-      expect(generateRents).toHaveBeenCalledWith(2, 2020, 'TEST_MANUAL')
+      expect(generateRents).toHaveBeenCalledWith('o1', 2, 2020, 'TEST_MANUAL')
     })
   })
 
@@ -92,43 +106,63 @@ describe('GET /api/cron/generate-rents', () => {
       const res = await GET(request('/api/cron/generate-rents'))
 
       expect(res.status).toBe(200)
-      expect(generateRents).toHaveBeenCalledWith(9, 2026, 'TEST_MANUAL')
+      expect(generateRents).toHaveBeenCalledWith('o1', 9, 2026, 'TEST_MANUAL')
       expect(await res.json()).toMatchObject({ source: 'TEST_MANUAL', simulated: false })
     })
 
     test('nadpisanie month/year (symulacja) jest respektowane i oznaczone jako simulated', async () => {
       const res = await GET(request('/api/cron/generate-rents?month=2&year=2020'))
 
-      expect(generateRents).toHaveBeenCalledWith(2, 2020, 'TEST_MANUAL')
+      expect(generateRents).toHaveBeenCalledWith('o1', 2, 2020, 'TEST_MANUAL')
       expect(await res.json()).toMatchObject({ month: 2, year: 2020, simulated: true })
     })
 
     test('samo month bez year nie nadpisuje daty', async () => {
       await GET(request('/api/cron/generate-rents?month=2'))
 
-      expect(generateRents).toHaveBeenCalledWith(9, 2026, 'TEST_MANUAL')
+      expect(generateRents).toHaveBeenCalledWith('o1', 9, 2026, 'TEST_MANUAL')
     })
 
     test('prawdziwy cron ma pierwszeństwo: źródło CRON', async () => {
       await GET(request('/api/cron/generate-rents', vercelCron))
 
-      expect(generateRents).toHaveBeenCalledWith(9, 2026, 'CRON')
+      expect(generateRents).toHaveBeenCalledWith('o1', 9, 2026, 'CRON')
     })
   })
 
-  test('błąd generowania -> 500 z komunikatem', async () => {
+  test('błąd generowania we wszystkich kontach -> 500 z wynikami per konto', async () => {
     generateRents.mockRejectedValue(new Error('baza nie odpowiada'))
 
     const res = await GET(request('/api/cron/generate-rents'))
 
     expect(res.status).toBe(500)
-    expect(await res.json()).toEqual({ error: 'baza nie odpowiada' })
+    expect(await res.json()).toMatchObject({
+      results: [
+        { ownerId: 'o1', ok: false, error: 'baza nie odpowiada' },
+        { ownerId: 'o2', ok: false, error: 'baza nie odpowiada' },
+      ],
+    })
+  })
+
+  test('błąd jednego konta nie przerywa drugiego -> 200', async () => {
+    generateRents.mockRejectedValueOnce(new Error('padło o1'))
+
+    const res = await GET(request('/api/cron/generate-rents'))
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({
+      results: [
+        { ownerId: 'o1', ok: false, error: 'padło o1' },
+        { ownerId: 'o2', ok: true, generated: 2, skipped: 3 },
+      ],
+    })
   })
 })
 
 describe.each([
   ['statement-reminder', statementReminderRoute.GET, processStatementUploadReminder, { sent: true }],
-  ['meter-reading-reminder', meterReadingRoute.GET, processMeterReadingReminder, { sent: 4 }],
+  // Trasa przypomnień o odczytach dokłada do wyniku konta licznik błędnych wysyłek (`errors`).
+  ['meter-reading-reminder', meterReadingRoute.GET, processMeterReadingReminder, { sent: 4, errors: 0 }],
 ])('GET /api/cron/%s', (name, GET, job, payload) => {
   const path = `/api/cron/${name}`
 
@@ -147,27 +181,50 @@ describe.each([
   })
 
   test('poprawny sekret -> 200 z wynikiem zadania', async () => {
+    const owners = await listOwnerIds()
     const res = await GET(request(path, bearer()))
 
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ success: true, ...payload })
-    expect(job).toHaveBeenCalledTimes(1)
+    expect(await res.json()).toEqual({
+      success: true,
+      results: owners.map((ownerId) => ({ ownerId, ok: true, ...payload })),
+    })
+    // Cron robi pętlę po kontach: jedno wywołanie zadania na konto, każde z innym ownerId.
+    expect(job).toHaveBeenCalledTimes(owners.length)
+    expect(job.mock.calls.map(([ownerId]) => ownerId)).toEqual(owners)
   })
 
   test('nagłówek Vercel Cron -> 200', async () => {
     const res = await GET(request(path, vercelCron))
 
     expect(res.status).toBe(200)
-    expect(job).toHaveBeenCalledTimes(1)
+    expect(job).toHaveBeenCalledTimes((await listOwnerIds()).length)
   })
 
-  test('błąd zadania -> 500 z komunikatem', async () => {
+  test('błąd zadania we wszystkich kontach -> 500 z wynikami per konto', async () => {
     job.mockRejectedValue(new Error('SMTP padł'))
 
     const res = await GET(request(path, bearer()))
 
     expect(res.status).toBe(500)
-    expect(await res.json()).toEqual({ error: 'SMTP padł' })
+    expect(await res.json()).toMatchObject({
+      results: [
+        { ownerId: 'o1', ok: false, error: 'SMTP padł' },
+        { ownerId: 'o2', ok: false, error: 'SMTP padł' },
+      ],
+    })
+  })
+
+  test('błąd konta o1 nie przerywa o2 -> 200', async () => {
+    job.mockRejectedValueOnce(new Error('SMTP padł'))
+
+    const res = await GET(request(path, bearer()))
+
+    expect(res.status).toBe(200)
+    expect(job).toHaveBeenCalledWith('o2')
+    expect(await res.json()).toMatchObject({
+      results: [{ ownerId: 'o1', ok: false, error: 'SMTP padł' }, { ownerId: 'o2', ok: true }],
+    })
   })
 
   // ZNANA LUKA: gdy CRON_SECRET nie jest ustawiony, porównanie idzie z tekstem

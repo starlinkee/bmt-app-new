@@ -10,7 +10,11 @@ import path from 'path'
 dotenv.config({ path: path.resolve(__dirname, '.env.e2e'), override: true, quiet: true })
 
 export default defineConfig({
-  resolve: { tsconfigPaths: true },
+  resolve: {
+    tsconfigPaths: true,
+    // 'server-only' rzuca poza bundlem Next.js - w testach podstawiamy pusty moduł.
+    alias: { 'server-only': new URL('./tests-support/server-only-stub.ts', import.meta.url).pathname },
+  },
   test: {
     name: 'integration',
     environment: 'node',

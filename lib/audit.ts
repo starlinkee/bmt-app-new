@@ -11,6 +11,9 @@ interface AuditEntry {
   beforeData?: unknown
   afterData?: unknown
   errorData?: unknown
+  // Właściciel wpisu (konto, które wykonało akcję) - wymagany, bo service role nie ma sesji
+  // i inaczej wiersz trafiłby do właściciela legacy przez DEFAULT.
+  ownerId: string
 }
 
 function serializeError(err: unknown): Record<string, unknown> | null {
@@ -32,6 +35,7 @@ export async function logAudit(entry: AuditEntry): Promise<void> {
       before_data: (entry.beforeData !== undefined ? entry.beforeData : null) as Json,
       after_data:  (entry.afterData  !== undefined ? entry.afterData  : null) as Json,
       error_data:  (entry.errorData  !== undefined ? serializeError(entry.errorData) : null) as Json,
+      owner_id:    entry.ownerId,
     })
   } catch {
     // logAudit nigdy nie rzuca - nie może zepsuć głównej operacji

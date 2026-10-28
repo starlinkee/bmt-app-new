@@ -1,6 +1,6 @@
 'use server'
 
-import { createServiceClient } from '@/lib/supabase/service'
+import { getUserClient } from '@/lib/auth-guard'
 
 export type ChargeEntry = {
   id: string
@@ -14,7 +14,7 @@ export type ChargeEntry = {
 }
 
 export async function getAllCharges(year: number): Promise<ChargeEntry[]> {
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
 
   const { data: invoices } = await supabase
     .from('invoices')

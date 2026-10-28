@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient } from '@/lib/supabase/service'
+import { getApiUserClient } from '@/lib/auth-guard'
 
 function isValidSkillId(id: unknown): id is string {
   return typeof id === 'string' && /^[a-z0-9-]+$/.test(id) && id.length <= 60
 }
 
 export async function GET(req: NextRequest) {
+  const ctx = await getApiUserClient()
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const skillId = req.nextUrl.searchParams.get('skillId')
   if (!isValidSkillId(skillId)) {
     return NextResponse.json({ error: 'Invalid skillId' }, { status: 400 })
   }
 
-  const supabase = createServiceClient()
+  const supabase = ctx.supabase
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -36,6 +38,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  const ctx = await getApiUserClient()
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await req.json().catch(() => ({})) as Record<string, unknown>
   const { skillId, content, label, description, timeoutMs, settlementGroupId } = body
 
@@ -46,13 +50,14 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'content must be a string' }, { status: 400 })
   }
 
-  const supabase = createServiceClient()
+  const supabase = ctx.supabase
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase as any)
       .from('skill_prompts')
       .upsert({
+        owner_id: ctx.user.id,
         id: skillId,
         prompt: content,
         label: label || skillId,
@@ -60,7 +65,7 @@ export async function PUT(req: NextRequest) {
         timeout_ms: timeoutMs || 300000,
         settlement_group_id: (settlementGroupId as number | null | undefined) ?? null,
         updated_at: new Date().toISOString()
-      })
+      }, { onConflict: 'owner_id,id' })
       
     if (error) throw error
     
@@ -72,12 +77,14 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const ctx = await getApiUserClient()
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const skillId = req.nextUrl.searchParams.get('skillId')
   if (!isValidSkillId(skillId)) {
     return NextResponse.json({ error: 'Invalid skillId' }, { status: 400 })
   }
 
-  const supabase = createServiceClient()
+  const supabase = ctx.supabase
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

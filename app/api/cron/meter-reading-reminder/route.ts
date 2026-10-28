@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { processMeterReadingReminder } from '@/lib/meter-reading-reminder'
+import { allOwnersFailed, runForEachOwner } from '@/lib/cron-owners'
 
 export const maxDuration = 60
 
@@ -14,8 +15,15 @@ export async function GET(request: Request) {
   }
 
   try {
-    const result = await processMeterReadingReminder()
-    return NextResponse.json({ success: true, ...result })
+    const results = await runForEachOwner(async (ownerId) => {
+      // Bez listy odbiorców (adresy e-mail) - tylko liczby.
+      const { results: sendResults, ...rest } = await processMeterReadingReminder(ownerId)
+      return { ...rest, errors: sendResults?.filter((r) => r.error).length ?? 0 }
+    })
+    if (allOwnersFailed(results)) {
+      return NextResponse.json({ error: 'Cron nie powiódł się dla żadnego konta', results }, { status: 500 })
+    }
+    return NextResponse.json({ success: true, results })
   } catch (error: unknown) {
     console.error('Error sending meter reading reminder via cron:', error)
     return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 })

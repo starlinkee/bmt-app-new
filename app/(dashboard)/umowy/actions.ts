@@ -1,12 +1,12 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createServiceClient } from '@/lib/supabase/service'
 import { logAudit } from '@/lib/audit'
 import { computeRevaluedAmount } from '@/lib/contracts'
+import { getUserClient } from '@/lib/auth-guard'
 
 export async function getContracts() {
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
   const { data, error } = await supabase
     .from('contracts')
     .select('*, tenants(first_name, last_name, properties(name))')
@@ -24,13 +24,13 @@ export async function createContract(data: {
   is_active: boolean
   tenant_id: number
 }) {
-  const supabase = createServiceClient()
+  const { user, supabase } = await getUserClient()
   const { data: created, error } = await supabase.from('contracts').insert(data).select().single()
   if (error) {
-    await logAudit({ actionName: 'createContract', tableName: 'contracts', operation: 'CREATE', errorData: error })
+    await logAudit({ ownerId: user.id, actionName: 'createContract', tableName: 'contracts', operation: 'CREATE', errorData: error })
     throw error
   }
-  await logAudit({ actionName: 'createContract', tableName: 'contracts', operation: 'CREATE', recordId: created.id, afterData: created })
+  await logAudit({ ownerId: user.id, actionName: 'createContract', tableName: 'contracts', operation: 'CREATE', recordId: created.id, afterData: created })
   revalidatePath('/umowy')
 }
 
@@ -45,31 +45,31 @@ export async function updateContract(
     is_active: boolean
   }>,
 ) {
-  const supabase = createServiceClient()
+  const { user, supabase } = await getUserClient()
   const { data: before } = await supabase.from('contracts').select('*').eq('id', id).single()
   const { data: after, error } = await supabase.from('contracts').update(data).eq('id', id).select().single()
   if (error) {
-    await logAudit({ actionName: 'updateContract', tableName: 'contracts', operation: 'UPDATE', recordId: id, beforeData: before, errorData: error })
+    await logAudit({ ownerId: user.id, actionName: 'updateContract', tableName: 'contracts', operation: 'UPDATE', recordId: id, beforeData: before, errorData: error })
     throw error
   }
-  await logAudit({ actionName: 'updateContract', tableName: 'contracts', operation: 'UPDATE', recordId: id, beforeData: before, afterData: after })
+  await logAudit({ ownerId: user.id, actionName: 'updateContract', tableName: 'contracts', operation: 'UPDATE', recordId: id, beforeData: before, afterData: after })
   revalidatePath('/umowy')
 }
 
 export async function deleteContract(id: number) {
-  const supabase = createServiceClient()
+  const { user, supabase } = await getUserClient()
   const { data: before } = await supabase.from('contracts').select('*').eq('id', id).single()
   const { error } = await supabase.from('contracts').delete().eq('id', id)
   if (error) {
-    await logAudit({ actionName: 'deleteContract', tableName: 'contracts', operation: 'DELETE', recordId: id, beforeData: before, errorData: error })
+    await logAudit({ ownerId: user.id, actionName: 'deleteContract', tableName: 'contracts', operation: 'DELETE', recordId: id, beforeData: before, errorData: error })
     throw error
   }
-  await logAudit({ actionName: 'deleteContract', tableName: 'contracts', operation: 'DELETE', recordId: id, beforeData: before })
+  await logAudit({ ownerId: user.id, actionName: 'deleteContract', tableName: 'contracts', operation: 'DELETE', recordId: id, beforeData: before })
   revalidatePath('/umowy')
 }
 
 export async function revaluateContract(id: number, inflationPercent: number) {
-  const supabase = createServiceClient()
+  const { user, supabase } = await getUserClient()
   const { data: before, error: fetchError } = await supabase
     .from('contracts')
     .select('*')
@@ -84,16 +84,16 @@ export async function revaluateContract(id: number, inflationPercent: number) {
     .select()
     .single()
   if (error) {
-    await logAudit({ actionName: 'revaluateContract', tableName: 'contracts', operation: 'UPDATE', recordId: id, beforeData: before, errorData: error })
+    await logAudit({ ownerId: user.id, actionName: 'revaluateContract', tableName: 'contracts', operation: 'UPDATE', recordId: id, beforeData: before, errorData: error })
     throw error
   }
-  await logAudit({ actionName: 'revaluateContract', tableName: 'contracts', operation: 'UPDATE', recordId: id, beforeData: before, afterData: after })
+  await logAudit({ ownerId: user.id, actionName: 'revaluateContract', tableName: 'contracts', operation: 'UPDATE', recordId: id, beforeData: before, afterData: after })
   revalidatePath('/umowy')
   return newRent
 }
 
 export async function getContractStats(month: number, year: number) {
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
   const [{ count: activeContracts }, { data: rentInvoices }] =
     await Promise.all([
       supabase

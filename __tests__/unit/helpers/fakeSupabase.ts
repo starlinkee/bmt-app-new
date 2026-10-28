@@ -12,9 +12,23 @@
 export type Row = Record<string, unknown>
 type Result = { data: unknown; error: { code?: string; message: string } | null }
 
+/**
+ * Tabele z kolumną owner_id (migracja owner_id_rls). Klient service role omija RLS i DEFAULT
+ * current_owner_id() zapisałby wiersz właścicielowi legacy, więc insert/upsert bez jawnego owner_id
+ * to błąd - strażnik rzuca w teście zamiast po cichu przypisywać dane do złego konta.
+ * Wyjątki (świadomie bez owner_id): system_settings (globalne), storage (nie przechodzi przez from()).
+ */
+export const OWNER_SCOPED_TABLES = [
+  'properties', 'tenants', 'contracts', 'invoices', 'transactions', 'transaction_staging',
+  'transaction_amendments', 'settlement_groups', 'settlement_group_properties', 'media_settlements',
+  'media_meter_readings', 'operation_log', 'audit_log', 'email_logs', 'reminder_dedup', 'skill_prompts',
+]
+
 export interface FakeSupabaseOptions {
   /** Klucze unikalne per tabela - naruszenie zwraca błąd 23505 jak Postgres. */
   unique?: Record<string, string[]>
+  /** Tabele wymagające owner_id w insert/upsert (domyślnie OWNER_SCOPED_TABLES; [] wyłącza strażnika). */
+  ownerScoped?: string[]
 }
 
 export interface FakeSupabase {
@@ -31,6 +45,7 @@ class Builder implements PromiseLike<Result> {
   private ignoreDuplicates = false
   private orders: { col: string; asc: boolean }[] = []
   private wantSingle = false
+  private allowEmpty = false
   private nextId: () => number
 
   constructor(
@@ -95,6 +110,11 @@ class Builder implements PromiseLike<Result> {
     this.wantSingle = true
     return this
   }
+  maybeSingle() {
+    this.wantSingle = true
+    this.allowEmpty = true
+    return this
+  }
 
   private matches(row: Row) {
     return this.filters.every((f) => f(row))
@@ -112,7 +132,11 @@ class Builder implements PromiseLike<Result> {
     if (this.op === 'insert' || this.op === 'upsert') {
       const incoming = Array.isArray(this.payload) ? this.payload : [this.payload as Row]
       const inserted: Row[] = []
+      const ownerScoped = this.options.ownerScoped ?? OWNER_SCOPED_TABLES
       for (const item of incoming) {
+        if (ownerScoped.includes(this.table) && item.owner_id == null) {
+          throw new Error(`fakeSupabase: ${this.op} do "${this.table}" bez owner_id - zapis service rolą musi podać właściciela jawnie`)
+        }
         if (this.violatesUnique(rows, item)) {
           if (this.op === 'upsert' && this.ignoreDuplicates) continue
           return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint' } }
@@ -152,7 +176,9 @@ class Builder implements PromiseLike<Result> {
     if (this.wantSingle) {
       return rows.length
         ? { data: rows[0], error: null }
-        : { data: null, error: { code: 'PGRST116', message: 'no rows' } }
+        : this.allowEmpty
+          ? { data: null, error: null }
+          : { data: null, error: { code: 'PGRST116', message: 'no rows' } }
     }
     return { data: rows, error: null }
   }

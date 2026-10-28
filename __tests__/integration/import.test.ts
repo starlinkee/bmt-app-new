@@ -20,6 +20,7 @@ vi.mock('fs/promises', () => {
 
 const {
   importBankStatement,
+  getImportToggles,
   reconcileTransaction,
   reconcileMany,
   dismissTransaction,
@@ -28,6 +29,7 @@ const {
   getImportHistoryList,
 } = await import('@/app/(dashboard)/import/actions')
 const { calculateBalance } = await import('@/lib/balance')
+const { upsertAppConfig } = await import('@/app/(dashboard)/ustawienia/actions')
 
 const db = createTestDbClient()
 const ldb = loose(db)
@@ -318,5 +320,51 @@ describe('akceptacja i odrzucanie wierszy z kolejki', () => {
 
     const entry = (await getImportHistoryList()).find((h) => h.id === importId)
     expect(entry).toMatchObject({ pendingCount: 1, acceptedCount: 1, rejectedCount: 1 })
+  })
+})
+
+async function auditImportCount() {
+  const { count } = await db
+    .from('audit_log')
+    .select('*', { count: 'exact', head: true })
+    .eq('action_name', 'importBankStatement')
+  return count ?? 0
+}
+
+describe('przełączniki importu (Ustawienia)', () => {
+  describe('Millennium wyłączony', () => {
+    patchAppConfigForSuite({ import_millennium_enabled: false })
+
+    test('import PDF (slot 1) rzuca i nie tworzy wpisu audit_log; CSV (slot 0) działa', async () => {
+      const before = await auditImportCount()
+      await expect(
+        importBankStatement('data:application/pdf;base64,', fileName().replace('.csv', '.pdf'), undefined, undefined, 1),
+      ).rejects.toThrow(/Millennium jest wyłączony/)
+      expect(await auditImportCount()).toBe(before)
+
+      const account = fakeAccount()
+      const summary = await importBankStatement(csv([{ date: '2001-06-05', amount: '10,00', account }]), fileName(), undefined, undefined, 0)
+      expect(summary.total).toBe(1)
+      expect(await getImportToggles()).toEqual({ pekao: true, millennium: false })
+    })
+  })
+
+  describe('Pekao wyłączony', () => {
+    patchAppConfigForSuite({ import_pekao_enabled: false })
+
+    test('import CSV (slot 0) rzuca i nie tworzy wpisu audit_log', async () => {
+      const before = await auditImportCount()
+      const account = fakeAccount()
+      await expect(
+        importBankStatement(csv([{ date: '2001-06-05', amount: '10,00', account }]), fileName(), undefined, undefined, 0),
+      ).rejects.toThrow(/Pekao jest wyłączony/)
+      expect(await auditImportCount()).toBe(before)
+      expect(await stagingFor(account)).toHaveLength(0)
+    })
+
+    test('upsertAppConfig wyłączający też Millennium rzuca, a konfiguracja się nie zmienia', async () => {
+      await expect(upsertAppConfig({ import_millennium_enabled: false })).rejects.toThrow(/Przynajmniej jeden import/)
+      expect(await getImportToggles()).toEqual({ pekao: false, millennium: true })
+    })
   })
 })

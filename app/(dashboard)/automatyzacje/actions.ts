@@ -1,18 +1,21 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createServiceClient } from '@/lib/supabase/service'
 import { logAudit } from '@/lib/audit'
+import { readAppConfig, readAppConfigRow, updateAppConfig } from '@/lib/app-config'
 import { getEligibleMeterReminderTenants } from '@/lib/meter-reading-reminder'
 import { getRentPreview } from '@/lib/rents'
+import { DEFAULT_MEDIA_EMAIL_SUBJECT, DEFAULT_MEDIA_EMAIL_BODY } from '@/lib/email-defaults'
 import { getCurrentDate } from '@/lib/clock'
 import { tenantDisplayName } from '@/lib/utils'
 import type { Json } from '@/types/supabase'
+import { getUserClient, requireUser } from '@/lib/auth-guard'
 
 // Umowy, które zostałyby obciążone czynszem, gdyby generowanie odpaliło się
 // teraz dla NASTĘPNEGO miesiąca (czyli to, co realnie naliczy się 1. dnia
 // tego nadchodzącego miesiąca) — do podglądu w Automatyzacjach.
 export async function getUpcomingRentCharges() {
+  const { user } = await requireUser()
   const now = await getCurrentDate()
   let month = now.getMonth() + 2 // getMonth() jest 0-indeksowany; +2 = następny miesiąc, 1-indeksowany
   let year = now.getFullYear()
@@ -21,7 +24,7 @@ export async function getUpcomingRentCharges() {
     year += 1
   }
 
-  const { withEmail, withoutEmail } = await getRentPreview(month, year)
+  const { withEmail, withoutEmail } = await getRentPreview(user.id, month, year)
   const contracts = [...withEmail, ...withoutEmail]
 
   return {
@@ -39,19 +42,15 @@ export async function getUpcomingRentCharges() {
   }
 }
 
-// Te same domyślne szablony co w lib/email.ts (sendMediaEmail), używane gdy
-// grupa nie ma ustawionego własnego — pokazujemy je tu tylko informacyjnie,
-// żeby podgląd nie kłamał, że maila w ogóle nie będzie.
-const DEFAULT_MEDIA_EMAIL_SUBJECT = 'Faktura media {numer_rachunku}'
-const DEFAULT_MEDIA_EMAIL_BODY =
-  'Szanowny/a {imie},\nW załączeniu rozliczenie mediów nr {numer_rachunku} za {miesiac}/{rok} na kwotę {kwota}.\n\nPozdrawiamy,\nBMT'
+// Domyślne szablony (lib/email-defaults) trafiają do maila, gdy grupa nie ma własnego —
+// pokazujemy je tu informacyjnie, żeby podgląd nie kłamał, że maila w ogóle nie będzie.
 
 // Dla każdej grupy rozliczeniowej: kto obecnie (na podstawie umów z włączonymi
 // mediami) dostałby maila po rozliczeniu tej grupy, i jaka jest skonfigurowana
 // treść tego maila. Nie liczy kwot (te powstają dopiero przy realnym
 // rozliczeniu w Rozlicz media) — to tylko podgląd odbiorców i szablonu.
 export async function getMediaGroupEmailPreviews() {
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
 
   const { data: groups } = await supabase
     .from('settlement_groups')
@@ -108,13 +107,8 @@ export async function getMediaGroupEmailPreviews() {
 }
 
 export async function getAppConfig() {
-  const supabase = createServiceClient()
-  const { data } = await supabase
-    .from('app_config')
-    .select('*')
-    .eq('id', 1)
-    .single()
-  return data
+  const { user } = await requireUser()
+  return readAppConfigRow(user.id)
 }
 
 export async function upsertAppConfig(data: {
@@ -134,14 +128,16 @@ export async function upsertAppConfig(data: {
   statement_upload_reminder_subject?: string | null
   statement_upload_reminder_body?: string | null
 }) {
-  const supabase = createServiceClient()
-  const { data: before } = await supabase.from('app_config').select('*').eq('id', 1).single()
-  const { data: after, error } = await supabase.from('app_config').update(data).eq('id', 1).select().single()
-  if (error) {
-    await logAudit({ actionName: 'upsertAppConfig', tableName: 'app_config', operation: 'UPDATE', recordId: '1', beforeData: before, errorData: error })
+  const { user } = await requireUser()
+  const before = await readAppConfigRow(user.id)
+  let after
+  try {
+    after = await updateAppConfig(user.id, data)
+  } catch (error) {
+    await logAudit({ ownerId: user.id, actionName: 'upsertAppConfig', tableName: 'app_config', operation: 'UPDATE', recordId: user.id, beforeData: before, errorData: error })
     throw error
   }
-  await logAudit({ actionName: 'upsertAppConfig', tableName: 'app_config', operation: 'UPDATE', recordId: '1', beforeData: before, afterData: after })
+  await logAudit({ ownerId: user.id, actionName: 'upsertAppConfig', tableName: 'app_config', operation: 'UPDATE', recordId: user.id, beforeData: before, afterData: after })
   revalidatePath('/automatyzacje')
 }
 
@@ -149,14 +145,10 @@ export async function upsertAppConfig(data: {
 // potrzebne do wyświetlenia (kiedy ostatnio coś faktycznie wysłano, na jaki
 // adres administratora, jaki szablon). Nic tu nic nie zmienia ani nie wysyła.
 export async function getAutomationStatus() {
-  const supabase = createServiceClient()
+  const { user, supabase } = await getUserClient()
 
-  const [{ data: config }, { data: lastUploadReminder }, { data: lastRentGeneration }, { data: lastMeterReminder }, meterReminderRecipients] = await Promise.all([
-    supabase
-      .from('app_config')
-      .select('meter_reading_reminder_subject, meter_reading_reminder_body, admin_email')
-      .eq('id', 1)
-      .single(),
+  const [config, { data: lastUploadReminder }, { data: lastRentGeneration }, { data: lastMeterReminder }, meterReminderRecipients] = await Promise.all([
+    readAppConfig(user.id, ['meter_reading_reminder_subject', 'meter_reading_reminder_body', 'admin_email']),
     supabase
       .from('audit_log')
       .select('created_at, after_data')
@@ -178,7 +170,7 @@ export async function getAutomationStatus() {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
-    getEligibleMeterReminderTenants(),
+    getEligibleMeterReminderTenants(user.id),
   ])
 
   const lastRentGenerationData = lastRentGeneration?.after_data as

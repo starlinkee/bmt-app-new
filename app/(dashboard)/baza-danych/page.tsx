@@ -33,7 +33,6 @@ const TABLE_OPTIONS = [
   { value: 'settlement_group_properties', label: 'Nieruchomości w grupach' },
   { value: 'media_settlements', label: 'Rozliczenia mediów' },
   { value: 'media_meter_readings', label: 'Odczyty liczników' },
-  { value: 'app_config', label: 'Ustawienia aplikacji' },
   { value: 'profiles', label: 'Profile użytkowników' },
   { value: 'operation_log', label: 'Log operacji (crony)' },
   { value: 'audit_log', label: 'Log audytu' },

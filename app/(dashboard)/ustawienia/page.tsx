@@ -15,6 +15,8 @@ export default function SettingsPage() {
   const [paymentAccount1Name, setPaymentAccount1Name] = useState('')
   const [paymentAccount2Name, setPaymentAccount2Name] = useState('')
   const [backfillRentsEnabled, setBackfillRentsEnabled] = useState(false)
+  const [importPekaoEnabled, setImportPekaoEnabled] = useState(true)
+  const [importMillenniumEnabled, setImportMillenniumEnabled] = useState(true)
   const [pending, startTransition] = useTransition()
   const router = useRouter()
 
@@ -28,6 +30,8 @@ export default function SettingsPage() {
         setPaymentAccount1Name(cfg.payment_account_1_name as string ?? 'Pekao')
         setPaymentAccount2Name(cfg.payment_account_2_name as string ?? 'Millennium')
         setBackfillRentsEnabled(cfg.backfill_rents_enabled === true)
+        setImportPekaoEnabled(cfg.import_pekao_enabled !== false)
+        setImportMillenniumEnabled(cfg.import_millennium_enabled !== false)
       }
     })
   }, [])
@@ -41,6 +45,8 @@ export default function SettingsPage() {
           payment_account_1_name: paymentAccount1Name,
           payment_account_2_name: paymentAccount2Name,
           backfill_rents_enabled: backfillRentsEnabled,
+          import_pekao_enabled: importPekaoEnabled,
+          import_millennium_enabled: importMillenniumEnabled,
         })
         toast.success('Ustawienia zapisane.')
         router.refresh()
@@ -109,6 +115,35 @@ export default function SettingsPage() {
             rows={4}
             placeholder="Np. 12345678901234567890123456"
           />
+        </div>
+
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold">Importy wyciągów bankowych</h2>
+          <p className="text-sm text-muted-foreground mt-1 mb-3">
+            Wyłączony import znika ze strony importu, a serwer go odrzuca. Przynajmniej jeden import
+            musi być włączony.
+          </p>
+          <div className="space-y-2">
+            <label className="flex items-center gap-3 text-sm">
+              <Switch
+                checked={importPekaoEnabled}
+                onCheckedChange={setImportPekaoEnabled}
+                disabled={importPekaoEnabled && !importMillenniumEnabled}
+              />
+              Import {paymentAccount1Name || 'Pekao'} (CSV)
+            </label>
+            <label className="flex items-center gap-3 text-sm">
+              <Switch
+                checked={importMillenniumEnabled}
+                onCheckedChange={setImportMillenniumEnabled}
+                disabled={importMillenniumEnabled && !importPekaoEnabled}
+              />
+              Import {paymentAccount2Name || 'Millennium'} (PDF)
+            </label>
+            {(!importPekaoEnabled || !importMillenniumEnabled) && (
+              <p className="text-xs text-muted-foreground">Przynajmniej jeden import musi być włączony.</p>
+            )}
+          </div>
         </div>
 
         <div className="space-y-1">

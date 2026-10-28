@@ -1,13 +1,13 @@
 'use server'
 
-import { createServiceClient } from '@/lib/supabase/service'
+import { getUserClient } from '@/lib/auth-guard'
 
 export async function getEmailLogs(params?: {
   dateFrom?: string
   dateTo?: string
   recipient?: string
 }) {
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
   let query = supabase
     .from('email_logs')
     .select('*')

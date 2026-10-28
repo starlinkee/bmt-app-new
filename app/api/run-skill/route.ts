@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireApiAuth } from '@/lib/auth'
 import { getVpsUrl, invalidatePortCache, vpsHeaders } from '@/lib/skill-runner-client'
 
 function isValidSkillId(id: unknown): id is string {
@@ -6,6 +7,7 @@ function isValidSkillId(id: unknown): id is string {
 }
 
 export async function POST(req: NextRequest) {
+  if (!(await requireApiAuth())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const vpsUrl = await getVpsUrl()
   if (!vpsUrl) {
     return NextResponse.json(
@@ -40,6 +42,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  if (!(await requireApiAuth())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const vpsUrl = await getVpsUrl()
   if (!vpsUrl) return NextResponse.json({ error: 'Skill runner not configured or unreachable' }, { status: 503 })
 
@@ -62,6 +65,7 @@ export async function DELETE(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
+  if (!(await requireApiAuth())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const vpsUrl = await getVpsUrl()
   if (!vpsUrl) {
     return NextResponse.json({ error: 'Skill runner not configured or unreachable' }, { status: 503 })

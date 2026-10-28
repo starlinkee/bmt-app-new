@@ -1,0 +1,5 @@
+- Rób tylko krok z polecenia. Najpierw przeczytaj CONTEXT.md, PROGRESS.md i plik kroku.
+- Nie rób niczego z "Poza zakresem" ani z kolejnych kroków.
+- Na koniec: commit kodu, dopisz do PROGRESS.md "## Krok NN: Tytuł" z 3 punktami (co powstało, decyzje, co odłożono), commit, zapisz DONE w .roadmap/finished.
+- Gdy nie da się skończyć: zapisz "BLOCKED: powód" w .roadmap/finished.
+- Nie zmieniaj linii status w plikach kroków.

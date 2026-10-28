@@ -1,9 +1,9 @@
 'use server'
 
-import { createServiceClient } from '@/lib/supabase/service'
+import { getUserClient } from '@/lib/auth-guard'
 
 export async function getMediaHistory() {
-  const supabase = createServiceClient()
+  const { supabase } = await getUserClient()
   const { data, error } = await supabase
     .from('media_settlements')
     .select('*, settlement_groups(name)')

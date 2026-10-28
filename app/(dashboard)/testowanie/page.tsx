@@ -40,7 +40,7 @@ export default function TestowaniePage() {
   const [mediaMonth, setMediaMonth] = useState(new Date().getMonth() + 1)
   const [mediaYear, setMediaYear] = useState(new Date().getFullYear())
 
-  // Wirtualny zegar - offsetMs trzymany w bazie (app_config.time_offset_ms),
+  // Wirtualny zegar - offsetMs trzymany w bazie (system_settings.time_offset_ms),
   // a wyświetlany czas tyka lokalnie co sekundę, żeby było widać, że czas
   // "płynie", tylko przesunięty (patrz lib/clock.ts).
   const [clockAllowed, setClockAllowed] = useState(true)

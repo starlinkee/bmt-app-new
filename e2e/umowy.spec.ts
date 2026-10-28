@@ -70,8 +70,10 @@ test('usuwanie umowy', async ({ page, makeTenant, makeContract }) => {
   const row = page.locator(`[data-contract-id="${contract.id}"]`)
   await expect(row).toBeVisible()
 
-  page.once('dialog', (d) => d.accept())
+  // Akceptacja musi być podpięta PRZED klikiem: click() czeka na obsłużenie natywnego confirm().
+  const dialogAccepted = page.waitForEvent('dialog').then((d) => d.accept())
   await row.getByRole('button', { name: 'Usuń umowę' }).click()
+  await dialogAccepted
 
   await expect(page.getByText('Umowa usunięta.')).toBeVisible()
   await expect(row).toHaveCount(0)
