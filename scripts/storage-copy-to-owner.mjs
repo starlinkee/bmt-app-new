@@ -3,8 +3,10 @@
 //
 //   node scripts/storage-copy-to-owner.mjs           # dry-run (nic nie zapisuje)
 //   node scripts/storage-copy-to-owner.mjs --apply   # kopiuje i aktualizuje media_settlements
+//   node scripts/storage-copy-to-owner.mjs --env-file=.env.prod --allow-ref=<ref>   # inny projekt (np. produkcja)
 //
-// Bezpieczniki: odmawia pracy, jeśli URL projektu nie zawiera refu preview; NIC nie usuwa (stare
+// Bezpieczniki: domyślnie odmawia pracy, jeśli host projektu to nie preview; inny projekt wymaga jawnego
+// --allow-ref z DOKŁADNYM refem (host <ref>.supabase.co); NIC nie usuwa (stare
 // obiekty zostają); można powtarzać (istniejące cele są pomijane, zmieniane są tylko ścieżki,
 // które nadal są "stare"). Dane połączenia czyta z .env.e2e (jak testy integracyjne) albo z env.
 // Pomija obiekty, których pierwszy segment jest uuid (już w nowym układzie) oraz `ai-files/`
@@ -16,6 +18,23 @@ import { pathToFileURL } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
 
 export const PREVIEW_REF = 'emjiqrfpvdiyodzezzlm'
+/** Czy host URL-a to dokładnie <ref>.supabase.co dla dozwolonego refu (nie podciąg). */
+export function checkProjectRef(url, allowedRefs) {
+  let host
+  try {
+    host = new URL(url).hostname
+  } catch {
+    return false
+  }
+  return allowedRefs.some((ref) => ref && host === `${ref}.supabase.co`)
+}
+
+/** Wartość opcji --name=value z argv albo undefined. */
+export function argValue(argv, name) {
+  const hit = argv.find((a) => a.startsWith(`--${name}=`))
+  return hit ? hit.slice(name.length + 3) : undefined
+}
+
 export const BUCKETS = ['invoices', 'manual-uploads']
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -71,12 +90,14 @@ async function listAll(storage, bucket, prefix = '') {
 
 async function main() {
   const apply = process.argv.includes('--apply')
-  loadEnvFile(path.resolve(process.cwd(), '.env.e2e'))
+  const envFile = argValue(process.argv, 'env-file') ?? '.env.e2e'
+  const allowRef = argValue(process.argv, 'allow-ref')
+  loadEnvFile(path.resolve(process.cwd(), envFile))
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) throw new Error('Brak NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY (uzupełnij .env.e2e).')
-  if (!url.includes(PREVIEW_REF)) {
-    console.error(`ODMOWA: URL projektu nie zawiera refu preview (${PREVIEW_REF}). Ten skrypt działa wyłącznie na preview.`)
+  if (!url || !key) throw new Error(`Brak NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY (uzupełnij ${envFile}).`)
+  if (!checkProjectRef(url, [PREVIEW_REF, allowRef])) {
+    console.error(`ODMOWA: host projektu to nie preview (${PREVIEW_REF}) ani ref z --allow-ref. Inny projekt wymaga jawnego --allow-ref=<ref>.`)
     process.exit(2)
   }
 
@@ -84,7 +105,7 @@ async function main() {
   const { data: legacy, error: legacyError } = await supabase.from('legacy_owner').select('owner_id').eq('id', 1).single()
   if (legacyError || !legacy) throw new Error(`legacy_owner: ${legacyError?.message}`)
   const owner = legacy.owner_id
-  console.log(`${apply ? 'APPLY' : 'DRY-RUN'} | projekt ${PREVIEW_REF} | właściciel ${owner}`)
+  console.log(`${apply ? 'APPLY' : 'DRY-RUN'} | projekt ${new URL(url).hostname} | właściciel ${owner}`)
 
   let mismatch = false
   const copiedLegacy = new Set() // ścieżki invoices skopiowane (lub już obecne pod prefiksem)
