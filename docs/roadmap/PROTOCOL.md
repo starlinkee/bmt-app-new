@@ -3,3 +3,4 @@
 - Na koniec: commit kodu, dopisz do PROGRESS.md "## Krok NN: Tytuł" z 3 punktami (co powstało, decyzje, co odłożono), commit, zapisz DONE w .roadmap/finished.
 - Gdy nie da się skończyć: zapisz "BLOCKED: powód" w .roadmap/finished.
 - Nie zmieniaj linii status w plikach kroków.
+- Testy e2e w Playwright są obowiązkowe: każda zmiana widoczna dla użytkownika ma test e2e (katalog e2e/, `npm run test:e2e`; brak Playwrighta → skonfiguruj go). Krok nie jest skończony, dopóki testy e2e nie przechodzą.

@@ -1,5 +1,67 @@
 @AGENTS.md
 
+## Testy e2e (VB — obowiązkowe)
+
+- Każda zmiana widoczna dla użytkownika (strona, formularz, przepływ, API używane przez UI) ma test e2e w Playwright: główna ścieżka i najważniejszy błąd.
+- Brak Playwrighta w projekcie → najpierw go skonfiguruj: `@playwright/test`, `playwright.config.ts`, katalog `e2e/`, skrypt `npm run test:e2e`.
+- `npm run test:e2e` musi przechodzić przed commitem i przed oddaniem do review. Planner ujmuje testy e2e w każdym pakiecie; reviewer odrzuca pracę bez testów e2e albo z czerwonymi testami.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Zadania z docs/roadmap/steps/ wykonuj zgodnie z docs/roadmap/PROTOCOL.md.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 <!-- BEGIN OpenRig MANAGED BLOCK: CULTURE-default.md -->
 # OpenRig default culture
@@ -60,6 +122,10 @@ one reviewer moving queued work through a clear handoff path.
   queue handoff when rework is needed. The default workflow pass path moves
   review to close.
 
+## VB — moje dodatki
+
+- **Testy e2e w Playwright są obowiązkowe.** Każda zmiana widoczna dla użytkownika (strona, formularz, przepływ, API używane przez UI) ma test e2e w Playwright pokrywający główną ścieżkę i najważniejszy błąd. Jeśli projekt nie ma jeszcze Playwrighta, pierwszy builder go konfiguruje (`@playwright/test`, `playwright.config.ts`, katalog `e2e/`, skrypt `npm run test:e2e`). Testy e2e muszą przechodzić przed commitem i przed oddaniem do review; planner ujmuje je w każdym pakiecie, reviewer odrzuca pracę bez testów e2e albo z czerwonymi testami.
+
 <!-- END OpenRig MANAGED BLOCK: CULTURE.md -->
 
 <!-- BEGIN OpenRig MANAGED BLOCK: openrig-start.md -->
@@ -77,7 +143,8 @@ orientation, and it cannot tell you what your rig is for or what you are suppose
 rig whoami --json
 ```
 
-Returns your rig, pod, member, peers, edges, and transcript path. **Treat it as ground truth.**
+Returns your rig, pod, member, peers, edges, and transcript path. If `peersNote` says some peers
+are not shown, `rig whoami --json --all-peers` lists them all. **Treat it as ground truth.**
 A startup overlay can be stale; this one is small precisely so it has less room to be wrong.
 
 Run it again after any compaction, restart or restore — **before** concluding anything about
@@ -255,9 +322,10 @@ conversation. Explain the failure and help with the chosen fallback; do not atta
 Over headless SSH, explain that no visible terminal opened; tell the person to open a new terminal window or
 tab and give one complete connection and attachment command using the current Herdr endpoint, as in the guide.
 No, SSH and headless use are valid background outcomes. If the person chooses a manual operator attachment after
-a failure, find the `operator.agent` row with `rig ps --nodes --rig kernel --json`. Give the exact
-`env -u TMUX tmux attach-session -t '=<canonicalSessionName>'` with the observed name filled in for a new terminal
-on the same host and user (over SSH, connect there first). Ctrl-b, then d detaches without stopping it.
+a failure, find the `operator.agent` row with
+`rig ps --nodes --rig kernel --json --fields logicalId,canonicalSessionName,tmuxAttachCommand`. Give `env -u TMUX` followed by
+that row's `tmuxAttachCommand`, exactly as listed (it names the daemon's tmux server when that isn't the default
+one), for a new terminal on the same host and user (over SSH, connect there first). Ctrl-b, then d detaches without stopping it.
 Ask the person's goal and project folder, then hand them to the ready operator; do not implement the project yourself.
 Find the `operator.agent` row with `rig ps --nodes --rig kernel --json` and use its `canonicalSessionName` with
 `rig send <canonicalSessionName> 'This is the agent that installed OpenRig. The person will answer in your pane. Goal: <goal>. Project folder: <absolute path>.'`,
@@ -290,23 +358,6 @@ were handed and what counts as done. If you are setting up a world pack for your
 `rig context get world-example` has a fill-in template.
 
 <!-- END OpenRig MANAGED BLOCK: openrig-onboarding-02.md -->
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Zadania z docs/roadmap/steps/ wykonuj zgodnie z docs/roadmap/PROTOCOL.md.
-
 
 
 
