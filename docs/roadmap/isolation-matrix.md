@@ -13,6 +13,9 @@ nie ma wpisu w macierzy. `OK` = zachowanie zgodne z izolacją, `PRZECIEK` = naru
 | `audit_log` | OK (0 wierszy) | OK (0 zmienionych) | OK (0 usuniętych) | OK (42501) | OK (1 wiersz) | OK (1 zmieniony) | OK (owner_id = A) | OK (1 usunięty) | OK (0 wierszy) | OK (42501) | OK (0 zmienionych) | OK (0 usuniętych) |
 | `contracts` | OK (0 wierszy) | OK (0 zmienionych) | OK (0 usuniętych) | OK (42501) | OK (1 wiersz) | OK (1 zmieniony) | OK (owner_id = A) | OK (1 usunięty) | OK (0 wierszy) | OK (42501) | OK (0 zmienionych) | OK (0 usuniętych) |
 | `email_logs` | OK (0 wierszy) | OK (0 zmienionych) | OK (0 usuniętych) | OK (42501) | OK (1 wiersz) | OK (1 zmieniony) | OK (owner_id = A) | OK (1 usunięty) | OK (0 wierszy) | OK (42501) | OK (0 zmienionych) | OK (0 usuniętych) |
+| `google_connections` | OK (0 wierszy) | OK (42501) | OK (42501) | OK (42501) | OK (1 wiersz) | OK (42501) | OK (42501) | OK (42501) | OK (42501) | OK (42501) | OK (42501) | OK (42501) |
+| `google_credentials (A (authenticated))` | OK (42501) | OK (42501) | OK (42501) | OK (42501) | OK (42501) | OK (42501) | OK (42501) | OK (42501) | — | — | — | — |
+| `google_credentials (anon)` | OK (42501) | OK (42501) | OK (42501) | OK (42501) | OK (42501) | OK (42501) | OK (42501) | OK (42501) | — | — | — | — |
 | `invoices` | OK (0 wierszy) | OK (0 zmienionych) | OK (0 usuniętych) | OK (42501) | OK (1 wiersz) | OK (1 zmieniony) | OK (owner_id = A) | OK (1 usunięty) | OK (0 wierszy) | OK (42501) | OK (0 zmienionych) | OK (0 usuniętych) |
 | `legacy_owner (A (authenticated))` | OK (42501) | OK (42501) | OK (42501) | OK (42501) | — | — | — | — | — | — | — | — |
 | `legacy_owner (anon)` | OK (42501) | OK (42501) | OK (42501) | OK (42501) | — | — | — | — | — | — | — | — |
@@ -55,6 +58,8 @@ nie ma wpisu w macierzy. `OK` = zachowanie zgodne z izolacją, `PRZECIEK` = naru
 
 ## Wyjątki
 
+- `google_credentials`: tylko service role, bez polityk RLS (`REVOKE ALL` dla authenticated i anon); w tabeli wyżej wszystkie próby (także na własnym wierszu A) kończą się odmową.
+- `google_connections`: authenticated tylko `SELECT` własnego wiersza (RLS), zapis wyłącznie rolą service, anon nic; próby zapisu na własnym wierszu A to odmowa (42501), nie kontrola pozytywna.
 - `legacy_owner`: tylko service role (`REVOKE ALL` dla authenticated i anon); wiersze `legacy_owner (…)` w tabeli wyżej to próby odczytu i zmian.
 - `system_settings`: tabela globalna (flagi środowiska), celowo bez `owner_id`; zamknięta dla authenticated i anon (`REVOKE ALL`).
 - `profiles`: klucz `id` = id konta (bez `owner_id`); dopisana do macierzy jawnie. Brak polityki INSERT/DELETE, więc te operacje są odrzucane.
