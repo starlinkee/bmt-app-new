@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 # Krok 06: Magazyn poświadczeń Google (slice 7a)
 
