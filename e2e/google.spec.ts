@@ -44,7 +44,7 @@ test('needs_reauth: baner na dashboardzie i status "Wymaga ponownego połączeni
 
   await expect(page).toHaveURL(/\/ustawienia/)
   await expect(page.getByTestId('google-status')).toContainText('Wymaga ponownego połączenia')
-  await expect(page.getByRole('link', { name: 'Połącz ponownie' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Połącz ponownie', exact: true })).toBeVisible()
 })
 
 test('błąd: callback z nieprawidłowym state odmawia, nic nie zapisuje i nie ujawnia kodu', async ({
