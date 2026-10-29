@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { GoogleSection } from './google-section'
 
 export default function SettingsPage() {
   const [ignoredSourceAccounts, setIgnoredSourceAccounts] = useState('')
@@ -60,6 +61,8 @@ export default function SettingsPage() {
   return (
     <div className="p-6 space-y-6 max-w-xl">
       <h1 className="text-2xl font-semibold">Ustawienia</h1>
+
+      <GoogleSection />
 
       <div className="space-y-4">
         <div className="space-y-1">

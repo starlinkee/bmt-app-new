@@ -41,6 +41,8 @@ type SettlementGroupOverrides = Partial<{
 }>
 type SettlementGroupHandle = { id: number; name: string }
 
+type GoogleState = { status: 'connected' | 'needs_reauth' | 'disconnected'; email?: string; withSecret?: boolean }
+
 type UiCreatedKind = 'tenant' | 'property' | 'settlementGroup'
 
 type Fixtures = {
@@ -52,6 +54,11 @@ type Fixtures = {
   makeTenant: () => Promise<TenantHandle>
   makeContract: (tenantId: number, overrides?: ContractOverrides) => Promise<{ id: number }>
   makeProperty: (overrides?: PropertyOverrides) => Promise<PropertyHandle>
+  // Stan połączenia z Google konta e2e wstawiany wprost w bazie (na deployu nie ma prawdziwego Google, więc tak
+  // "symulujemy callback"). `withSecret` dodaje fikcyjny szyfrogram (nie do odszyfrowania - odłączenie ma to znieść).
+  // Wiersze Google konta e2e są czyszczone przed ustawieniem stanu i po teście.
+  setGoogleConnection: (state: GoogleState) => Promise<void>
+  getGoogleRows: () => Promise<{ credentials: number; connections: number }>
   makeSettlementGroup: (overrides?: SettlementGroupOverrides) => Promise<SettlementGroupHandle>
 }
 
@@ -223,6 +230,45 @@ export const test = base.extend<Fixtures>({
     await use(factory)
 
     await deleteSettlementGroups(db, createdGroupIds)
+  },
+
+  setGoogleConnection: async ({ db }, use) => {
+    const { owner_id } = await ownerFields(db)
+    const clear = async () => {
+      await db.from('google_credentials').delete().eq('owner_id', owner_id)
+      await db.from('google_connections').delete().eq('owner_id', owner_id)
+    }
+    await clear()
+
+    await use(async ({ status, email = `${E2E_PREFIX.toLowerCase()}google@example.com`, withSecret = false }) => {
+      await clear()
+      if (withSecret) {
+        const { error } = await db
+          .from('google_credentials')
+          .insert({ owner_id, refresh_token_ct: '\\xdeadbeefdeadbeefdeadbeefdeadbeef', iv: '\\x000000000000000000000000', key_version: 1 })
+        if (error) throw error
+      }
+      const { error } = await db.from('google_connections').insert({
+        owner_id,
+        status,
+        google_email: email,
+        scopes: ['https://www.googleapis.com/auth/gmail.send'],
+        connected_at: new Date().toISOString(),
+        last_error: status === 'needs_reauth' ? 'invalid_grant' : null,
+      })
+      if (error) throw error
+    })
+
+    await clear()
+  },
+
+  getGoogleRows: async ({ db }, use) => {
+    const { owner_id } = await ownerFields(db)
+    await use(async () => {
+      const cred = await db.from('google_credentials').select('owner_id', { count: 'exact', head: true }).eq('owner_id', owner_id)
+      const conn = await db.from('google_connections').select('owner_id', { count: 'exact', head: true }).eq('owner_id', owner_id)
+      return { credentials: cred.count ?? 0, connections: conn.count ?? 0 }
+    })
   },
 })
 
