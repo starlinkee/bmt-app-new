@@ -54,6 +54,11 @@ npx playwright show-report
   fasetowy po nieruchomości.
 - `nieruchomosci.spec.ts` — dodawanie/edycja/usuwanie nieruchomości, filtr
   tekstowy i fasetowy po typie.
+- `wysylka-maili.spec.ts` — wysyłka wyciągu z Kontroli płatności: blokada bez
+  połączenia z Google (komunikat, 0 wpisów w `email_logs`) i wysyłka z połączonym
+  kontem. Gmail API jest tu atrapą po stronie serwera (adres Google
+  `e2e_test__…` poza PRODUCTION pomija wywołanie Google), więc nie potrzeba
+  prawdziwego Google ani klucza szyfrującego na preview.
 - `media.spec.ts` — dodawanie/edycja/usuwanie grupy rozliczeniowej (mediów),
   filtr tekstowy. Tylko podstawowe akcje CRUD na samej grupie — generowanie
   not obciążeniowych jest świadomie pominięte, patrz niżej.

@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, test } from 'vitest'
-import { applyAppConfig, patchAppConfigForSuite } from '../../tests-support/appConfig'
+import { patchAppConfigForSuite } from '../../tests-support/appConfig'
+import { patchGoogleConnectionForSuite } from '../../tests-support/googleConnection'
 import { createTestDbClient, E2E_PREFIX, purgeAllTestData } from '../../tests-support/db'
 import {
   createInvoice,
@@ -25,7 +26,9 @@ afterAll(async () => {
   await purgeAllTestData(db)
 })
 
-// Wysyłka wyciągu bierze adres nadawcy z app_config.admin_email.
+// Nadawcą jest połączone konto Google właściciela (google_connections), a admin_email to tylko odbiorca powiadomień.
+const SENDER = 'integration-sender@gmail.example'
+patchGoogleConnectionForSuite(SENDER)
 patchAppConfigForSuite({ admin_email: ADMIN_EMAIL })
 
 async function balanceOf(tenantId: number) {
@@ -125,7 +128,7 @@ describe('sendStatementToTenant', () => {
     expect(result).toEqual({ success: true })
     expect(mailbox.sent).toHaveLength(1)
     const [mail] = mailbox.sent
-    expect(mail.from).toBe(ADMIN_EMAIL)
+    expect(mail.from).toBe(SENDER)
     expect(mail.to).toEqual([email, email2])
     expect(mail.subject.startsWith(`[PREVIEW] ${property.name} – Rozliczenie salda: `)).toBe(true)
     expect(mail.html).toContain(formatAmount(-600))
@@ -159,29 +162,43 @@ describe('sendStatementToTenant', () => {
     expect(await sendStatementToTenant(2_000_000_000)).toEqual({ success: false, error: 'Not found' })
   })
 
-  test('awaria SMTP jest zwrócona jako błąd, a nie wyjątek, i nie zostawia wpisu w logach', async () => {
+  test('awaria Gmaila jest zwrócona jako błąd, a nie wyjątek, i nie zostawia wpisu w logach', async () => {
     const email = testEmail()
     const { tenant } = await debtorWithEmail({ email })
-    mailbox.failWith = new Error('SMTP down')
+    mailbox.failWith = new Error('Gmail down')
 
     const result = await sendStatementToTenant(tenant.id)
 
-    expect(result).toEqual({ success: false, error: 'SMTP down' })
+    expect(result).toEqual({ success: false, error: 'Gmail down' })
     const { data: logs } = await db.from('email_logs').select('id').ilike('to_email', `%${email}%`)
     expect(logs).toHaveLength(0)
   })
 
-  test('brak adresu administratora w ustawieniach -> czytelny błąd', async () => {
-    const { tenant } = await debtorWithEmail({ email: testEmail() })
-    const restore = await applyAppConfig(db, { admin_email: null })
-    try {
-      const result = await sendStatementToTenant(tenant.id)
-      expect(result.success).toBe(false)
-      expect(result.error).toContain('Brak adresu administratora')
-      expect(mailbox.sent).toHaveLength(0)
-    } finally {
-      await restore()
-    }
+  test('brak połączenia z Google -> komunikat, 0 wiadomości i 0 nowych wpisów w email_logs', async () => {
+    const email = testEmail('bezgoogle')
+    const { tenant } = await debtorWithEmail({ email })
+    const ownerId = process.env.TEST_SESSION_OWNER_ID!
+    await db.from('google_connections').update({ status: 'disconnected' }).eq('owner_id', ownerId)
+
+    const result = await sendStatementToTenant(tenant.id)
+
+    expect(result).toEqual({ success: false, error: 'Aby wysłać e-mail, połącz Gmaila w Ustawieniach.' })
+    expect(mailbox.sent).toHaveLength(0)
+    const { data: logs } = await db.from('email_logs').select('id').ilike('to_email', `%${email}%`)
+    expect(logs).toHaveLength(0)
+    await db.from('google_connections').update({ status: 'connected' }).eq('owner_id', ownerId)
+  })
+
+  test('połączenie wymaga ponownego połączenia -> komunikat o reauth i brak wysyłki', async () => {
+    const { tenant } = await debtorWithEmail({ email: testEmail('reauth') })
+    const ownerId = process.env.TEST_SESSION_OWNER_ID!
+    await db.from('google_connections').update({ status: 'needs_reauth' }).eq('owner_id', ownerId)
+
+    const result = await sendStatementToTenant(tenant.id)
+
+    expect(result).toEqual({ success: false, error: 'Połącz Google ponownie w Ustawieniach.' })
+    expect(mailbox.sent).toHaveLength(0)
+    await db.from('google_connections').update({ status: 'connected' }).eq('owner_id', ownerId)
   })
 })
 

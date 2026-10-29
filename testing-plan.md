@@ -78,7 +78,7 @@ Status: **written, not yet run against a database** (as of 2026-10-01 the previe
 
 Design notes:
 - Shared code lives in `tests-support/` (`db.ts` client + purge + leftovers count, `guard.ts`, `appConfig.ts`, `factories.ts`); `e2e/support/db.ts` re-exports it.
-- `__tests__/integration/setup.ts` (runs before every file) replaces **nodemailer** (mails land in `mailbox`, nothing is sent), **Supabase Storage** (uploads land in `storage`) and wraps `createServiceClient` with a production re-check and `scopeTable()` — actions that read/delete whole tables (import, `dismissAllTransactions`, `sendBulkStatements`) only see `E2E_TEST__` rows, so real preview data is never touched. The suite runs with `VERCEL_ENV=preview` (subject prefix `[PREVIEW]`, `preview/` storage paths).
+- `__tests__/integration/setup.ts` (runs before every file) replaces the **Gmail API** boundary (`sendGmail` from `lib/gmail.ts`; mails land in `mailbox` with the account's access token, nothing is sent), **Supabase Storage** (uploads land in `storage`) and wraps `createServiceClient` with a production re-check and `scopeTable()` — actions that read/delete whole tables (import, `dismissAllTransactions`, `sendBulkStatements`) only see `E2E_TEST__` rows, so real preview data is never touched. The suite runs with `VERCEL_ENV=preview` (subject prefix `[PREVIEW]`, `preview/` storage paths).
 - `app_config` is one shared row: tests change it only via `applyAppConfig` / `patchAppConfigForSuite` (snapshot in `%TEMP%`, restored after the test; a crashed run is repaired by the next global setup).
 - Cleanup deletes from `transactions` / `invoices`, which a DB trigger blocks unless `app_config.allow_destructive_test_deletes` is true; `tests-support/db.ts` flips it only when there is something to delete and restores it afterwards.
 - Google layer (`sheetsEngine`, `driveEngine`) is mocked in `media-settlement.test.ts`; `generateRents` / reminder jobs are mocked in `crons.test.ts` (running them would write liabilities / send reminders for every real contract in the shared DB).
@@ -102,8 +102,8 @@ Design notes:
    - [ ] (Phase 3.1) `getFileContent` returns the text from Storage and `null` for a missing or legacy local file name.
 3. **Payment control** (`kontrola-platnosci/actions.ts`)
    - [x] `getTenantsWithBalances` / `getTenantWithBalance` / `getGlobalPaymentStats` on a seeded scenario (rent 1000, payment 400 → −600).
-   - [x] `sendStatementToTenant` / `sendBulkStatements` write `email_logs` (nodemailer mocked), skip tenants without e-mail, report errors.
-4. **Media settlement** (`processSettlement`, with `sheetsEngine`, `driveEngine`, storage and nodemailer mocked)
+   - [x] `sendStatementToTenant` / `sendBulkStatements` write `email_logs` (Gmail mocked), skip tenants without e-mail, report errors.
+4. **Media settlement** (`processSettlement`, with `sheetsEngine`, `driveEngine`, storage and Gmail mocked)
    - [x] Happy path: `media_settlements` upsert, `invoices` with `number: null` and `media_settlement_id`, PDFs uploaded, tenant e-mail sent with the right attachments and recipients (`email` + `email2`).
    - [x] Negative amount → throws, no invoice created.
    - [x] Tenant without an active contract with `has_media_invoice` → expected error.
@@ -145,7 +145,7 @@ Goal: UI acceptance tests for each core flow on preview. Follow the pattern of `
      - [ ] Check a real PDF statement size against the 1 MB server-action body limit; if exceeded, set `serverActions.bodySizeLimit` (Vercel cap is ~4.5 MB) or move the upload to a route handler.
      - [ ] E2E teardown (`global-teardown.ts`) removes Storage objects whose names contain `E2E_TEST__` (`preview/imports/`), in addition to DB rows.
      - [ ] Optional one-off: upload the existing local `data/attachments` files (dev data only) if the local import history should keep previews.
-   - [ ] Implement the e-mail seam (D1) in `lib/email.ts`: when suppressed, skip `nodemailer`, still write `email_logs` with a `suppressed` marker (new migration in `supabase/migrations`, never manual SQL); subject keeps the `[PREVIEW]` prefix.
+   - [ ] Implement the e-mail seam (D1) in `lib/email.ts`: when suppressed, skip the Gmail API call, still write `email_logs` with a `suppressed` marker (new migration in `supabase/migrations`, never manual SQL); subject keeps the `[PREVIEW]` prefix.
    - [ ] Add unit tests for the seam (suppressed vs. real path).
    - [ ] Add CSV/PDF fixture files under `e2e/fixtures/` with synthetic accounts and amounts (no real bank data).
    - [ ] Extend `e2e/support/fixtures.ts`: `makeTenantWithAccount`, `makeInvoice`, `makeTransaction`, `makeStagingRow`, `makeSettlementGroupWithOutputs`; extend `db.ts` cleanup and `global-teardown.ts` for the new tables.

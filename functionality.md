@@ -37,7 +37,7 @@ Aplikacja do zarządzania nieruchomościami na wynajem (single-tenant, jeden adm
 - **Framework**: Next.js 16 (App Router), TypeScript, server actions (`'use server'`) jako główna warstwa logiki
 - **Baza danych / auth / storage**: Supabase (PostgreSQL, Supabase Auth, Supabase Storage); dostęp przez `@supabase/supabase-js` i `@supabase/ssr`, bez ORM-a
 - **UI**: Tailwind CSS v4, shadcn/ui (`@base-ui/react`), ikony Lucide, TanStack Query
-- **E-mail**: Gmail SMTP przez `nodemailer` (patrz [E-maile](#e-maile-i-historia-wiadomości))
+- **E-mail**: Gmail API (`lib/gmail.ts`, token per konto) (patrz [E-maile](#e-maile-i-historia-wiadomości))
 - **Arkusze / PDF**: Google Sheets API v4 i Google Drive API v3 (media), `pdfkit` (wyciągi dla najemców)
 - **Import**: PapaParse (CSV), `pdf-parse` (PDF — tylko układ Millennium)
 - **Hosting**: Vercel (crony w `vercel.json`)
@@ -264,8 +264,8 @@ Saldo = Σ(transakcje MATCHED + MANUAL) − Σ(invoices)
 ## E-maile i historia wiadomości
 
 `lib/email.ts`:
-- Transport: `nodemailer` przez Gmail SMTP (`smtp.gmail.com:587`). Nadawca = `app_config.admin_email` (Ustawienia), hasło aplikacji Gmail = env `GMAIL_APP_PASSWORD`.
-- Typy: media (`sendMediaEmail`), wyciąg/zaległość (`sendStatementEmail`), przypomnienie o wgraniu wyciągu (do admina), podsumowanie rozliczenia mediów (do admina), przypomnienie o odczytach, (`sendRentEmail` — historyczne, nieużywane przez `generateRents`).
+- Transport: Gmail API `users.messages.send` (MIME budowany w `lib/gmail.ts`). Nadawca = połączone konto Google właściciela (`google_connections.google_email`), token z `google_credentials`. `app_config.admin_email` to tylko odbiorca powiadomień. Bez połączenia: ręczne akcje blokowane komunikatem „Aby wysłać e-mail, połącz Gmaila w Ustawieniach.”, crony pomijają konto (`skipped: google_not_connected`), przy utraconej zgodzie `google_reauth_required`.
+- Typy: media (`sendMediaEmail`), wyciąg/zaległość (`sendStatementEmail`), przypomnienie o wgraniu wyciągu (do admina), podsumowanie rozliczenia mediów (do admina), przypomnienie o odczytach.
 - Temat dostaje prefiks `[DEVELOPMENT]` / `[PREVIEW]` poza produkcją. **Preview wysyła prawdziwe e-maile** — zob. `testing-plan.md`.
 - Każda wysyłka zapisuje się w `email_logs` (odbiorcy, temat, treść, załączniki). Podgląd: `/wiadomosci` z filtrami po dacie i odbiorcy.
 
@@ -340,7 +340,7 @@ Trzy środowiska (`lib/env.ts`, `getEnvTier()` z `VERCEL_ENV`): `DEVELOPMENT`, `
 
 **Testy**:
 - Jednostkowe (`npm run test:unit`, `__tests__/unit`): salda, wyciągi, czynsze i backfill, umowy, matcher, parsery CSV/PDF, przypomnienia, status transakcji, kwoty słownie.
-- Integracyjne (`npm run test:integration`, `__tests__/integration`): server actions na bazie preview z danymi `E2E_TEST__` — import, płatności, rozliczanie mediów (Google zamockowane), wiadomości, crony; nodemailer zamockowany.
+- Integracyjne (`npm run test:integration`, `__tests__/integration`): server actions na bazie preview z danymi `E2E_TEST__` — import, płatności, rozliczanie mediów (Google zamockowane), wiadomości, crony; Gmail zamockowany.
 - E2E (Playwright, `npm run test:e2e`, `e2e/`): umowy, najemcy, nieruchomości, CRUD grup mediów; szczegóły w `e2e/README.md`. Plan dalszych testów: `testing-plan.md`.
 
 ---
@@ -352,7 +352,6 @@ Trzy środowiska (`lib/env.ts`, `getEnvTier()` z `VERCEL_ENV`): `DEVELOPMENT`, `
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Projekt Supabase (publiczne) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Klucz serwera (tajny, omija RLS) |
 | `SUPABASE_DB_URL` | Connection string do `supabase db push` (build Vercela, `push-preview.sh`) |
-| `GMAIL_APP_PASSWORD` | Hasło aplikacji Gmail dla nadawcy z `app_config.admin_email` |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Service Account (Sheets, base64 lub raw JSON) |
 | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REFRESH_TOKEN` | OAuth2 dla Google Drive |
 | `CRON_SECRET` | Sekret autoryzacji endpointów cron (Bearer) |

@@ -55,26 +55,31 @@ vi.mock('@/lib/auth-guard', async () => {
   }
 })
 
-// SMTP: lib/email.ts działa normalnie (szablony, tematy, logi w email_logs),
-// ale transport zapisuje wiadomość w `mailbox` zamiast ją wysyłać.
-vi.mock('nodemailer', async () => {
-  const { mailbox } = await import('./helpers/runtime')
-  const createTransport = () => ({
-    async sendMail(options: {
-      from: string
-      to: string | string[]
-      subject: string
-      html: string
-      attachments?: { filename: string; content: Buffer }[]
-    }) {
-      const mail = { ...options, attachments: options.attachments ?? [] }
-      if (mailbox.failWith) throw mailbox.failWith
-      if (mailbox.failIf?.(mail)) throw new Error('symulowana awaria SMTP')
-      mailbox.sent.push(mail)
-      return { messageId: 'integration-test' }
+// Gmail API: lib/email.ts działa normalnie (nadawca z google_connections, szablony, tematy, logi w email_logs,
+// prawdziwe MIME), ale sendGmail zapisuje wiadomość w `mailbox` (razem z tokenem konta) zamiast ją wysyłać.
+vi.mock('@/lib/gmail', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/gmail')>()
+  const { mailbox, builtMessages } = await import('./helpers/runtime')
+  return {
+    ...actual,
+    buildMime: (message: Parameters<typeof actual.buildMime>[0]) => {
+      builtMessages.push({ ...message, attachments: message.attachments ?? [] })
+      return actual.buildMime(message)
     },
-  })
-  return { default: { createTransport }, createTransport }
+    async sendGmail(accessToken: string) {
+      const mail = { ...builtMessages.shift()!, token: accessToken }
+      if (mailbox.failWith) throw mailbox.failWith
+      if (mailbox.failIf?.(mail)) throw new Error('symulowana awaria Gmaila')
+      mailbox.sent.push(mail)
+      return { id: 'integration-test' }
+    },
+  }
+})
+
+// Odświeżenie tokenu Google: token zależy od refresh tokena konta, więc test widzi, którego konta użyto.
+vi.mock('@/lib/google-oauth', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/google-oauth')>()
+  return { ...actual, refreshAccessToken: async (refreshToken: string) => ({ accessToken: `access-${refreshToken}` }) }
 })
 
 // Klient service_role aplikacji: prawdziwa baza preview (z ponowną kontrolą, że

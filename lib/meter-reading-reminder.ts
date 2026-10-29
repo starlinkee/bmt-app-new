@@ -1,7 +1,8 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { readAppConfig } from '@/lib/app-config'
 import { logAudit } from '@/lib/audit'
-import { sendMeterReadingReminderEmail } from '@/lib/email'
+import { GoogleReauthRequiredError } from '@/lib/google-connection'
+import { cronEmailGate, sendMeterReadingReminderEmail, toCronError } from '@/lib/email'
 import { getCurrentDate } from '@/lib/clock'
 
 // Domyślny komunikat na formularzu najemcy (/odczyty/[token]), gdy okno
@@ -98,6 +99,10 @@ export async function processMeterReadingReminder(ownerId: string) {
   if (tomorrow.getDate() !== 1) {
     return { sent: false, reason: 'Not the last day of month' }
   }
+
+  // Bez połączonego Gmaila konto pomijamy przed zastrzeżeniem miesiąca (reminder_dedup).
+  const skipped = await cronEmailGate(ownerId)
+  if (skipped) return { sent: false, skipped }
 
   const supabase = createServiceClient()
   const dedupKey = `${now.getFullYear()}-${now.getMonth() + 1}`
@@ -214,6 +219,8 @@ export async function processMeterReadingReminder(ownerId: string) {
       )
       results.push({ tenantId: tenant.id, email: to.join(', ') })
     } catch (e) {
+      // Utrata zgody Google dotyczy całego konta, nie pojedynczego najemcy: przerwij i zwolnij zastrzeżenie.
+      if (e instanceof GoogleReauthRequiredError) throw e
       results.push({
         tenantId: tenant.id,
         email: to.join(', '),
@@ -247,6 +254,6 @@ export async function processMeterReadingReminder(ownerId: string) {
       operation: 'CREATE',
       errorData: e,
     })
-    throw e
+    throw toCronError(e)
   }
 }

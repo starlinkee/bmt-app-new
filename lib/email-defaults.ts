@@ -4,10 +4,6 @@
 // Szablony konta właściciela sprzed slice 4a zostały w bazie wypełnione dawnymi tekstami
 // (migracja 20261021090000), więc zmiana tych stałych nie zmienia jego e-maili.
 
-export const DEFAULT_RENT_EMAIL_SUBJECT = 'Faktura czynszu {numer_rachunku}'
-export const DEFAULT_RENT_EMAIL_BODY =
-  'Szanowny/a {najemca},\n\nW załączeniu faktura za czynsz nr {numer_rachunku} za {miesiac}/{rok} na kwotę {kwota}.\n\nPozdrawiamy'
-
 export const DEFAULT_MEDIA_EMAIL_SUBJECT = 'Faktura media {numer_rachunku}'
 export const DEFAULT_MEDIA_EMAIL_BODY =
   'Szanowny/a {imie},\nW załączeniu rozliczenie mediów nr {numer_rachunku} za {miesiac}/{rok} na kwotę {kwota}.\n\nPozdrawiamy'

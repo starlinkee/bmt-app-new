@@ -30,8 +30,6 @@ export default defineConfig({
       // Zachowuj się jak deploy preview: prefiks "[PREVIEW]" w e-mailach,
       // ścieżki Storage z prefiksem preview/ (patrz lib/env.ts, lib/email.ts).
       VERCEL_ENV: 'preview',
-      // Nawet gdyby nodemailer przestał być zamockowany, nie ma czym się zalogować.
-      GMAIL_APP_PASSWORD: 'integration-tests-not-a-real-password',
       CRON_SECRET: 'integration-tests-cron-secret',
     },
   },

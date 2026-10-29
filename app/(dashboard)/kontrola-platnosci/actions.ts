@@ -116,6 +116,14 @@ export async function getTenantWithBalance(tenantId: number) {
 }
 export async function sendBulkStatements() {
   const { user, supabase } = await getUserClient()
+  const { assertEmailReady, emailBlockMessage } = await import('@/lib/email')
+  try {
+    await assertEmailReady(user.id)
+  } catch (e) {
+    const blocked = emailBlockMessage(e)
+    if (blocked) return { success: false, count: 0, error: blocked }
+    throw e
+  }
   const config = await readAppConfig(user.id, ['late_reminder_subject', 'late_reminder_body'])
   if (!config) throw new Error('Brak konfiguracji aplikacji')
 
@@ -182,6 +190,8 @@ export async function getGlobalPaymentStats() {
 export async function sendStatementToTenant(tenantId: number) {
   const { user, supabase } = await getUserClient()
   try {
+    const { assertEmailReady } = await import('@/lib/email')
+    await assertEmailReady(user.id)
     const config = await readAppConfig(user.id, ['late_reminder_subject', 'late_reminder_body'])
     if (!config) throw new Error('Brak konfiguracji aplikacji')
 
@@ -208,7 +218,8 @@ export async function sendStatementToTenant(tenantId: number) {
 
     return { success: true }
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Nieznany błąd podczas wysyłania wyciągu'
+    const { emailBlockMessage } = await import('@/lib/email')
+    const message = emailBlockMessage(err) ?? (err instanceof Error ? err.message : 'Nieznany błąd podczas wysyłania wyciągu')
     return { success: false, error: message }
   }
 }

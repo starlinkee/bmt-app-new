@@ -69,7 +69,8 @@ export default function SettingsPage() {
           <h2 className="text-lg font-semibold">Adres administratora</h2>
           <p className="text-sm text-muted-foreground mt-1 mb-3">
             Adres e-mail, na który przychodzą automatyczne przypomnienia dla administratora
-            (np. o wgraniu wyciągu bankowego 16. dnia miesiąca).
+            (np. o wgraniu wyciągu bankowego 16. dnia miesiąca) i podsumowania rozliczeń mediów.
+            To tylko odbiorca powiadomień — maile wysyłane są z połączonego konta Google (sekcja Google powyżej).
           </p>
           <Input
             type="email"

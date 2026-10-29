@@ -1,10 +1,7 @@
-import nodemailer from 'nodemailer'
+import 'server-only'
 import { createServiceClient } from '@/lib/supabase/service'
-import { getLegacyOwnerId, readAppConfig } from '@/lib/app-config'
 import { formatAmount } from '@/lib/utils'
 import {
-  DEFAULT_RENT_EMAIL_SUBJECT,
-  DEFAULT_RENT_EMAIL_BODY,
   DEFAULT_MEDIA_EMAIL_SUBJECT,
   DEFAULT_MEDIA_EMAIL_BODY,
   DEFAULT_STATEMENT_EMAIL_SUBJECT,
@@ -15,30 +12,61 @@ import {
   DEFAULT_METER_READING_REMINDER_BODY,
 } from '@/lib/email-defaults'
 import { getEnvTier } from '@/lib/env'
-import fs from 'fs/promises'
-import path from 'path'
 import crypto from 'crypto'
 import { emailAttachmentPath } from '@/lib/storage-paths'
+import { GoogleNotConnectedError, GoogleReauthRequiredError, getAccessToken, markNeedsReauth } from '@/lib/google-connection'
+import { GmailSendError, buildMime, sendGmail } from '@/lib/gmail'
 
-type EmailProvider = 'gmail_smtp'
+export const EMAIL_NOT_CONNECTED_MESSAGE = 'Aby wysłać e-mail, połącz Gmaila w Ustawieniach.'
+export const EMAIL_REAUTH_MESSAGE = 'Połącz Google ponownie w Ustawieniach.'
 
-type ProviderConfig = {
-  provider: EmailProvider
-  gmailUser: string | null
-  gmailAppPassword: string | null
+/** Komunikat dla użytkownika, gdy wysyłka jest zablokowana brakiem/utratą połączenia z Google; inaczej null. */
+export function emailBlockMessage(e: unknown): string | null {
+  if (e instanceof GoogleNotConnectedError) return EMAIL_NOT_CONNECTED_MESSAGE
+  if (e instanceof GoogleReauthRequiredError) return EMAIL_REAUTH_MESSAGE
+  return null
 }
 
-// Nadawca = adres administratora z ustawień (app_config.admin_email),
-// hasło aplikacji Gmail pochodzi ze zmiennej środowiskowej GMAIL_APP_PASSWORD.
-async function getProviderConfig(): Promise<ProviderConfig> {
-  // Wspólny Gmail właściciela do slice 7: nadawcą jest adres administratora konta właściciela
-  // (legacy_owner) niezależnie od konta, w którego imieniu idzie wysyłka.
-  const config = await readAppConfig(await getLegacyOwnerId(), ['admin_email'])
+// Nadawcą jest połączone konto Google właściciela (google_connections.google_email); admin_email to tylko odbiorca.
+async function getSender(ownerId: string): Promise<string> {
+  const { data, error } = await createServiceClient()
+    .from('google_connections')
+    .select('google_email, status')
+    .eq('owner_id', ownerId)
+    .maybeSingle()
+  if (error) throw new Error(`google_connections: ${error.code ?? 'błąd odczytu'}`)
+  if (!data || data.status === 'disconnected' || !data.google_email) throw new GoogleNotConnectedError()
+  if (data.status === 'needs_reauth') throw new GoogleReauthRequiredError('needs_reauth')
+  return data.google_email
+}
 
-  return {
-    provider: 'gmail_smtp',
-    gmailUser: config?.admin_email?.trim() || null,
-    gmailAppPassword: process.env.GMAIL_APP_PASSWORD || null,
+/** Te same sprawdzenia co przy wysyłce, bez wysyłania - do blokady akcji przed jakąkolwiek zmianą. */
+export async function assertEmailReady(ownerId: string): Promise<void> {
+  await getSender(ownerId)
+}
+
+// Atrapa tylko dla testów e2e na preview/dev (tam nie ma klucza szyfrującego ani prawdziwego Google): konto
+// z adresem Google zaczynającym się od e2e_test__ nie woła Gmail API. Na PRODUCTION nigdy się nie włącza.
+export function isE2eMailStub(senderEmail: string): boolean {
+  return getEnvTier() !== 'PRODUCTION' && senderEmail.toLowerCase().startsWith('e2e_test__')
+}
+
+export const CRON_NOT_CONNECTED = 'google_not_connected'
+export const CRON_REAUTH_REQUIRED = 'google_reauth_required'
+
+/** Dla cronów: błąd utraty zgody Google jako stabilny kod (`google_reauth_required`), reszta bez zmian. */
+export function toCronError(e: unknown): unknown {
+  return e instanceof GoogleReauthRequiredError ? new Error(CRON_REAUTH_REQUIRED) : e
+}
+
+/** Bramka crona konta: 'google_not_connected' = pomiń konto, reauth = błąd konta, null = można wysyłać. */
+export async function cronEmailGate(ownerId: string): Promise<typeof CRON_NOT_CONNECTED | null> {
+  try {
+    await assertEmailReady(ownerId)
+    return null
+  } catch (e) {
+    if (e instanceof GoogleNotConnectedError) return CRON_NOT_CONNECTED
+    throw toCronError(e)
   }
 }
 
@@ -47,8 +75,7 @@ type SendParams = {
   subject: string
   html: string
   attachments?: { filename: string; content: Buffer }[]
-  cfg: ProviderConfig
-  // Konto, w imieniu którego idzie wysyłka (email_logs.owner_id); nadawca zostaje wspólny do slice 7.
+  // Konto, w imieniu którego idzie wysyłka (email_logs.owner_id) - jego Gmail jest nadawcą.
   ownerId: string
 }
 
@@ -59,110 +86,71 @@ function getEnvSubjectPrefix(): string {
   return ''
 }
 
-async function sendEmail({ to, subject, html, attachments = [], cfg, ownerId }: SendParams) {
+async function sendEmail({ to, subject, html, attachments = [], ownerId }: SendParams) {
   const finalTo = to;
   const finalSubject = `${getEnvSubjectPrefix()}${subject}`;
   const finalHtml = html;
 
   const isPreview = process.env.VERCEL_ENV === 'preview' || process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview';
 
-  if (cfg.provider === 'gmail_smtp') {
-    if (!cfg.gmailUser) {
-      throw new Error('Brak adresu administratora w ustawieniach (/ustawienia) — jest używany jako adres nadawcy.')
-    }
-    if (!cfg.gmailAppPassword) {
-      throw new Error('Brak zmiennej środowiskowej GMAIL_APP_PASSWORD (hasło aplikacji Gmail).')
-    }
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false,
-      auth: { user: cfg.gmailUser, pass: cfg.gmailAppPassword },
-    })
-    await transporter.sendMail({
-      from: cfg.gmailUser,
-      to: finalTo,
-      subject: finalSubject,
-      html: finalHtml,
-      attachments: attachments.map((a) => ({ filename: a.filename, content: a.content })),
-    })
-
+  const sender = await getSender(ownerId)
+  if (!isE2eMailStub(sender)) {
+    const accessToken = await getAccessToken(ownerId)
+    const raw = buildMime({ from: sender, to: finalTo, subject: finalSubject, html: finalHtml, attachments })
     try {
-      const supabase = createServiceClient()
-      const recipientsStr = Array.isArray(finalTo) ? finalTo.join(', ') : finalTo
-      
-      const savedAttachments = []
-      if (attachments && attachments.length > 0) {
-        for (const a of attachments) {
-          const uniqueName = crypto.randomUUID() + '_' + a.filename
-          const uploadPath = emailAttachmentPath(ownerId, uniqueName, isPreview)
-          
-          const { error: uploadError } = await supabase.storage
-            .from('invoices')
-            .upload(uploadPath, a.content, { 
-              contentType: a.filename.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream' 
-            })
-          
-          if (uploadError) {
-            console.error('Storage upload error:', uploadError)
-          } else {
-            savedAttachments.push({
-              name: a.filename,
-              path: uniqueName
-            })
-          }
+      await sendGmail(accessToken, raw)
+    } catch (e) {
+      if (e instanceof GmailSendError && e.reauth) {
+        await markNeedsReauth(ownerId, e.code)
+        throw new GoogleReauthRequiredError(e.code)
+      }
+      throw e
+    }
+  }
+
+  // Wiadomość już wyszła (albo to atrapa e2e) - dopiero teraz archiwum i email_logs.
+  try {
+    const supabase = createServiceClient()
+    const recipientsStr = Array.isArray(finalTo) ? finalTo.join(', ') : finalTo
+
+    const savedAttachments = []
+    if (attachments && attachments.length > 0) {
+      for (const a of attachments) {
+        const uniqueName = crypto.randomUUID() + '_' + a.filename
+        const uploadPath = emailAttachmentPath(ownerId, uniqueName, isPreview)
+
+        const { error: uploadError } = await supabase.storage
+          .from('invoices')
+          .upload(uploadPath, a.content, {
+            contentType: a.filename.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream'
+          })
+
+        if (uploadError) {
+          console.error('Storage upload error:', uploadError)
+        } else {
+          savedAttachments.push({
+            name: a.filename,
+            path: uniqueName
+          })
         }
       }
-
-      await supabase.from('email_logs').insert({
-        owner_id: ownerId,
-        to_email: recipientsStr,
-        subject: finalSubject,
-        body: finalHtml,
-        attachments: savedAttachments.length > 0 ? savedAttachments : null,
-      })
-    } catch (e) {
-      console.error('Failed to log email', e)
     }
-  } else {
-    throw new Error(`Nieobsługiwany dostawca email: ${cfg.provider}`)
+
+    await supabase.from('email_logs').insert({
+      owner_id: ownerId,
+      to_email: recipientsStr,
+      subject: finalSubject,
+      body: finalHtml,
+      attachments: savedAttachments.length > 0 ? savedAttachments : null,
+    })
+  } catch (e) {
+    console.error('Failed to log email', e)
   }
 }
 
 function withTypeLabel(subject: string, typeLabel: string, propertyName?: string | null) {
   const prefix = propertyName ? `${propertyName} – ${typeLabel}` : typeLabel
   return `${prefix}: ${subject}`
-}
-
-export async function sendRentEmail(
-  ownerId: string,
-  to: string | string[],
-  tenantName: string,
-  invoiceNumber: string | null,
-  amount: number,
-  month: number,
-  year: number,
-  pdfBuffer?: Buffer,
-  subjectTemplate?: string | null,
-  bodyTemplate?: string | null,
-  propertyName?: string | null,
-) {
-  const cfg = await getProviderConfig()
-  const vars: Record<string, string> = {
-    najemca: tenantName,
-    numer_rachunku: invoiceNumber || '',
-    kwota: formatAmount(amount),
-    miesiac: String(month),
-    rok: String(year),
-  }
-  const applyVars = (tpl: string) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '')
-  const subject = withTypeLabel(applyVars(subjectTemplate || DEFAULT_RENT_EMAIL_SUBJECT), 'Czynsz', propertyName)
-  const bodyText = applyVars(bodyTemplate || DEFAULT_RENT_EMAIL_BODY)
-  const html = bodyText.split('\n').map(l => `<p>${l}</p>`).join('')
-  const attachments = pdfBuffer
-    ? [{ filename: invoiceNumber ? `${invoiceNumber.replace(/\//g, '-')}.pdf` : 'Rachunek.pdf', content: pdfBuffer }]
-    : []
-  await sendEmail({ to, subject, html, attachments, cfg, ownerId })
 }
 
 function applyMediaTemplate(
@@ -185,7 +173,6 @@ export async function sendMediaEmail(
   bodyTemplate?: string | null,
   propertyName?: string | null,
 ) {
-  const cfg = await getProviderConfig()
   const vars: Record<string, string> = {
     imie: tenantName,
     numer_rachunku: invoiceNumber,
@@ -208,7 +195,6 @@ export async function sendMediaEmail(
     subject,
     html,
     attachments: pdfAttachments.map((a) => ({ filename: a.filename, content: a.buffer })),
-    cfg,
     ownerId,
   })
 }
@@ -223,7 +209,6 @@ export async function sendStatementEmail(
   bodyTemplate?: string,
   propertyName?: string | null,
 ) {
-  const cfg = await getProviderConfig()
   const vars: Record<string, string> = {
     imie: tenantName,
     saldo: formatAmount(balance),
@@ -238,7 +223,7 @@ export async function sendStatementEmail(
   
   const attachments = [{ filename: 'Wyciag_z_konta.pdf', content: pdfBuffer }]
 
-  await sendEmail({ to, subject, html, attachments, cfg, ownerId })
+  await sendEmail({ to, subject, html, attachments, ownerId })
 }
 
 export async function sendStatementUploadReminderEmail(
@@ -247,11 +232,10 @@ export async function sendStatementUploadReminderEmail(
   subjectTemplate?: string | null,
   bodyTemplate?: string | null,
 ) {
-  const cfg = await getProviderConfig()
   const subject = subjectTemplate || DEFAULT_STATEMENT_UPLOAD_REMINDER_SUBJECT
   const bodyText = bodyTemplate || DEFAULT_STATEMENT_UPLOAD_REMINDER_BODY
   const html = bodyText.split('\n').map((l) => (l ? `<p>${l}</p>` : '<br>')).join('')
-  await sendEmail({ to, subject, html, cfg, ownerId })
+  await sendEmail({ to, subject, html, ownerId })
 }
 
 export async function sendMediaSettlementAdminSummaryEmail(
@@ -262,7 +246,6 @@ export async function sendMediaSettlementAdminSummaryEmail(
   year: number,
   entries: { tenantName: string; amount: number }[],
 ) {
-  const cfg = await getProviderConfig()
   const subject = `Rozliczenie mediów – ${groupName} – ${String(month).padStart(2, '0')}/${year}`
   const rows = entries.length
     ? entries.map((e) => `<li>${e.tenantName}: ${formatAmount(e.amount)}</li>`).join('')
@@ -273,7 +256,7 @@ export async function sendMediaSettlementAdminSummaryEmail(
     `<p>Ostateczne kwoty per najemca (do wystawienia rachunków w KSeF):</p>` +
     `<ul>${rows}</ul>` +
     `<p>Suma: <strong>${formatAmount(total)}</strong></p>`
-  await sendEmail({ to, subject, html, cfg, ownerId })
+  await sendEmail({ to, subject, html, ownerId })
 }
 
 export async function sendMeterReadingReminderEmail(
@@ -284,12 +267,11 @@ export async function sendMeterReadingReminderEmail(
   subjectTemplate?: string | null,
   bodyTemplate?: string | null,
 ) {
-  const cfg = await getProviderConfig()
   const vars: Record<string, string> = { imie: tenantName, link }
   const applyVars = (tpl: string) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '')
   const subject = applyVars(subjectTemplate || DEFAULT_METER_READING_REMINDER_SUBJECT)
   const bodyText = applyVars(bodyTemplate || DEFAULT_METER_READING_REMINDER_BODY)
   const html = bodyText.split('\n').map((l) => (l ? `<p>${l}</p>` : '<br>')).join('')
-  await sendEmail({ to, subject, html, cfg, ownerId })
+  await sendEmail({ to, subject, html, ownerId })
 }
 

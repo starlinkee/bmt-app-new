@@ -13,7 +13,7 @@ import {
   stripSpreadsheetColors,
 } from '@/lib/sheetsEngine'
 import { copySpreadsheet, deleteFile, ensureMediaSettlementFolder } from '@/lib/driveEngine'
-import { sendMediaEmail } from '@/lib/email'
+import { assertEmailReady, emailBlockMessage, sendMediaEmail } from '@/lib/email'
 import { buildInvoiceNumber, tenantDisplayName } from '@/lib/utils'
 import { getEnvTier } from '@/lib/env'
 import { getUserClient } from '@/lib/auth-guard'
@@ -298,6 +298,13 @@ export async function processSettlement(
 ) {
   const { user, supabase } = await getUserClient()
   try {
+
+  // Bez połączonego Gmaila nie ruszamy ani Drive, ani bazy - rozliczenie bez wysyłki not byłoby połowiczne.
+  try {
+    await assertEmailReady(user.id)
+  } catch (e) {
+    throw new Error(emailBlockMessage(e) ?? (e instanceof Error ? e.message : 'Błąd sprawdzania połączenia z Google'))
+  }
 
   const group = await getSettlementGroup(groupId)
   if (!group) throw new Error('Grupa nie istnieje')

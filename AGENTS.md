@@ -46,6 +46,11 @@ Aktualnie zaimplementowane pokrycie:
   tekstowy i fasetowy po typie.
 - `media.spec.ts` — dodawanie/edycja/usuwanie grupy rozliczeniowej mediów
   (tylko CRUD definicji grupy), filtr tekstowy.
+- `wysylka-maili.spec.ts` — wysyłka wyciągu z Kontroli płatności: blokada
+  komunikatem bez połączenia z Google (0 wpisów w `email_logs`) oraz wysyłka
+  z połączonym kontem. Na preview Gmail API jest atrapą po stronie serwera:
+  konto z adresem Google `e2e_test__…` poza PRODUCTION pomija wywołanie Google
+  (`isE2eMailStub` w `lib/email.ts`), reszta (PDF, `email_logs`) jest prawdziwa.
 
 Świadomie pominięte: samo generowanie/wysyłka not obciążeniowych — rozlicz-media
 (przepływ realnie wysyła e-maile i generuje PDF-y przez Google Sheets — do

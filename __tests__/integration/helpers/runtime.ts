@@ -7,6 +7,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 // nie wychodzi poza bazę.
 
 export type SentMail = {
+  /** Access token konta, którym wysłano wiadomość (mock refreshAccessToken: `access-<refresh token konta>`). */
+  token: string
   from: string
   to: string | string[]
   subject: string
@@ -14,13 +16,17 @@ export type SentMail = {
   attachments: { filename: string; content: Buffer }[]
 }
 
+/** Wiadomości zbudowane przez buildMime, a jeszcze niewysłane (sendGmail zdejmuje je po kolei). */
+export const builtMessages: Omit<SentMail, 'token'>[] = []
+
 export const mailbox = {
   sent: [] as SentMail[],
-  /** Gdy ustawione, sendMail rzuca tym błędem (symulacja awarii SMTP). */
+  /** Gdy ustawione, wysyłka przez Gmail API rzuca tym błędem (symulacja awarii). */
   failWith: null as Error | null,
   /** Jak `failWith`, ale tylko dla wiadomości spełniających warunek (np. tylko do admina). */
   failIf: null as ((mail: SentMail) => boolean) | null,
   reset() {
+    builtMessages.length = 0
     this.sent = []
     this.failWith = null
     this.failIf = null

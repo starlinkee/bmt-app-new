@@ -2,7 +2,6 @@ import 'server-only'
 
 import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/service'
-import { readAppConfig } from '@/lib/app-config'
 import { logAudit } from '@/lib/audit'
 import { tenantDisplayName } from '@/lib/utils'
 import { contractCoversPeriod } from '@/lib/contracts'
@@ -23,14 +22,14 @@ export async function getRentPreview(ownerId: string, month: number, year: numbe
   const existingContractIds = (existingInvoices ?? []).map((i) => i.contract_id).filter(Boolean)
   const skippedCount = existingContractIds.length
 
-  const [contractsResult, appConfigResult] = await Promise.all([
+  const [contractsResult, { data: googleConnection }] = await Promise.all([
     supabase
       .from('contracts')
       .select('*, tenants(id, first_name, last_name, tenant_type, company_name, email, email2, nip, address1, address2, property_id, properties(name))')
       .eq('owner_id', ownerId)
       .eq('is_active', true)
       .not('id', 'in', existingContractIds.length ? `(${existingContractIds.join(',')})` : '(-1)'),
-    readAppConfig(ownerId, ['admin_email']),
+    supabase.from('google_connections').select('google_email, status').eq('owner_id', ownerId).maybeSingle(),
   ])
 
   // Umowy z end_date wcześniejszym niż dany miesiąc są pomijane, nawet jeśli
@@ -50,7 +49,8 @@ export async function getRentPreview(ownerId: string, month: number, year: numbe
   return {
     withEmail,
     withoutEmail,
-    senderEmail: appConfigResult?.admin_email ?? null,
+    // D8: nadawcą jest połączone konto Google (admin_email to tylko odbiorca powiadomień).
+    senderEmail: googleConnection && googleConnection.status === 'connected' ? googleConnection.google_email : null,
     // Liczba aktywnych umów pominiętych, bo mają już rachunek RENT za ten
     // miesiąc/rok (patrz filtr .not('id', 'in', ...) powyżej) - pokazujemy to
     // w panelu testowym, żeby "wygenerowano 0" nie wyglądało jak błąd.

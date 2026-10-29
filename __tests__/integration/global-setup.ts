@@ -1,4 +1,5 @@
 import { restoreLeftoverAppConfig } from '../../tests-support/appConfig'
+import { restoreLeftoverGoogleConnection } from '../../tests-support/googleConnection'
 import { countTestLeftovers, createTestDbClient, purgeAllTestData } from '../../tests-support/db'
 import { assertNotProduction, supabaseRefFromUrl } from '../../tests-support/guard'
 
@@ -32,6 +33,9 @@ export async function setup() {
   // Pozostałości po przerwanym przebiegu: konfiguracja i dane testowe.
   if (await restoreLeftoverAppConfig(db)) {
     console.warn('[integration] Przywrócono app_config z migawki przerwanego przebiegu.')
+  }
+  if (await restoreLeftoverGoogleConnection(db)) {
+    console.warn('[integration] Przywrócono połączenie Google z migawki przerwanego przebiegu.')
   }
   await purgeAllTestData(db)
   startedAt = new Date().toISOString()

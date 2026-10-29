@@ -22,8 +22,11 @@ vi.mock('@/app/(dashboard)/kontrola-platnosci/actions', () => ({
 }))
 
 const sendStatementUploadReminderEmailMock = vi.fn()
+const cronEmailGateMock = vi.fn()
 const sendMeterReadingReminderEmailMock = vi.fn()
 vi.mock('@/lib/email', () => ({
+  cronEmailGate: (...a: unknown[]) => cronEmailGateMock(...a),
+  toCronError: (e: unknown) => e,
   sendStatementUploadReminderEmail: (...a: unknown[]) => sendStatementUploadReminderEmailMock(...a),
   sendMeterReadingReminderEmail: (...a: unknown[]) => sendMeterReadingReminderEmailMock(...a),
 }))
@@ -56,6 +59,8 @@ beforeEach(() => {
   getTenantsWithBalancesMock.mockReset()
   sendStatementToTenantMock.mockReset()
   sendStatementUploadReminderEmailMock.mockReset()
+  cronEmailGateMock.mockReset()
+  cronEmailGateMock.mockResolvedValue(null)
   sendMeterReadingReminderEmailMock.mockReset()
 })
 
@@ -82,13 +87,17 @@ describe('czynsze na 2 kontach', () => {
       { owner_id: 'o1', admin_email: 'a1@example.com' },
       { owner_id: 'o2', admin_email: 'a2@example.com' },
     ],
+    google_connections: [
+      { owner_id: 'o1', google_email: 'g1@gmail.example', status: 'connected' },
+      { owner_id: 'o2', google_email: 'g2@gmail.example', status: 'connected' },
+    ],
   })
 
-  test('podgląd konta o2 nie zawiera umów o1 (i odwrotnie), nadawca z konfiguracji konta', async () => {
+  test('podgląd konta o2 nie zawiera umów o1 (i odwrotnie), nadawca = połączone konto Google (nie admin_email)', async () => {
     seed(data())
     const p2 = await getRentPreview('o2', 6, 2026)
     expect(p2.withEmail.map((c) => c.id)).toEqual([2])
-    expect(p2.senderEmail).toBe('a2@example.com')
+    expect(p2.senderEmail).toBe('g2@gmail.example')
     const p1 = await getRentPreview('o1', 6, 2026)
     expect(p1.withEmail.map((c) => c.id)).toEqual([1])
   })

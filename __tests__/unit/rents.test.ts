@@ -26,6 +26,7 @@ function seed(contracts: unknown[], invoices: unknown[] = []) {
       invoices: invoices as never[],
       app_config: [{ owner_id: 'o1', admin_email: 'admin@example.com' }],
       legacy_owner: [{ id: 1, owner_id: 'o1' }],
+      google_connections: [{ owner_id: 'o1', google_email: 'konto@gmail.example', status: 'connected' }],
     },
     { unique: { invoices: ['contract_id', 'type', 'month', 'year'] } },
   )
@@ -46,7 +47,7 @@ describe('getRentPreview', () => {
 
     expect(preview.withEmail.map((c) => c.id)).toEqual([1])
     expect(preview.withoutEmail.map((c) => c.id)).toEqual([2])
-    expect(preview.senderEmail).toBe('admin@example.com')
+    expect(preview.senderEmail).toBe('konto@gmail.example')
     expect(preview.skippedCount).toBe(0)
   })
 

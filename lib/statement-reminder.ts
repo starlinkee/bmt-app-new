@@ -1,7 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { readAppConfig } from '@/lib/app-config'
 import { logAudit } from '@/lib/audit'
-import { sendStatementUploadReminderEmail } from '@/lib/email'
+import { cronEmailGate, sendStatementUploadReminderEmail, toCronError } from '@/lib/email'
 import { getCurrentDate } from '@/lib/clock'
 
 // Wysyła do administratora przypomnienie o wgraniu wyciągu z banku.
@@ -12,6 +12,11 @@ export async function processStatementUploadReminder(ownerId: string) {
   if (now.getDate() !== 16) {
     return { sent: false, reason: 'Not the 16th' }
   }
+
+  // Bez połączonego Gmaila konto pomijamy jeszcze przed zastrzeżeniem miesiąca (reminder_dedup), żeby po
+  // połączeniu przypomnienie dało się wysłać w tym samym miesiącu.
+  const skipped = await cronEmailGate(ownerId)
+  if (skipped) return { sent: false, skipped }
 
   const supabase = createServiceClient()
 
@@ -65,6 +70,6 @@ export async function processStatementUploadReminder(ownerId: string) {
       operation: 'CREATE',
       errorData: e,
     })
-    throw e
+    throw toCronError(e)
   }
 }

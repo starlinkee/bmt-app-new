@@ -19,8 +19,11 @@ vi.mock('@/app/(dashboard)/kontrola-platnosci/actions', () => ({
 }))
 
 const sendStatementUploadReminderEmailMock = vi.fn()
+const cronEmailGateMock = vi.fn()
 const sendMeterReadingReminderEmailMock = vi.fn()
 vi.mock('@/lib/email', () => ({
+  cronEmailGate: (...a: unknown[]) => cronEmailGateMock(...a),
+  toCronError: (e: unknown) => e,
   sendStatementUploadReminderEmail: (...a: unknown[]) => sendStatementUploadReminderEmailMock(...a),
   sendMeterReadingReminderEmail: (...a: unknown[]) => sendMeterReadingReminderEmailMock(...a),
 }))
@@ -37,6 +40,8 @@ function freshDb(initial: Record<string, unknown[]> = {}) {
 
 beforeEach(() => {
   logAuditMock.mockReset()
+  cronEmailGateMock.mockReset()
+  cronEmailGateMock.mockResolvedValue(null)
   getTenantsWithBalancesMock.mockReset()
   sendStatementToTenantMock.mockReset()
   sendStatementUploadReminderEmailMock.mockReset()
@@ -140,6 +145,28 @@ describe('processStatementUploadReminder', () => {
     expect(db.tables.reminder_dedup).toEqual([
       expect.objectContaining({ action_name: 'statementUploadReminder', dedup_key: '2026-6' }),
     ])
+  })
+
+  test('konto bez połączenia z Google -> skipped, bez wysyłki i bez wpisu w reminder_dedup', async () => {
+    now = new Date(2026, 5, 16)
+    freshDb({ app_config: [config] })
+    cronEmailGateMock.mockResolvedValue('google_not_connected')
+
+    const result = await processStatementUploadReminder('o1')
+
+    expect(result).toEqual({ sent: false, skipped: 'google_not_connected' })
+    expect(sendStatementUploadReminderEmailMock).not.toHaveBeenCalled()
+    expect(db.tables.reminder_dedup).toHaveLength(0)
+  })
+
+  test('reauth wychodzi dopiero przy wysyłce -> zwalnia zastrzeżenie i rzuca google_reauth_required', async () => {
+    now = new Date(2026, 5, 16)
+    freshDb({ app_config: [config] })
+    const { GoogleReauthRequiredError } = await import('@/lib/google-connection')
+    sendStatementUploadReminderEmailMock.mockRejectedValueOnce(new GoogleReauthRequiredError('invalid_grant'))
+
+    await expect(processStatementUploadReminder('o1')).rejects.toBeInstanceOf(GoogleReauthRequiredError)
+    expect(db.tables.reminder_dedup).toHaveLength(0)
   })
 
   test('brak adresu admina -> nie wysyła i nie zastrzega miesiąca', async () => {
@@ -250,6 +277,30 @@ describe('meter reading reminder', () => {
 
     expect(second).toEqual({ sent: false, reason: 'Already sent this month' })
     expect(sendMeterReadingReminderEmailMock).toHaveBeenCalledTimes(1)
+  })
+
+  test('konto bez połączenia z Google -> skipped, bez wysyłki i bez wpisu w reminder_dedup', async () => {
+    now = new Date(2026, 5, 30)
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://app.example.test')
+    freshDb(eligibleData())
+    cronEmailGateMock.mockResolvedValue('google_not_connected')
+
+    const result = await processMeterReadingReminder('o1')
+
+    expect(result).toEqual({ sent: false, skipped: 'google_not_connected' })
+    expect(sendMeterReadingReminderEmailMock).not.toHaveBeenCalled()
+    expect(db.tables.reminder_dedup).toHaveLength(0)
+  })
+
+  test('utrata zgody Google przy wysyłce przerywa pętlę najemców i zwalnia zastrzeżenie', async () => {
+    now = new Date(2026, 5, 30)
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://app.example.test')
+    freshDb(eligibleData())
+    const { GoogleReauthRequiredError } = await import('@/lib/google-connection')
+    sendMeterReadingReminderEmailMock.mockRejectedValueOnce(new GoogleReauthRequiredError('invalid_grant'))
+
+    await expect(processMeterReadingReminder('o1')).rejects.toBeInstanceOf(GoogleReauthRequiredError)
+    expect(db.tables.reminder_dedup).toHaveLength(0)
   })
 
   test('brak NEXT_PUBLIC_APP_URL -> nie wysyła i zwalnia zastrzeżenie', async () => {

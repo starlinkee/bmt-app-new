@@ -57,7 +57,7 @@ export async function saveConnection(ownerId: string, tokens: { refreshToken: st
   if (connError) throw new Error(`google_connections: ${connError.code ?? 'błąd zapisu'}`)
 }
 
-async function markNeedsReauth(ownerId: string, reason: string) {
+export async function markNeedsReauth(ownerId: string, reason: string) {
   await createServiceClient()
     .from('google_connections')
     .update({ status: 'needs_reauth', last_error: reason, updated_at: new Date().toISOString() })

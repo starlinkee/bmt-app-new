@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { patchAppConfigForSuite } from '../../tests-support/appConfig'
+import { patchGoogleConnectionForSuite } from '../../tests-support/googleConnection'
 import { createTestDbClient, E2E_PREFIX, loose, purgeAllTestData } from '../../tests-support/db'
 import {
   createContract,
@@ -59,6 +60,7 @@ const { processSettlement, getPreviousMeterReadings, getCurrentMeterReadings } =
 const db = createTestDbClient()
 const ADMIN_EMAIL = `${E2E_PREFIX.toLowerCase()}admin@example.invalid`
 
+patchGoogleConnectionForSuite()
 patchAppConfigForSuite({ admin_email: ADMIN_EMAIL })
 
 afterAll(async () => {
@@ -265,6 +267,24 @@ describe('processSettlement - błędy', () => {
     expect(mailbox.sent).toHaveLength(0)
   })
 
+  test('brak połączenia z Google -> komunikat przed Drive i bazą, bez należności i wiadomości', async () => {
+    const { tenantA, group } = await seed()
+    const ownerId = process.env.TEST_SESSION_OWNER_ID!
+    await db.from('google_connections').update({ status: 'disconnected' }).eq('owner_id', ownerId)
+    try {
+      await expect(processSettlement(group.id, { WodaOdczyt: '1' }, MONTH, YEAR)).rejects.toThrow(
+        'Aby wysłać e-mail, połącz Gmaila w Ustawieniach.',
+      )
+    } finally {
+      await db.from('google_connections').update({ status: 'connected' }).eq('owner_id', ownerId)
+    }
+
+    expect(sheets.copies).toHaveLength(0)
+    expect(sheets.folders).toHaveLength(0)
+    expect(await invoicesOf(tenantA.id)).toHaveLength(0)
+    expect(mailbox.sent).toHaveLength(0)
+  })
+
   test('brakujące named ranges w arkuszu -> błąd z listą i brak zapisu rozliczenia', async () => {
     const { group } = await seed()
     sheets.missing = ['WodaOdczyt', 'Adres']
@@ -292,7 +312,7 @@ describe('processSettlement - błędy', () => {
 
     const results = await processSettlement(group.id, { WodaOdczyt: '1' }, MONTH, YEAR)
 
-    expect(results[0].emailError).toBe('symulowana awaria SMTP')
+    expect(results[0].emailError).toBe('symulowana awaria Gmaila')
     expect(results[1].emailError).toBeUndefined() // najemca bez e-maila
     expect(await invoicesOf(tenantA.id)).toHaveLength(1)
   })

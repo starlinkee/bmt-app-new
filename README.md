@@ -37,16 +37,11 @@ npm run dev
    supabase db push
    ```
 
-### 2. E-maile (Gmail SMTP)
+### 2. E-maile (Gmail API, per konto)
 
-Aplikacja wysyła e-maile przez Gmail SMTP (`nodemailer`). Nadawcą jest adres administratora ustawiony w aplikacji (**Ustawienia → adres administratora**), a hasło aplikacji Gmail podajesz w env:
+Aplikacja wysyła e-maile przez Gmail API (`gmail.send`) z połączonego konta Google danego konta aplikacji (**Ustawienia → Połącz z Google**). Nadawcą jest adres Google tego konta, a adres administratora z Ustawień (`admin_email`) jest wyłącznie odbiorcą powiadomień. Bez połączenia ręczne wysyłki są blokowane komunikatem, a crony pomijają konto.
 
-```
-GMAIL_APP_PASSWORD=
-```
-
-> Hasło aplikacji wygenerujesz w koncie Google (Zabezpieczenia → Hasła aplikacji; wymaga włączonej weryfikacji dwuetapowej). Bez adresu administratora lub hasła wysyłka kończy się błędem.
-> Poza produkcją (`DEVELOPMENT`/`PREVIEW`) temat e-maila dostaje prefiks `[DEVELOPMENT]`/`[PREVIEW]`, ale e-maile **są wysyłane naprawdę** — nie wpisuj prawdziwych adresów najemców do baz dev/preview.
+> Poza produkcją (`DEVELOPMENT`/`PREVIEW`) temat e-maila dostaje prefiks `[DEVELOPMENT]`/`[PREVIEW]`, ale e-maile **są wysyłane naprawdę** (z połączonego Gmaila) — nie wpisuj prawdziwych adresów najemców do baz dev/preview.
 
 ### 3. Google Sheets i Drive (rozliczanie mediów)
 
@@ -100,7 +95,6 @@ Migracje bazy puszcza automatycznie `npm run vercel-build` (`scripts/vercel-buil
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Klucz publiczny (anon) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Klucz serwera (tajny, bypass RLS) |
 | `SUPABASE_DB_URL` | Connection string do `supabase db push` |
-| `GMAIL_APP_PASSWORD` | Hasło aplikacji Gmail (nadawca = adres admina z Ustawień) |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | JSON Service Account (base64 lub raw) |
 | `GOOGLE_OAUTH_CLIENT_ID` | OAuth2 Client ID (Drive) |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | OAuth2 Client Secret (Drive) |
@@ -139,7 +133,7 @@ Wzór: `.env.example`. Zmienne do testów e2e/integracyjnych: `.env.e2e.example`
 | Styling | Tailwind CSS v4 + shadcn/ui |
 | Baza danych | Supabase (PostgreSQL) |
 | Auth | Supabase Auth (email+hasło, jeden admin) |
-| Email | Gmail SMTP (`nodemailer`) |
+| Email | Gmail API (OAuth per konto) |
 | Arkusze / PDF (media) | Google Sheets API v4 (Service Account) |
 | Drive | Google Drive API v3 (OAuth2) |
 | Cron | Vercel Cron (`vercel.json`) |
