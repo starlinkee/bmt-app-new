@@ -134,11 +134,16 @@ export default function KontrolaPlatnosciPage() {
 
     let sent = 0
     let failed = 0
+    let blockedMessage: string | null = null
     for (const t of debtors) {
+      if (blockedMessage) break
       try {
         const res = await sendStatementToTenant(t.id)
         if (res.success) {
           sent++
+        } else if ('code' in res && res.code === 'email_blocked') {
+          // Brak/utrata połączenia z Google dotyczy wszystkich wysyłek - nie mielimy reszty pętli.
+          blockedMessage = res.error
         } else {
           failed++
         }
@@ -155,7 +160,10 @@ export default function KontrolaPlatnosciPage() {
     }
 
     setSendingAll(false)
-    if (failed === 0) {
+    setSendingTenantIds(new Set())
+    if (blockedMessage) {
+      toast.error(blockedMessage)
+    } else if (failed === 0) {
       toast.success(`Wysłano ${sent} wiadomości.`)
     } else {
       toast.error(`Wysłano ${sent} wiadomości, ${failed} nie powiodło się.`)

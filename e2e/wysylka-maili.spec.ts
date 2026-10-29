@@ -57,6 +57,27 @@ test('bez połączenia z Google: wysyłka wyciągu jest blokowana komunikatem i 
   expect(logs).toHaveLength(0)
 })
 
+test('bez połączenia z Google: „wyślij do wszystkich zadłużonych” pokazuje komunikat blokady i nic nie wysyła', async ({
+  page,
+  db,
+  makeTenant,
+  setGoogleConnection,
+}) => {
+  await setGoogleConnection({ status: 'disconnected' })
+  const debtor = await makeDebtor({ db, makeTenant })
+
+  await page.goto('/kontrola-platnosci')
+  const sendAll = page.getByRole('button', { name: /Wyślij do wszystkich zadłużonych/ })
+  await expect(sendAll).toBeVisible()
+  page.once('dialog', (d) => d.accept())
+  await sendAll.click()
+
+  await expect(page.getByText(BLOCKED)).toBeVisible()
+  await expect(page.getByText(/nie powiodło się/)).toHaveCount(0)
+  const { data: logs } = await db.from('email_logs').select('id').eq('to_email', debtor.email)
+  expect(logs).toHaveLength(0)
+})
+
 test('z połączonym kontem Google (atrapa): wyciąg wysłany, wpis w email_logs dla odbiorcy', async ({
   page,
   db,

@@ -219,7 +219,9 @@ export async function sendStatementToTenant(tenantId: number) {
     return { success: true }
   } catch (err: unknown) {
     const { emailBlockMessage } = await import('@/lib/email')
-    const message = emailBlockMessage(err) ?? (err instanceof Error ? err.message : 'Nieznany błąd podczas wysyłania wyciągu')
+    const blocked = emailBlockMessage(err)
+    if (blocked) return { success: false, error: blocked, code: 'email_blocked' as const }
+    const message = err instanceof Error ? err.message : 'Nieznany błąd podczas wysyłania wyciągu'
     return { success: false, error: message }
   }
 }
