@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 # Krok 07: Podłączenie konta Google (OAuth) i ekran w Ustawieniach (slice 7b)
 
