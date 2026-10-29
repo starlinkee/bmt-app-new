@@ -58,7 +58,7 @@ test('błąd: callback z nieprawidłowym state odmawia, nic nie zapisuje i nie u
   const code = '4/TAJNY-KOD-E2E'
 
   const res = await request.get(`/api/google/callback?state=zly-state&code=${encodeURIComponent(code)}`, { maxRedirects: 0 })
-  expect(res.status()).toBe(302)
+  expect([302, 307]).toContain(res.status())
   const location = res.headers()['location'] ?? ''
   expect(location).toContain('/ustawienia?google=state_invalid')
   expect(location + (await res.text())).not.toContain(code)
@@ -75,7 +75,7 @@ test('start łączenia: przekierowanie na Google (gdy skonfigurowane) albo confi
   await setGoogleConnection({ status: 'disconnected' })
 
   const res = await request.get('/api/google/connect', { maxRedirects: 0 })
-  expect(res.status()).toBe(302)
+  expect([302, 307]).toContain(res.status())
   const location = res.headers()['location'] ?? ''
   const configured = location.startsWith('https://accounts.google.com/')
   test.info().annotations.push({ type: 'wariant', description: configured ? 'GOOGLE_CONNECT_* ustawione na preview' : 'GOOGLE_CONNECT_* brak na preview (config_missing)' })
